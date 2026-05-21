@@ -74,8 +74,8 @@ dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
 #rdHeader h5 { margin:0; font-size:.95rem; font-weight:700; flex:1; }
 #rdClose { background:none; border:none; color:#aaa; font-size:1.3rem; cursor:pointer; }
 #rdClose:hover { color:#fff; }
-/* flex chain: dialog → header/footer fixed, body flex:1 → workarea flex:1 → grid columns scroll */
-#rdBody { flex:1; overflow:hidden; padding:0; min-height:0; display:flex; }
+/* flex chain: dialog(col) → body flex:1(col) → workarea flex:1 → grid columns scroll */
+#rdBody { flex:1; overflow:hidden; padding:0; min-height:0; display:flex; flex-direction:column; }
 #rdWorkArea { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:0; }
 #rdCanvasWrap { position:relative; background:#111; border-right:1px solid #e5e5e5; overflow-y:auto; min-height:0; }
 #rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
