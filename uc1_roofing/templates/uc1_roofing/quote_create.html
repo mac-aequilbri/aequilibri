@@ -74,10 +74,12 @@ dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
 #rdHeader h5 { margin:0; font-size:.95rem; font-weight:700; flex:1; }
 #rdClose { background:none; border:none; color:#aaa; font-size:1.3rem; cursor:pointer; }
 #rdClose:hover { color:#fff; }
-/* flex chain: dialog(col) → body flex:1(col) → workarea flex:1 → grid row 1fr fills height */
-#rdBody { flex:1; overflow:hidden; padding:0; min-height:0; display:flex; flex-direction:column; }
-#rdWorkArea { flex:1; min-height:0; display:grid; grid-template-columns:minmax(0,1fr) 280px; grid-template-rows:1fr; gap:0; }
-#rdCanvasWrap { position:relative; background:#111; border-right:1px solid #e5e5e5; overflow-y:auto; min-height:0; overflow-x:hidden; }
+/* #rdBody is the positioning root; #rdWorkArea is stretched to fill it absolutely.
+   This sidesteps all flex/grid height-chain ambiguity caused by the canvas element
+   setting intrinsic pixel dimensions after load. */
+#rdBody { flex:1; overflow:hidden; padding:0; min-height:0; position:relative; }
+#rdWorkArea { position:absolute; inset:0; display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:0; }
+#rdCanvasWrap { position:relative; background:#111; border-right:1px solid #e5e5e5; overflow-y:auto; overflow-x:hidden; }
 #rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
 #rdLoadingOverlay {
   position:absolute; inset:0; z-index:4; display:none; align-items:center; justify-content:center;
@@ -97,7 +99,7 @@ dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
 #rdSide {
   background:#fbfbfc; padding:12px 14px; border-left:1px solid #eee;
   font-size:.78rem; color:#444;
-  overflow-y:auto; min-height:0;
+  overflow-y:auto;
 }
 .rd-panel-title {
   font-size:.68rem; font-weight:800; color:#1a1a2e;
@@ -165,10 +167,10 @@ dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
 #rdScaleInput { width:80px; padding:3px 6px; border:1px solid #ccc; border-radius:4px;
                 font-size:.78rem; }
 @media (max-width: 900px) {
-  #rdBody { overflow-y:auto; display:block; }
-  #rdWorkArea { grid-template-columns:1fr; min-height:0; }
-  #rdCanvasWrap { border-right:none; border-bottom:1px solid #e5e5e5; overflow-y:visible; min-height:0; }
-  #rdSide { border-left:none; overflow-y:visible; min-height:0; }
+  #rdBody { overflow-y:auto; }
+  #rdWorkArea { position:static; height:auto; grid-template-columns:1fr; }
+  #rdCanvasWrap { border-right:none; border-bottom:1px solid #e5e5e5; overflow-y:visible; overflow-x:visible; }
+  #rdSide { border-left:none; overflow-y:visible; }
   .rd-meta-grid { grid-template-columns:repeat(3,1fr); }
 }
 
