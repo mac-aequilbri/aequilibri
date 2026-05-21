@@ -220,14 +220,27 @@ def detect_roof_features(request):
         body = json.loads(request.body)
         lat = float(body["lat"])
         lng = float(body["lng"])
+        # Optional: caller may pass the already-cropped roof drawing image so we
+        # use the tight satellite crop instead of a fresh wide-angle fetch.
+        roof_image_b64   = body.get("roof_image_b64") or ""
+        roof_media_type  = body.get("roof_media_type") or "image/png"
     except (KeyError, ValueError, json.JSONDecodeError) as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
     google_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
     images = []  # list of {"b64": str, "media_type": str, "label": str}
 
-    # ── 1. Satellite aerial image (zoom-20 top-down) ──────────────────────
-    if google_key:
+    # ── 1. Aerial image — prefer the cropped roof drawing image when available ─
+    # The roof drawing is already tightly cropped to the selected building, giving
+    # Claude a much clearer view of rooftop features (especially solar panels) than
+    # a fresh wide-angle zoom-20 static map fetch.
+    if roof_image_b64:
+        images.append({
+            "b64": roof_image_b64,
+            "media_type": roof_media_type,
+            "label": "aerial",
+        })
+    elif google_key:
         satellite_url = (
             f"https://maps.googleapis.com/maps/api/staticmap"
             f"?center={lat},{lng}&zoom=20&size=640x640"
@@ -330,28 +343,50 @@ def detect_roof_features(request):
             "views_used": [],
         }
 
-    elif sv_labels:
+    # Whether the aerial is a tight roof crop or a wider view affects how
+    # confidently we can detect features.
+    aerial_is_cropped = bool(roof_image_b64)
+    aerial_desc = (
+        "a tightly cropped satellite image of the selected roof"
+        if aerial_is_cropped else
+        "a top-down satellite image of the property"
+    )
+
+    _SOLAR_PANEL_GUIDANCE = (
+        "Solar PV panels appear as: dark blue/black rectangular cells arranged in a "
+        "uniform grid, often with a slightly glossy or metallic sheen, darker than the "
+        "surrounding roof surface. On commercial/rural metal roofs they may appear as "
+        "a rectangular block of darker material contrasting with the corrugated iron. "
+        "Even a single row of panels counts as detected. "
+        "If you see ANY grid-like dark rectangles on the roof, mark solar_panels=true."
+    )
+
+    if sv_labels:
         # Multi-image: aerial + up to 4 directional Street Views
         n_sv = len(sv_labels)
         system = (
             f"You are an expert Australian roof inspector. You will be given "
-            f"{1 + n_sv} images of the same property: one aerial satellite view "
+            f"{1 + n_sv} images of the same property: {aerial_desc} "
             f"and {n_sv} street-level views from different compass directions. "
             "Respond ONLY with a valid JSON object — no markdown, no extra text."
         )
         # Build per-image bullet list
-        bullets = ["• IMAGE 1 — AERIAL/SATELLITE (top-down): identify solar PV panels "
-                   "(dark rectangular arrays), solar hot water (flat collector + tank), "
-                   "AC units, skylights, pools, roof footprint shape."]
+        bullets = [
+            f"• IMAGE 1 — AERIAL ({aerial_desc}): "
+            "Look carefully for solar PV panels (dark rectangular grid arrays, "
+            "often darker than the roof), solar hot water (flat collector + cylindrical tank), "
+            "AC units, skylights, pools."
+        ]
         for idx, lbl in enumerate(sv_labels, 2):
             desc = _SV_DESCRIPTIONS.get(lbl, "street-level view")
             bullets.append(f"• IMAGE {idx} — STREET VIEW {lbl.split('_')[1].upper()} ({desc}).")
 
         prompt = (
-            "You have the following images of the same Australian residential property:\n\n"
+            "You have the following images of the same Australian property:\n\n"
             + "\n".join(bullets)
-            + "\n\nUsing ALL images together:\n"
-            "• Solar panels / hot water → aerial (IMAGE 1)\n"
+            + f"\n\n{_SOLAR_PANEL_GUIDANCE}\n\n"
+            "Using ALL images together:\n"
+            "• Solar panels / hot water → aerial (IMAGE 1) — look carefully at the roof surface\n"
             "• Roof style, material → street views (judge from multiple angles)\n"
             "• Pitch in degrees → measure slope steepness from street views "
             "(flat <5°, low 5–15°, medium 15–25°, steep 25–35°, very steep >35°)\n"
@@ -367,16 +402,18 @@ def detect_roof_features(request):
     else:
         # Satellite only — best-effort from aerial alone
         system = (
-            "You are an expert roof inspector analysing an aerial satellite photograph "
+            f"You are an expert roof inspector analysing {aerial_desc} "
             "of an Australian residential or commercial property. "
             "Respond ONLY with a valid JSON object — no markdown, no extra text."
         )
         prompt = (
-            "Examine this top-down satellite image carefully.\n\n"
-            "Identify any visible rooftop features (solar panels, solar hot water, "
-            "AC units, skylights, pools). Roof style, material and condition are "
-            "difficult to determine from aerial only — set those to 'unknown' unless "
-            "clearly visible. Set pitch_deg and eave_height_m to null.\n\n"
+            f"Examine this {aerial_desc} carefully.\n\n"
+            f"{_SOLAR_PANEL_GUIDANCE}\n\n"
+            "Also identify: solar hot water (flat collector + cylindrical tank), "
+            "AC units, skylights, pools. "
+            "Roof style, material and condition are difficult to determine from aerial "
+            "only — set those to 'unknown' unless clearly visible. "
+            "Set pitch_deg and eave_height_m to null.\n\n"
             "Respond with ONLY this JSON (no markdown fences):\n"
             "{" + _BASE_JSON + "}"
         )

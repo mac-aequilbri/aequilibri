@@ -5214,10 +5214,18 @@ function rdRenderFeatures({
 async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
   if (!lat || !lng) return;
   try {
+    // Pass the already-cropped roof drawing image when available — it gives Claude
+    // a much tighter, higher-detail view of the roof surface for feature detection
+    // (especially solar panels) compared to a fresh wide-angle satellite fetch.
+    const payload = { lat, lng };
+    if (rdData && rdData.image_b64) {
+      payload.roof_image_b64  = rdData.image_b64;
+      payload.roof_media_type = rdData.media_type || 'image/png';
+    }
     const resp = await fetch('/uc1/api/detect-features/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-      body: JSON.stringify({ lat, lng }),
+      body: JSON.stringify(payload),
     });
     if (!resp.ok) return;
     const d = await resp.json();
