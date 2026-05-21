@@ -5182,6 +5182,16 @@ function rdRenderFeatures({
              </div>`;
   }
 
+  // ── Surface silent Claude API errors so 'Not detected' isn't ambiguous ─
+  if (data.detection_error) {
+    html += `<div style="font-size:.62rem;color:#7a3d00;background:#fff3cd;
+                         border:1px solid #ffc107;border-radius:5px;padding:6px 8px;
+                         margin-bottom:7px;line-height:1.35;">
+               ⚠️ <strong>Detection API issue</strong> — results below may be
+               unreliable. <span style="opacity:.85;">(${data.detection_error.slice(0, 140)})</span>
+             </div>`;
+  }
+
   // ── Presence checks ───────────────────────────────────────────────────
   html += row('☀️', 'Solar panels',    solar_panels, solar_panels_confidence);
   html += row('🌡️', 'Solar hot water', solar_hw,     solar_hw_confidence);

@@ -458,5 +458,17 @@ def detect_roof_features(request):
 
     data["demo_mode"]  = result.get("demo_mode", False)
     data["views_used"] = result.get("views_used", [])
+
+    # ── Surface silent Claude API errors ───────────────────────────────────
+    # call_claude_vision*() catches exceptions and embeds the error into the
+    # JSON `notes` field, returning solar_panels=false.  Without this surfacing
+    # an API error (invalid model, rate-limit, network blip) looks IDENTICAL
+    # to "Claude said no panels here".  Expose it so the UI can distinguish.
+    notes = str(data.get("notes") or "")
+    error_markers = ("Claude error:", "Could not parse AI response",
+                     "No imagery available")
+    if any(m in notes for m in error_markers):
+        data["detection_error"] = notes
+        print(f"[detect_roof_features] LIKELY API ERROR — lat={lat} lng={lng}  notes={notes!r}")
     return JsonResponse(data)
 
