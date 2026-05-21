@@ -58,6 +58,26 @@
     .risk-medium { background: #fff3cd; color: #856404; }
     .risk-high   { background: #f8d7da; color: #721c24; }
     footer { background: #2c2c2c; color: var(--ae-earth); text-align: center; padding: 16px; font-size: 0.8rem; margin-top: 48px; }
+
+    /* ── Responsive / Tablet & Mobile ───────────────────────── */
+    .min-w-0 { min-width: 0; }           /* prevent flex children from overflowing */
+    @media (max-width: 991.98px) {
+      .page-header { padding: 14px 16px 12px !important; }
+      .page-header .d-flex { flex-wrap: wrap; gap: .5rem; }
+      .metric-card .value { font-size: 1.6rem; }
+      .d-flex.gap-2 { flex-wrap: wrap; }
+      .sidebar { min-height: auto; }
+    }
+    @media (max-width: 767.98px) {
+      .page-header { padding: 12px 12px 10px !important; }
+      .px-4 { padding-left: .75rem !important; padding-right: .75rem !important; }
+      .table td, .table th { font-size: .82rem; padding: .4rem .5rem; }
+      .btn { font-size: .85rem; }
+    }
+    /* Offcanvas sidebar styling */
+    .offcanvas-sidebar .nav-link { color: #2c2c2c; padding: 8px 16px; border-radius: 6px; }
+    .offcanvas-sidebar .nav-link:hover { background: var(--ae-cream); color: var(--ae-space); }
+    .sidebar-toggle-bar { background: white; border-bottom: 1px solid var(--ae-earth); }
   </style>
   {% block extra_head %}{% endblock %}
 </head>

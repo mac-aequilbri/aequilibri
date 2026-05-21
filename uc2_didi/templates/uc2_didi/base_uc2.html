@@ -2,8 +2,43 @@
 {% block nav_uc2 %}active{% endblock %}
 
 {% block content %}
+
+<!-- Mobile/Tablet toggle bar (hidden on desktop) -->
+<div class="d-flex d-lg-none align-items-center sidebar-toggle-bar px-3 py-2">
+  <button class="btn btn-sm btn-ae" type="button"
+          data-bs-toggle="offcanvas" data-bs-target="#uc2Sidebar" aria-controls="uc2Sidebar">
+    ☰ &nbsp;Didi Menu
+  </button>
+  <span class="uc-badge uc2-badge ms-2">UC2</span>
+</div>
+
+<!-- Offcanvas sidebar (mobile/tablet) -->
+<div class="offcanvas offcanvas-start offcanvas-sidebar" tabindex="-1" id="uc2Sidebar" style="max-width:260px;">
+  <div class="offcanvas-header border-bottom">
+    <div><span class="uc-badge uc2-badge">UC2</span> <strong class="ms-1 small">Didi</strong></div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body px-3 py-3">
+    <nav class="nav flex-column gap-1">
+      <a class="nav-link" href="{% url 'uc2:dashboard' %}">📊 Dashboard</a>
+      <a class="nav-link" href="{% url 'uc2:chat' %}">💬 Chat with Didi</a>
+      <div class="text-muted small px-2 mt-2 mb-1" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em">Database Tables</div>
+      <a class="nav-link" href="{% url 'uc2:action_hub' %}">✅ Action Hub</a>
+      <a class="nav-link" href="{% url 'uc2:budget' %}">💰 Budget</a>
+      <a class="nav-link" href="{% url 'uc2:phases' %}">🏗 Phases</a>
+      <a class="nav-link" href="{% url 'uc2:decisions' %}">📋 Decisions</a>
+      <a class="nav-link" href="{% url 'uc2:vendors' %}">🏢 Vendors</a>
+      <a class="nav-link" href="{% url 'uc2:procurement' %}">📦 Procurement</a>
+      <div class="text-muted small px-2 mt-2 mb-1" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.08em">Intelligence</div>
+      <a class="nav-link" href="{% url 'uc2:learning_rules' %}">🧠 Learning Rules</a>
+      <a class="nav-link" href="{% url 'uc2:change_log' %}">🔍 Change Log</a>
+    </nav>
+  </div>
+</div>
+
 <div class="d-flex">
-  <div class="sidebar px-3 py-4" style="width:220px; min-width:220px;">
+  <!-- Desktop sidebar (visible only on lg+) -->
+  <div class="sidebar d-none d-lg-block px-3 py-4 flex-shrink-0" style="width:220px;">
     <div class="mb-3"><span class="uc-badge uc2-badge">UC2</span> <small class="fw-bold">Didi</small></div>
     <nav class="nav flex-column gap-1">
       <a class="nav-link {% block sb_dash %}{% endblock %}" href="{% url 'uc2:dashboard' %}">📊 Dashboard</a>
@@ -20,8 +55,10 @@
       <a class="nav-link {% block sb_log %}{% endblock %}" href="{% url 'uc2:change_log' %}">🔍 Change Log</a>
     </nav>
   </div>
-  <div class="flex-grow-1">
+  <!-- Main content -->
+  <div class="flex-grow-1 min-w-0">
     {% block uc2_content %}{% endblock %}
   </div>
 </div>
+
 {% endblock %}
