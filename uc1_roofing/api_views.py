@@ -353,12 +353,20 @@ def detect_roof_features(request):
     )
 
     _SOLAR_PANEL_GUIDANCE = (
-        "Solar PV panels appear as: dark blue/black rectangular cells arranged in a "
-        "uniform grid, often with a slightly glossy or metallic sheen, darker than the "
-        "surrounding roof surface. On commercial/rural metal roofs they may appear as "
-        "a rectangular block of darker material contrasting with the corrugated iron. "
-        "Even a single row of panels counts as detected. "
-        "If you see ANY grid-like dark rectangles on the roof, mark solar_panels=true."
+        "═══ SOLAR PANEL DETECTION — examine carefully before answering ═══\n"
+        "Solar PV panels look like ONE OR MORE of the following on the aerial image:\n"
+        "  • Dark blue/black rectangular cells in a neat rectangular grid pattern\n"
+        "  • A uniform dark rectangle or strip on the roof, noticeably darker than "
+        "the rest of the roof surface (metal, tile, or terracotta)\n"
+        "  • May appear slightly raised and cast tiny edge shadows\n"
+        "  • On corrugated iron roofs: a rectangular block of flat dark material "
+        "contrasting with the ribbed texture — very obvious\n"
+        "  • In Street View: dark rectangular panels visible on a sloped roof face\n"
+        "  • Even a single row of 4+ panels counts as detected\n\n"
+        "BIAS RULE: If there is ANY area that could plausibly be solar panels, "
+        "set solar_panels=true and solar_panels_confidence='medium'. "
+        "A missed detection is a missed solar upsell — far worse than a false positive "
+        "that a site inspector can quickly dismiss. When in doubt, say true."
     )
 
     if sv_labels:
@@ -396,7 +404,8 @@ def detect_roof_features(request):
             "Respond with ONLY this JSON (no markdown fences):\n"
             "{" + _BASE_JSON + "}"
         )
-        result = call_claude_vision_multi(system, prompt, images, max_tokens=800)
+        result = call_claude_vision_multi(system, prompt, images, max_tokens=800,
+                                          model="claude-opus-4-6")
         result["views_used"] = ["aerial"] + sv_labels
 
     else:

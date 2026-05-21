@@ -5813,7 +5813,24 @@ function _ridRender3D(data, polygon) {
   if (!pts || pts.length < 3) { const s=7; pts=[[-s,-s],[-s,s],[s,s],[s,-s]]; }
 
   const eH  = Math.max(data.eave_height_m  || 2.7, 1.5);
-  const rH  = Math.max(data.ridge_height_m || (eH+2), eH+0.5);
+
+  // ── Realistic ridge height from pitch + polygon half-span ─────────────────
+  // data.ridge_height_m from LiDAR/Solar API is often unreliable (can be the
+  // rise-only value treated as total, or simply wrong). Always derive from the
+  // actual pitch angle and the shorter dimension of the building footprint.
+  const _avgPitch3d = (() => {
+    const ss = Array.isArray(data.sections) ? data.sections : [];
+    const ps = ss.map(s => rdNum(s.pitch_deg, rdNum(s.pitch_est, 0))).filter(p => p > 2);
+    if (ps.length) return ps.reduce((a, b) => a + b, 0) / ps.length;
+    return data.avg_pitch_deg || 22;
+  })();
+  const _xs = pts.map(p => p[0]), _ys = pts.map(p => p[1]);
+  const _halfSpan = Math.min(
+    Math.max(..._xs) - Math.min(..._xs),
+    Math.max(..._ys) - Math.min(..._ys)
+  ) / 2;
+  const _pitchRise = Math.max(0.6, _halfSpan * Math.tan(_avgPitch3d * Math.PI / 180));
+  const rH = eH + _pitchRise;
   const sc  = (data.scaffolding||{}).required || false;
   const secs = Array.isArray(data.sections)
     ? data.sections.map((sec, idx) => _ridNormalizeInspectorSection(sec, idx, data))

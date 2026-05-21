@@ -51,7 +51,8 @@ def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
 
 
 def call_claude_vision_multi(system_prompt: str, user_text: str, images: list,
-                              max_tokens: int = 1024) -> dict:
+                              max_tokens: int = 1024,
+                              model: str = "claude-sonnet-4-6") -> dict:
     """
     Call Claude with multiple base64 images + a text prompt.
 
@@ -91,7 +92,7 @@ def call_claude_vision_multi(system_prompt: str, user_text: str, images: list,
 
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
-            model="claude-sonnet-4-6",
+            model=model,
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": content}],
