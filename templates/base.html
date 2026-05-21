@@ -95,17 +95,18 @@
             <span class="uc-badge uc1-badge me-1">UC1</span> Roofing Estimator
           </a>
         </li>
-        {# UC2 and UC3 hidden for UC1 demo — remove comments to re-enable #}
-        {# <li class="nav-item">
-          <a class="nav-link {% block nav_uc2 %}{% endblock %}" href="/uc2/">
+        {% comment %}UC2 and UC3 hidden for UC1 demo — remove comment tags to re-enable
+        <li class="nav-item">
+          <a class="nav-link" href="/uc2/">
             <span class="uc-badge uc2-badge me-1">UC2</span> Didi — Dulong Downs
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link {% block nav_uc3 %}{% endblock %}" href="/uc3/">
+          <a class="nav-link" href="/uc3/">
             <span class="uc-badge uc3-badge me-1">UC3</span> MSME Coordinator
           </a>
-        </li> #}
+        </li>
+        {% endcomment %}
       </ul>
       <ul class="navbar-nav">
         <li class="nav-item"><a class="nav-link" href="/admin/">Admin</a></li>
