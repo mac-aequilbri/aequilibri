@@ -1665,22 +1665,36 @@ def _point_in_poly_xy(x: float, y: float, poly: list) -> bool:
 
 
 def _filter_sections_to_footprint(parsed: dict, footprint_pct: list) -> int:
+    """Filter sections whose centroid lies outside footprint_pct.
+
+    Safety rule: if filtering would discard ALL sections, keep every section
+    instead — the footprint boundary is probably wrong or too tight, and
+    showing Claude's output (even if slightly outside) is better than nothing.
+    """
     if len(footprint_pct) < 3:
         return 0
 
     kept = []
-    dropped = 0
+    dropped_secs = []
     for sec in parsed.get('sections', []) or []:
         poly = sec.get('polygon') or []
         if len(poly) < 3:
-            dropped += 1
+            dropped_secs.append(sec)
             continue
         cx = sum(float(p[0]) for p in poly) / len(poly)
         cy = sum(float(p[1]) for p in poly) / len(poly)
         if _point_in_poly_xy(cx, cy, footprint_pct):
             kept.append(sec)
         else:
-            dropped += 1
+            dropped_secs.append(sec)
+
+    dropped = len(dropped_secs)
+
+    if not kept:
+        # Filtering would leave nothing — footprint is likely wrong; keep all
+        note = parsed.get('notes', '')
+        parsed['notes'] = (note + " Footprint boundary could not be used for section filtering — showing all detected sections.").strip()
+        return 0
 
     parsed['sections'] = kept
     if dropped:
@@ -1867,7 +1881,10 @@ def roof_drawing_analyze(request):
                       "notes": "Could not parse Claude response"}
         ai_outline_pct = _clean_pct_polygon(parsed.get('roof_outline') or [])
         ai_footprint = _pct_polygon_to_geo(ai_outline_pct, map_view, width, height)
-        section_boundary_pct = ai_outline_pct or footprint_pct
+        # Use AI outline as filter boundary when available; if not, use building
+        # footprint but only if it has a reasonable number of vertices (3+).
+        # Never use a boundary that's smaller than a plausible roof polygon.
+        section_boundary_pct = ai_outline_pct if len(ai_outline_pct) >= 3 else footprint_pct
         dropped_sections = _filter_sections_to_footprint(parsed, section_boundary_pct)
 
         # ── Attach colors + area estimates ───────────────────────────────────
