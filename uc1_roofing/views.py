@@ -1964,7 +1964,7 @@ def roof_drawing_analyze(request):
     2. Sends to Claude Vision for roof section detection
     3. Returns: { image_b64, sections, scale, roof_type, confidence, notes }
     """
-    from core.claude_client import call_claude_vision, call_claude_vision_multi
+    from core.claude_client import call_claude_vision
 
     try:
         body    = json.loads(request.body)
@@ -2134,6 +2134,18 @@ def roof_drawing_analyze(request):
         except Exception:
             pass
 
+        # ── Suburb pattern learning (added to the single-pass prompt) ───────
+        # This is the ONE blue-sky improvement we keep; it injects a plausibility
+        # hint without altering image inputs or coordinate spaces.
+        address_str = str(body.get('address') or '')
+        suburb_hint = ''
+        if address_str:
+            suburb_key = extract_suburb(address_str)
+            if suburb_key:
+                sp = suburb_section_pattern(suburb_key)
+                if sp:
+                    suburb_hint = f'\n{sp.prompt_text}'
+
         user_prompt = (
             f"Analyze this tightly cropped satellite image of the selected roof. "
             f"The clicked coordinates are ({lat:.5f}, {lng:.5f}); the image center is "
@@ -2150,110 +2162,18 @@ def roof_drawing_analyze(request):
             f"(2) all section polygons sit inside roof_outline, (3) no other building is included, "
             f"(4) every section boundary aligns with a visible ridge line, hip ridge, or valley line — "
             f"if no such line exists, the two surfaces are ONE section not two. "
-            f"{solar_context}"
+            f"{solar_context}{suburb_hint}"
             f"Return the JSON as instructed."
         )
-        # ── Multi-zoom fusion + Multi-pass AI detection ─────────────────────────
-        # Pass 1 (Sonnet, 2 images): identify roof_outline using context + detail.
-        # Pass 2 (Opus,  1 image):  detect sections on a tight crop of that outline.
-        # Falls back to the existing single-pass call when zoom is too low or
-        # the context image cannot be fetched.
 
+        # ── Single-pass Claude call (Opus 4.7) ───────────────────────────────
+        # Earlier multi-pass / multi-zoom code was REMOVED because the pass-2
+        # crop-and-retrace step produced a looser roof_outline than the
+        # original single-pass call (the cropped image gave Claude too much
+        # padding around the roof and it traced the crop boundary instead of
+        # the roof edge). Reverted to the original single-pass flow.
         multi_pass_used = False
-        crop_info: dict = {}
-        pass1_outline_pct: list = []
-
-        # ── Fetch context image at zoom-1 ────────────────────────────────────
-        context_b64 = None
-        if zoom >= 19 and api_key:
-            ctx_zoom = zoom - 1
-            ctx_bytes = _fetch_context_zoom_image(lat, lng, ctx_zoom, width, height, api_key)
-            if ctx_bytes:
-                # Yellow dot at centre of the context image (lat/lng is the image centre)
-                ctx_click_px = _static_map_pixel(lat, lng, lat, lng, ctx_zoom, width, height)
-                context_b64, _ = _annotate_image_for_roof_vision(ctx_bytes, [], ctx_click_px)
-
-        # ── Pass 1: outline-only using both images ───────────────────────────
-        if context_b64:
-            p1_images = [
-                {"b64": context_b64,  "media_type": "image/png",    "label": "context"},
-                {"b64": vision_b64,   "media_type": vision_media_type, "label": "detail"},
-            ]
-            p1_user = (
-                f"Image 1 = context view (zoom {zoom - 1}). "
-                f"Image 2 = detail view (zoom {zoom}). "
-                f"Yellow dot in Image 2 marks the target building. "
-                f"Clicked coords: ({lat:.5f}, {lng:.5f}). "
-                f"{guide_prompt}"
-                f"Trace the complete connected roof outline of that single building. "
-                f"Return % coords of Image 2 only."
-            )
-            p1_result = call_claude_vision_multi(
-                ROOF_OUTLINE_SYSTEM, p1_user, p1_images,
-                max_tokens=512, model="claude-opus-4-7",
-            )
-            try:
-                p1_raw = re.sub(r'(?s)^```(?:json)?\s*|\s*```$', '',
-                                p1_result['content']).strip()
-                p1_parsed = json.loads(p1_raw)
-                pass1_outline_pct = _clean_pct_polygon(p1_parsed.get('roof_outline') or [])
-            except Exception:
-                pass1_outline_pct = []
-
-        # ── Pass 2: section detection on outline crop ────────────────────────
-        if len(pass1_outline_pct) >= 3:
-            crop_bytes, crop_info = _crop_image_to_outline_pct(
-                img_bytes, pass1_outline_pct, width, height, padding_pct=8.0,
-            )
-            crop_w_px = crop_info.get('crop_w_px', width)
-            crop_h_px = crop_info.get('crop_h_px', height)
-
-            if crop_info:
-                crop_click_px = (
-                    _full_px_to_crop_px(click_px[0], click_px[1], width, height, crop_info)
-                    if click_px else None
-                )
-                crop_footprint_px = [
-                    _full_px_to_crop_px(p[0], p[1], width, height, crop_info)
-                    for p in footprint_px
-                ]
-            else:
-                crop_click_px = click_px
-                crop_footprint_px = footprint_px
-
-            crop_vision_b64, crop_media = _annotate_image_for_roof_vision(
-                crop_bytes, crop_footprint_px, crop_click_px,
-            )
-
-            # Suburb pattern learning
-            address_str = str(body.get('address') or '')
-            suburb_hint = ''
-            if address_str:
-                suburb_key = extract_suburb(address_str)
-                if suburb_key:
-                    sp = suburb_section_pattern(suburb_key)
-                    if sp:
-                        suburb_hint = f'\n{sp.prompt_text}'
-
-            p2_prompt = (
-                f"Cropped satellite image of the selected roof only "
-                f"({crop_w_px}×{crop_h_px} px). "
-                f"Clicked point ({lat:.5f}, {lng:.5f}). "
-                f"{guide_prompt}{correction_learning_text}"
-                f"Yellow dot marks the SINGLE roof. Detect every section using the ridge-line method. "
-                f"Before returning JSON, verify: (1) yellow dot inside roof_outline, "
-                f"(2) all sections inside roof_outline, (3) no other building included, "
-                f"(4) every section boundary aligns with a visible ridge/hip/valley line — "
-                f"if no such line exists, the two surfaces are ONE section not two. "
-                f"{solar_context}{suburb_hint}"
-                f" All polygon coords = % of THIS cropped image ({crop_w_px}×{crop_h_px} px)."
-            )
-            result = call_claude_vision(ROOF_VISION_SYSTEM, p2_prompt, crop_vision_b64, crop_media)
-            multi_pass_used = True
-
-        else:
-            # Single-pass fallback (original behaviour)
-            result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt, vision_b64, vision_media_type)
+        result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt, vision_b64, vision_media_type)
 
         # ── Parse Claude's JSON response ─────────────────────────────────────
         raw = result['content'].strip()
@@ -2264,18 +2184,6 @@ def roof_drawing_analyze(request):
         except json.JSONDecodeError:
             parsed = {"sections": [], "roof_type": "unknown", "confidence": "low",
                       "notes": "Could not parse Claude response"}
-
-        # ── Remap crop → full-image % coords when pass 2 was used ────────────
-        if multi_pass_used and crop_info:
-            p2_outline = _clean_pct_polygon(parsed.get('roof_outline') or [])
-            parsed['roof_outline'] = (
-                _remap_pct_polygon(p2_outline, crop_info) if p2_outline else pass1_outline_pct
-            )
-            for sec in parsed.get('sections') or []:
-                raw_poly = _clean_pct_polygon(sec.get('polygon') or [])
-                sec['polygon'] = _remap_pct_polygon(raw_poly, crop_info) if raw_poly else []
-        elif multi_pass_used and pass1_outline_pct and not parsed.get('roof_outline'):
-            parsed['roof_outline'] = pass1_outline_pct
 
         ai_outline_pct = _clean_pct_polygon(parsed.get('roof_outline') or [])
         ai_footprint = _pct_polygon_to_geo(ai_outline_pct, map_view, width, height)
@@ -2331,7 +2239,6 @@ def roof_drawing_analyze(request):
             'footprint_pct': footprint_pct,
             'ai_footprint': ai_footprint,
             'ai_outline_pct': ai_outline_pct,
-            'pass1_outline_pct': pass1_outline_pct,
             'footprint_source': map_view.get('footprint_source', ''),
             'crop_box_px': map_view.get('crop_box_px', []),
             'cropped': bool(map_view.get('cropped', False)),

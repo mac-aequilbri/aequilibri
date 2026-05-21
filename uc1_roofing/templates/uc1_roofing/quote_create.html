@@ -3877,8 +3877,7 @@ async function rdRerun() {
 
     const source = (apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback';
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    const multiPassSuffix = apiData.multi_pass_used ? ' [2-pass + multi-zoom]' : '';
-    rdSetStatus(`Roof drawing generated from ${source}${learningSuffix}${multiPassSuffix}.`, false);
+    rdSetStatus(`Roof drawing generated from ${source}${learningSuffix}.`, false);
   } catch(e) {
     rdSetStatus('Network error: ' + e.message, false);
   }
@@ -7027,8 +7026,7 @@ rdRerun = async function(force=false) {
 
     const source = (apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback';
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    const multiPassSuffix = apiData.multi_pass_used ? ' [2-pass + multi-zoom]' : '';
-    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : `Roof drawing generated from ${source}${learningSuffix}${multiPassSuffix}.`, false);
+    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : `Roof drawing generated from ${source}${learningSuffix}.`, false);
   } catch(e) {
     rdSetRoofLoading(false);
     rdSetStatus('Network error: ' + e.message, false);
