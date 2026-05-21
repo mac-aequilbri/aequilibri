@@ -4337,18 +4337,12 @@ function rdPopulateMeta(data) {
     { icon: '🏗️', label: 'Scaffolding',     detected: hasScaff   },
   ];
 
+  // Show scaffolding immediately (calculated from LiDAR) then trigger vision scan
   const featEl = document.getElementById('rdDetectedFeatures');
-  featEl.innerHTML = features.map(f => `
-    <div style="display:flex;align-items:center;justify-content:space-between;
-                padding:5px 8px;border-radius:6px;margin-bottom:4px;
-                background:${f.detected ? '#e8f5e9' : '#f5f5f5'};
-                border:1px solid ${f.detected ? '#a5d6a7' : '#e0e0e0'}">
-      <span style="font-size:.78rem;">${f.icon} ${f.label}</span>
-      <span style="font-size:.68rem;font-weight:700;
-                   color:${f.detected ? '#2e7d32' : '#9e9e9e'}">
-        ${f.detected ? '✓ Detected' : '— Not detected'}
-      </span>
-    </div>`).join('');
+  rdRenderFeatures({ solar_panels: hasSolar, solar_hw: hasSolarHw,
+                     scaffolding: hasScaff, scanning: true });
+  // Fire Claude Vision detection asynchronously
+  rdDetectFeaturesVision(data.lat || data.center?.lat, data.lng || data.center?.lng, hasScaff);
 
   rdUpdateQualityPanel(data);
   rdSyncEditUi();
@@ -5077,6 +5071,75 @@ function rdQualityMetrics(data=rdData) {
   const level = outside || coverage > 1.7 || coverage < 0.35 || outline.length < 3 ? 'bad'
     : issues.length ? 'warn' : 'good';
   return { level, outline_vertices:outline.length, footprint_area:footprintArea, section_area:sectionArea, coverage, outside, issues };
+}
+
+// ── Detected Features helpers ─────────────────────────────────────────────────
+
+function rdRenderFeatures({ solar_panels=false, solar_hw=false, scaffolding=false,
+                             solar_panels_confidence='', solar_hw_confidence='',
+                             other_features=[], scanning=false } = {}) {
+  const el = document.getElementById('rdDetectedFeatures');
+  if (!el) return;
+
+  const badge = (detected, conf) => {
+    if (detected) {
+      const c = conf === 'high' ? '#1b5e20' : conf === 'medium' ? '#e65100' : '#2e7d32';
+      return `<span style="font-size:.68rem;font-weight:700;color:${c}">✓ Detected${conf ? ' ('+conf+')' : ''}</span>`;
+    }
+    return `<span style="font-size:.68rem;color:#9e9e9e">— Not detected</span>`;
+  };
+
+  const row = (icon, label, detected, conf='') => `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:5px 8px;border-radius:6px;margin-bottom:4px;
+                background:${detected ? '#e8f5e9' : '#f5f5f5'};
+                border:1px solid ${detected ? '#a5d6a7' : '#e0e0e0'}">
+      <span style="font-size:.78rem;">${icon} ${label}</span>
+      ${badge(detected, conf)}
+    </div>`;
+
+  let html = row('☀️', 'Solar panels',    solar_panels, solar_panels_confidence)
+           + row('🌡️', 'Solar hot water', solar_hw,      solar_hw_confidence)
+           + row('🏗️', 'Scaffolding',     scaffolding,   scaffolding ? 'high' : '');
+
+  if (other_features && other_features.length) {
+    html += `<div style="font-size:.68rem;color:#555;margin-top:5px;padding:4px 8px;
+                         background:#fff8e1;border-radius:5px;border:1px solid #ffe082;">
+               🔎 Also noted: ${other_features.join(', ')}
+             </div>`;
+  }
+
+  if (scanning) {
+    html += `<div style="font-size:.65rem;color:#1565c0;margin-top:5px;text-align:center;">
+               ⏳ Scanning roof image with AI…
+             </div>`;
+  }
+
+  el.innerHTML = html;
+}
+
+async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
+  if (!lat || !lng) return;
+  try {
+    const resp = await fetch('/uc1/api/detect-features/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ lat, lng }),
+    });
+    if (!resp.ok) return;
+    const d = await resp.json();
+    rdRenderFeatures({
+      solar_panels:            d.solar_panels || false,
+      solar_panels_confidence: d.solar_panels_confidence || '',
+      solar_hw:                d.solar_hw || false,
+      solar_hw_confidence:     d.solar_hw_confidence || '',
+      scaffolding:             scaffoldingRequired,
+      other_features:          d.other_features || [],
+      scanning:                false,
+    });
+  } catch(e) {
+    console.warn('Feature detection error:', e);
+  }
 }
 
 function rdUpdateQualityPanel(data=rdData) {

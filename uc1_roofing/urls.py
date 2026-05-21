@@ -31,7 +31,8 @@ urlpatterns = [
     path('purchase-orders/<int:po_pk>/print/', views.purchase_order_print, name='purchase_order_print'),
     # Price check log
     path('price-check-log/', views.price_check_log, name='price_check_log'),
-    path('api/vendor-prices/', api_views.api_vendor_prices, name='api_vendor_prices'),
+    path('api/vendor-prices/',      api_views.api_vendor_prices,     name='api_vendor_prices'),
+    path('api/detect-features/',    api_views.detect_roof_features,  name='detect_features'),
 
     # ── Revenue Feature 1: Guttering Auto-Quote ───────────────────────────────
     path('guttering-rates/',                    views.guttering_rates,        name='guttering_rates'),

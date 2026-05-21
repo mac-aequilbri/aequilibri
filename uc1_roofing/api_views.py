@@ -7,7 +7,10 @@ input/output, validation, and status codes.
 from __future__ import annotations
 
 import json
+import base64
+import urllib.request
 
+from django.conf import settings
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
@@ -187,4 +190,93 @@ def _persist_lidar_analysis(quote_id, result: dict) -> None:
             "elapsed_ms": result["elapsed_ms"],
         },
     )
+
+
+# ── Feature Detection via Claude Vision ───────────────────────────────────────
+
+@csrf_exempt
+def detect_roof_features(request):
+    """
+    Fetch a satellite image of the roof via Google Static Maps API and
+    send it to Claude Vision to detect solar panels, solar hot water,
+    and other rooftop features.
+    POST { lat, lng }
+    Returns { solar_panels, solar_hw, other_features, notes, demo_mode }
+    """
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+
+    try:
+        body = json.loads(request.body)
+        lat  = float(body["lat"])
+        lng  = float(body["lng"])
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        return JsonResponse({"error": str(exc)}, status=400)
+
+    # ── 1. Fetch satellite image from Google Static Maps ──────────────────
+    api_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
+    img_b64  = None
+    if api_key:
+        static_url = (
+            f"https://maps.googleapis.com/maps/api/staticmap"
+            f"?center={lat},{lng}&zoom=20&size=640x640"
+            f"&maptype=satellite&key={api_key}"
+        )
+        try:
+            req = urllib.request.Request(static_url, headers={"User-Agent": "aequilibri/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                img_b64 = base64.b64encode(resp.read()).decode()
+        except Exception:
+            img_b64 = None
+
+    # ── 2. Call Claude Vision ─────────────────────────────────────────────
+    from core.claude_client import call_claude_vision, call_claude
+
+    if img_b64:
+        system = (
+            "You are an expert roof inspector analysing an aerial satellite photograph "
+            "of an Australian residential or commercial property. "
+            "Your task is to visually identify features present on the roof. "
+            "Respond ONLY with a valid JSON object — no markdown, no extra text."
+        )
+        prompt = (
+            "Examine this satellite rooftop image carefully. Identify if the following "
+            "are visibly present:\n"
+            "1. Solar PV panels (dark rectangular panels in arrays)\n"
+            "2. Solar hot water system (flat plate collectors or evacuated tube collectors, "
+            "often with a cylindrical tank)\n"
+            "3. Any other notable rooftop features (e.g. skylights, roof vents, "
+            "air conditioning units, antennas, heritage features)\n\n"
+            "Respond with ONLY this JSON:\n"
+            '{"solar_panels": true/false, "solar_panels_confidence": "high/medium/low", '
+            '"solar_hw": true/false, "solar_hw_confidence": "high/medium/low", '
+            '"other_features": ["list of strings or empty array"], '
+            '"notes": "one sentence summary"}'
+        )
+        result = call_claude_vision(system, prompt, img_b64, media_type="image/png", max_tokens=512)
+    else:
+        # No image available — fall back to text-only Claude with a note
+        result = {"content": '{"solar_panels":false,"solar_panels_confidence":"low","solar_hw":false,"solar_hw_confidence":"low","other_features":[],"notes":"Satellite image unavailable — manual inspection required."}', "demo_mode": True}
+
+    # ── 3. Parse and return ───────────────────────────────────────────────
+    try:
+        raw = result["content"].strip()
+        # Strip any accidental markdown fences
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        data = json.loads(raw)
+    except (json.JSONDecodeError, IndexError):
+        data = {
+            "solar_panels": False,
+            "solar_panels_confidence": "low",
+            "solar_hw": False,
+            "solar_hw_confidence": "low",
+            "other_features": [],
+            "notes": "Could not parse AI response.",
+        }
+
+    data["demo_mode"] = result.get("demo_mode", False)
+    return JsonResponse(data)
 
