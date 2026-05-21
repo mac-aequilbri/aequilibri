@@ -26,7 +26,8 @@ from .models import (Quote, QuoteItem, Contact, RateCard, RoofPolygon,
                      StormEvent, StormLead, RoofConditionReport)
 from .forms import QuoteForm, ContactForm, RateCardForm
 from .geoscape_service import GeoscapeError, lookup_geoscape_building
-from .services.correction_memory import roof_correction_learning_prompt
+from .services.correction_memory import (roof_correction_learning_prompt,
+                                          extract_suburb, suburb_section_pattern)
 from .services.paid_api_cache import SHORT_TTL_SECONDS, get_cached, set_cached
 
 
@@ -1335,6 +1336,28 @@ Respond with ONLY valid JSON, no explanation, no markdown fences. Format:
   "notes": "overall observation"
 }"""
 
+ROOF_OUTLINE_SYSTEM = """You are an expert roofing estimator. You receive TWO satellite images:
+  Image 1 — CONTEXT view (wider zoom): shows the building in its street/neighbourhood context.
+  Image 2 — DETAIL view (closer zoom): shows the target roof more closely.
+
+Your ONLY task is to trace the roof outline of the SINGLE building marked by the yellow dot in Image 2.
+
+Rules:
+- The yellow dot identifies the exact building to outline.
+- Trace tightly around ONLY that connected roof — within 1-2 metres of the visible roof edge.
+- Do NOT include any neighbouring building, shed, carport, driveway, or tree.
+- Use Image 1 (context) to see where this roof ends and the next building or gap begins.
+- Return polygon vertices as PERCENTAGE coordinates of Image 2 (the detail image):
+  x% of its width, y% of its height. Origin = top-left corner. North is UP.
+
+Respond with ONLY valid JSON, no explanation, no markdown fences:
+{
+  "roof_outline": [[x1,y1],[x2,y2],[x3,y3],...],
+  "confidence": "high|medium|low",
+  "notes": "brief observation"
+}"""
+
+
 FACING_COLORS_PY = {
     'N': '#3B82F6', 'NE': '#06B6D4', 'E': '#F59E0B', 'SE': '#EF4444',
     'S': '#F97316', 'SW': '#EC4899', 'W': '#8B5CF6', 'NW': '#10B981',
@@ -1764,6 +1787,173 @@ def _apply_solar_to_sections(sections: list, solar_sections: list) -> None:
             remaining.pop(best_i)
 
 
+def _fetch_context_zoom_image(
+    lat: float, lng: float, zoom: int, width: int, height: int, api_key: str,
+) -> bytes | None:
+    """Fetch a Google Static Maps satellite image at *zoom* centred on lat/lng.
+
+    Uses the short-TTL cache.  Returns raw bytes or None on failure.
+    The context image is NOT cropped — it shows a wider neighbourhood view.
+    """
+    cache_payload = {
+        'center_lat': round(lat, 7),
+        'center_lng': round(lng, 7),
+        'zoom': zoom,
+        'size': f'{width}x{height}',
+        'maptype': 'satellite',
+        'version': 'context-zoom-v1',
+    }
+    cached = get_cached('google_static_maps_satellite', cache_payload)
+    if cached:
+        return cached.get('img_bytes') or None
+    params = urllib.parse.urlencode({
+        'center': f'{lat},{lng}',
+        'zoom': zoom,
+        'size': f'{width}x{height}',
+        'maptype': 'satellite',
+        'key': api_key,
+    })
+    url = f'https://maps.googleapis.com/maps/api/staticmap?{params}'
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'aequilibri-poc/1.0'})
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            img_bytes = resp.read()
+        set_cached('google_static_maps_satellite', cache_payload, {
+            'img_bytes': img_bytes, 'content_type': 'image/png', 'zoom': zoom,
+        }, SHORT_TTL_SECONDS)
+        return img_bytes
+    except Exception:
+        return None
+
+
+def _crop_image_to_outline_pct(
+    img_bytes: bytes,
+    outline_pct: list,
+    full_w: int,
+    full_h: int,
+    padding_pct: float = 8.0,
+) -> tuple[bytes, dict]:
+    """Crop *img_bytes* to the bounding box of *outline_pct* with padding.
+
+    *outline_pct* vertices are percentage coordinates of the full image.
+    Returns ``(cropped_bytes, crop_info)`` where crop_info keys are:
+      offset_x_pct, offset_y_pct — top-left of crop in full-image %
+      crop_w_pct,   crop_h_pct   — dimensions in full-image %
+      crop_w_px,    crop_h_px    — pixel dimensions of the returned crop
+
+    Returns ``(img_bytes, {})`` on failure.
+    """
+    if len(outline_pct) < 3:
+        return img_bytes, {}
+    try:
+        from PIL import Image as _PILImage
+        xs = [float(p[0]) for p in outline_pct]
+        ys = [float(p[1]) for p in outline_pct]
+        x_min = max(0.0,   min(xs) - padding_pct)
+        x_max = min(100.0, max(xs) + padding_pct)
+        y_min = max(0.0,   min(ys) - padding_pct)
+        y_max = min(100.0, max(ys) + padding_pct)
+        px_l = int(x_min / 100 * full_w)
+        px_r = int(x_max / 100 * full_w)
+        px_t = int(y_min / 100 * full_h)
+        px_b = int(y_max / 100 * full_h)
+        if px_r - px_l < 60 or px_b - px_t < 60:
+            return img_bytes, {}
+        img = _PILImage.open(io.BytesIO(img_bytes)).convert('RGB')
+        cropped = img.crop((px_l, px_t, px_r, px_b))
+        cw, ch = cropped.size
+        out = io.BytesIO()
+        cropped.save(out, format='PNG')
+        return out.getvalue(), {
+            'offset_x_pct': x_min, 'offset_y_pct': y_min,
+            'crop_w_pct': x_max - x_min, 'crop_h_pct': y_max - y_min,
+            'crop_w_px': cw, 'crop_h_px': ch,
+        }
+    except Exception:
+        return img_bytes, {}
+
+
+def _remap_pct_polygon(polygon: list, crop_info: dict) -> list:
+    """Convert polygon % coords from the cropped image back to full-image % coords."""
+    if not crop_info or not polygon:
+        return polygon
+    ox = crop_info.get('offset_x_pct', 0.0)
+    oy = crop_info.get('offset_y_pct', 0.0)
+    cw = crop_info.get('crop_w_pct', 100.0)
+    ch = crop_info.get('crop_h_pct', 100.0)
+    return [[round(ox + p[0] / 100 * cw, 2), round(oy + p[1] / 100 * ch, 2)]
+            for p in polygon]
+
+
+def _full_px_to_crop_px(
+    px_x: float, px_y: float, full_w: int, full_h: int, crop_info: dict,
+) -> tuple[float, float]:
+    """Convert a pixel position in the full image to its position inside the crop."""
+    ox  = crop_info.get('offset_x_pct', 0.0)
+    oy  = crop_info.get('offset_y_pct', 0.0)
+    cw_pct = crop_info.get('crop_w_pct', 100.0)
+    ch_pct = crop_info.get('crop_h_pct', 100.0)
+    cw_px  = crop_info.get('crop_w_px', float(full_w))
+    ch_px  = crop_info.get('crop_h_px', float(full_h))
+    return (
+        (px_x / full_w * 100 - ox) / cw_pct * cw_px,
+        (px_y / full_h * 100 - oy) / ch_pct * ch_px,
+    )
+
+
+def _merge_weak_sections(parsed: dict, max_sections: int = 8) -> None:
+    """In-place: when confidence is 'low' and section count > max_sections,
+    merge the smallest section (by area) into its nearest neighbour (centroid
+    distance) until the count reaches max_sections.
+
+    Only area is combined — the larger section's geometry is kept so the drawn
+    outline stays clean.  Must be called *after* area_m2 has been assigned.
+    """
+    sections = parsed.get('sections') or []
+    if parsed.get('confidence') != 'low' or len(sections) <= max_sections:
+        return
+
+    def _centroid(sec: dict) -> tuple[float, float]:
+        poly = sec.get('polygon') or []
+        if not poly:
+            return (50.0, 50.0)
+        return (sum(p[0] for p in poly) / len(poly),
+                sum(p[1] for p in poly) / len(poly))
+
+    merged_count = 0
+    while len(sections) > max_sections:
+        smallest_i = min(range(len(sections)),
+                         key=lambda i: sections[i].get('area_m2') or 0)
+        cx, cy = _centroid(sections[smallest_i])
+        best_j, best_dist = -1, float('inf')
+        for j, sec in enumerate(sections):
+            if j == smallest_i:
+                continue
+            sx, sy = _centroid(sec)
+            d = math.sqrt((cx - sx) ** 2 + (cy - sy) ** 2)
+            if d < best_dist:
+                best_dist, best_j = d, j
+        if best_j < 0:
+            break
+        absorbed = sections.pop(smallest_i)
+        # Adjust target index after pop
+        target_j = best_j if best_j < smallest_i else best_j - 1
+        if 0 <= target_j < len(sections):
+            nb = sections[target_j]
+            nb['area_m2'] = round(
+                (nb.get('area_m2') or 0) + (absorbed.get('area_m2') or 0), 1
+            )
+            lbl = absorbed.get('label') or f"S{absorbed.get('id', '')}"
+            nb['notes'] = ((nb.get('notes') or '') + f' +{lbl}').strip()
+        merged_count += 1
+
+    if merged_count:
+        note = parsed.get('notes', '')
+        parsed['notes'] = (
+            f"{note} [{merged_count} section(s) auto-merged — low confidence]"
+        ).strip()
+
+
 @csrf_exempt
 def roof_drawing_analyze(request):
     """
@@ -1774,7 +1964,7 @@ def roof_drawing_analyze(request):
     2. Sends to Claude Vision for roof section detection
     3. Returns: { image_b64, sections, scale, roof_type, confidence, notes }
     """
-    from core.claude_client import call_claude_vision
+    from core.claude_client import call_claude_vision, call_claude_vision_multi
 
     try:
         body    = json.loads(request.body)
@@ -1963,9 +2153,109 @@ def roof_drawing_analyze(request):
             f"{solar_context}"
             f"Return the JSON as instructed."
         )
-        result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt, vision_b64, vision_media_type)
+        # ── Multi-zoom fusion + Multi-pass AI detection ─────────────────────────
+        # Pass 1 (Sonnet, 2 images): identify roof_outline using context + detail.
+        # Pass 2 (Opus,  1 image):  detect sections on a tight crop of that outline.
+        # Falls back to the existing single-pass call when zoom is too low or
+        # the context image cannot be fetched.
 
-        # Parse Claude's JSON response (strip any accidental markdown)
+        multi_pass_used = False
+        crop_info: dict = {}
+        pass1_outline_pct: list = []
+
+        # ── Fetch context image at zoom-1 ────────────────────────────────────
+        context_b64 = None
+        if zoom >= 19 and api_key:
+            ctx_zoom = zoom - 1
+            ctx_bytes = _fetch_context_zoom_image(lat, lng, ctx_zoom, width, height, api_key)
+            if ctx_bytes:
+                # Yellow dot at centre of the context image (lat/lng is the image centre)
+                ctx_click_px = _static_map_pixel(lat, lng, lat, lng, ctx_zoom, width, height)
+                context_b64, _ = _annotate_image_for_roof_vision(ctx_bytes, [], ctx_click_px)
+
+        # ── Pass 1: outline-only using both images ───────────────────────────
+        if context_b64:
+            p1_images = [
+                {"b64": context_b64,  "media_type": "image/png",    "label": "context"},
+                {"b64": vision_b64,   "media_type": vision_media_type, "label": "detail"},
+            ]
+            p1_user = (
+                f"Image 1 = context view (zoom {zoom - 1}). "
+                f"Image 2 = detail view (zoom {zoom}). "
+                f"Yellow dot in Image 2 marks the target building. "
+                f"Clicked coords: ({lat:.5f}, {lng:.5f}). "
+                f"{guide_prompt}"
+                f"Trace the complete connected roof outline of that single building. "
+                f"Return % coords of Image 2 only."
+            )
+            p1_result = call_claude_vision_multi(
+                ROOF_OUTLINE_SYSTEM, p1_user, p1_images,
+                max_tokens=512, model="claude-sonnet-4-6",
+            )
+            try:
+                p1_raw = re.sub(r'(?s)^```(?:json)?\s*|\s*```$', '',
+                                p1_result['content']).strip()
+                p1_parsed = json.loads(p1_raw)
+                pass1_outline_pct = _clean_pct_polygon(p1_parsed.get('roof_outline') or [])
+            except Exception:
+                pass1_outline_pct = []
+
+        # ── Pass 2: section detection on outline crop ────────────────────────
+        if len(pass1_outline_pct) >= 3:
+            crop_bytes, crop_info = _crop_image_to_outline_pct(
+                img_bytes, pass1_outline_pct, width, height, padding_pct=8.0,
+            )
+            crop_w_px = crop_info.get('crop_w_px', width)
+            crop_h_px = crop_info.get('crop_h_px', height)
+
+            if crop_info:
+                crop_click_px = (
+                    _full_px_to_crop_px(click_px[0], click_px[1], width, height, crop_info)
+                    if click_px else None
+                )
+                crop_footprint_px = [
+                    _full_px_to_crop_px(p[0], p[1], width, height, crop_info)
+                    for p in footprint_px
+                ]
+            else:
+                crop_click_px = click_px
+                crop_footprint_px = footprint_px
+
+            crop_vision_b64, crop_media = _annotate_image_for_roof_vision(
+                crop_bytes, crop_footprint_px, crop_click_px,
+            )
+
+            # Suburb pattern learning
+            address_str = str(body.get('address') or '')
+            suburb_hint = ''
+            if address_str:
+                suburb_key = extract_suburb(address_str)
+                if suburb_key:
+                    sp = suburb_section_pattern(suburb_key)
+                    if sp:
+                        suburb_hint = f'\n{sp.prompt_text}'
+
+            p2_prompt = (
+                f"Cropped satellite image of the selected roof only "
+                f"({crop_w_px}×{crop_h_px} px). "
+                f"Clicked point ({lat:.5f}, {lng:.5f}). "
+                f"{guide_prompt}{correction_learning_text}"
+                f"Yellow dot marks the SINGLE roof. Detect every section using the ridge-line method. "
+                f"Before returning JSON, verify: (1) yellow dot inside roof_outline, "
+                f"(2) all sections inside roof_outline, (3) no other building included, "
+                f"(4) every section boundary aligns with a visible ridge/hip/valley line — "
+                f"if no such line exists, the two surfaces are ONE section not two. "
+                f"{solar_context}{suburb_hint}"
+                f" All polygon coords = % of THIS cropped image ({crop_w_px}×{crop_h_px} px)."
+            )
+            result = call_claude_vision(ROOF_VISION_SYSTEM, p2_prompt, crop_vision_b64, crop_media)
+            multi_pass_used = True
+
+        else:
+            # Single-pass fallback (original behaviour)
+            result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt, vision_b64, vision_media_type)
+
+        # ── Parse Claude's JSON response ─────────────────────────────────────
         raw = result['content'].strip()
         raw = re.sub(r'^```(?:json)?\s*', '', raw)
         raw = re.sub(r'\s*```$', '', raw)
@@ -1974,6 +2264,19 @@ def roof_drawing_analyze(request):
         except json.JSONDecodeError:
             parsed = {"sections": [], "roof_type": "unknown", "confidence": "low",
                       "notes": "Could not parse Claude response"}
+
+        # ── Remap crop → full-image % coords when pass 2 was used ────────────
+        if multi_pass_used and crop_info:
+            p2_outline = _clean_pct_polygon(parsed.get('roof_outline') or [])
+            parsed['roof_outline'] = (
+                _remap_pct_polygon(p2_outline, crop_info) if p2_outline else pass1_outline_pct
+            )
+            for sec in parsed.get('sections') or []:
+                raw_poly = _clean_pct_polygon(sec.get('polygon') or [])
+                sec['polygon'] = _remap_pct_polygon(raw_poly, crop_info) if raw_poly else []
+        elif multi_pass_used and pass1_outline_pct and not parsed.get('roof_outline'):
+            parsed['roof_outline'] = pass1_outline_pct
+
         ai_outline_pct = _clean_pct_polygon(parsed.get('roof_outline') or [])
         ai_footprint = _pct_polygon_to_geo(ai_outline_pct, map_view, width, height)
         # Use AI outline as filter boundary when available; if not, use building
@@ -2006,6 +2309,10 @@ def roof_drawing_analyze(request):
             else:
                 sec['area_m2'] = 0
 
+        # ── Confidence-weighted section merging ───────────────────────────────
+        # Must run AFTER area_m2 is assigned above.
+        _merge_weak_sections(parsed, max_sections=8)
+
         return JsonResponse({
             'ok': True,
             'image_b64': img_b64,
@@ -2024,10 +2331,11 @@ def roof_drawing_analyze(request):
             'footprint_pct': footprint_pct,
             'ai_footprint': ai_footprint,
             'ai_outline_pct': ai_outline_pct,
+            'pass1_outline_pct': pass1_outline_pct,
             'footprint_source': map_view.get('footprint_source', ''),
             'crop_box_px': map_view.get('crop_box_px', []),
             'cropped': bool(map_view.get('cropped', False)),
-            'static_map_version': 'roof-crop-v3',
+            'static_map_version': 'roof-crop-v4',
             'guide_area_sqm': round(map_view.get('guide_area_sqm') or 0, 1),
             'target_span_m': round(map_view.get('target_span_m') or 0, 1),
             'dropped_sections': dropped_sections,
@@ -2040,6 +2348,7 @@ def roof_drawing_analyze(request):
             'confidence': parsed.get('confidence', 'low'),
             'notes': parsed.get('notes', ''),
             'demo_mode': result.get('demo_mode', False),
+            'multi_pass_used': multi_pass_used,
             'correction_learning_applied': bool(correction_learning.text),
             'correction_learning_count': correction_learning.correction_count,
             # Solar API calibration data

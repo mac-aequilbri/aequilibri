@@ -269,6 +269,105 @@ def roof_correction_learning_prompt(limit: int = 8) -> CorrectionLearningPrompt:
     return CorrectionLearningPrompt(text="\n".join(guidance), correction_count=len(examples))
 
 
+def extract_suburb(address: str) -> str:
+    """Extract and normalise suburb name from an Australian address string.
+
+    Examples::
+      "123 Smith St, Kedron QLD 4031"  → "kedron"
+      "45 Main St Noosa Heads QLD"     → "noosaheads"
+      "7 Oak Ave, Mount Gravatt"        → "mountgravatt"
+
+    Returns a normalised key (lowercase alphanumeric only).
+    """
+    if not address:
+        return ""
+    text = str(address).strip()
+    # Remove postcode (4-digit number)
+    text = re.sub(r'\b\d{4}\b', '', text)
+    # Remove Australian state abbreviations
+    text = re.sub(r'\b(QLD|NSW|VIC|SA|WA|TAS|ACT|NT)\b', '', text, flags=re.IGNORECASE)
+    # Comma-delimited: second part is usually the suburb
+    parts = [p.strip() for p in text.split(',') if p.strip()]
+    if len(parts) >= 2:
+        return normalize_address_key(parts[1])
+    # No comma — take the last 1-3 meaningful words
+    words = [w for w in text.split() if w and len(w) > 1 and not w.isdigit()]
+    if len(words) >= 2:
+        suburb_words = words[-min(3, len(words)):]
+        return normalize_address_key(' '.join(suburb_words))
+    return ""
+
+
+@dataclass(frozen=True)
+class SuburbPattern:
+    suburb: str
+    sample_count: int
+    avg_section_count: float
+    most_common_roof_type: str
+    prompt_text: str
+
+
+def suburb_section_pattern(suburb: str, limit: int = 50) -> "SuburbPattern | None":
+    """Build pattern stats for a suburb from saved roof corrections.
+
+    Returns None if fewer than 2 corrections exist for the suburb.
+    """
+    if not suburb or len(suburb) < 3:
+        return None
+    try:
+        logs = list(
+            ExecutionLog.objects.filter(
+                tool_name=ROOF_CORRECTION_TOOL,
+                status="success",
+            ).order_by("-created_at")[:limit]
+        )
+    except Exception:
+        return None
+
+    matching: list[dict[str, Any]] = []
+    for log in logs:
+        payload = decode_payload(log)
+        if not payload:
+            continue
+        if extract_suburb(payload.get("address", "")) == suburb:
+            matching.append(payload)
+
+    if len(matching) < 2:
+        return None
+
+    section_counts: list[int] = []
+    roof_types: list[str] = []
+    for payload in matching:
+        secs = payload.get("sections")
+        if isinstance(secs, list) and len(secs) > 0:
+            section_counts.append(len(secs))
+        rt = str(payload.get("roof_type") or "").strip().lower()
+        if rt and rt != "unknown":
+            roof_types.append(rt)
+
+    if not section_counts:
+        return None
+
+    avg_count = sum(section_counts) / len(section_counts)
+    most_common_type = max(set(roof_types), key=roof_types.count) if roof_types else "unknown"
+    suburb_display = suburb[:24].title()
+    n = len(matching)
+    prompt_text = (
+        f"Suburb pattern ({suburb_display}, {n} saved correction"
+        + ("s" if n != 1 else "")
+        + f"): typical section count {avg_count:.1f}, "
+        + f"most common roof type '{most_common_type}'. "
+        + "Use as a plausibility check — trust what you visually observe."
+    )
+    return SuburbPattern(
+        suburb=suburb,
+        sample_count=n,
+        avg_section_count=avg_count,
+        most_common_roof_type=most_common_type,
+        prompt_text=prompt_text,
+    )
+
+
 def _polygon_count(value: Any) -> int:
     return len(value) if isinstance(value, list) else 0
 
