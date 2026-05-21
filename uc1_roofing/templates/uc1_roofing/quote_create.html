@@ -1059,6 +1059,11 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
           <div style="color:#999;">Run AI Drawing to build the roof sheet.</div>
         </div>
 
+        <div class="rd-panel-title">🔍 Detected Features</div>
+        <div id="rdDetectedFeatures" style="margin-bottom:12px;">
+          <div style="color:#999;font-size:.72rem;">Run AI Drawing to detect features.</div>
+        </div>
+
         <div class="rd-panel-title">Address</div>
         <div id="rdSheetAddr" style="line-height:1.45;color:#333;margin-bottom:12px;">--</div>
 
@@ -4320,6 +4325,31 @@ function rdPopulateMeta(data) {
     legend.appendChild(row);
   });
   if (!legend.children.length) legend.innerHTML = '<div style="color:#999;">No sections available.</div>';
+
+  // ── Detected Features panel ───────────────────────────────────────────
+  const hasSolar   = !!(data.solar_panels || data.solar_panels_detected);
+  const hasSolarHw = !!data.solar_hw;
+  const hasScaff   = !!(data.scaffolding && data.scaffolding.required);
+
+  const features = [
+    { icon: '☀️', label: 'Solar panels',    detected: hasSolar   },
+    { icon: '🌡️', label: 'Solar hot water', detected: hasSolarHw },
+    { icon: '🏗️', label: 'Scaffolding',     detected: hasScaff   },
+  ];
+
+  const featEl = document.getElementById('rdDetectedFeatures');
+  featEl.innerHTML = features.map(f => `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:5px 8px;border-radius:6px;margin-bottom:4px;
+                background:${f.detected ? '#e8f5e9' : '#f5f5f5'};
+                border:1px solid ${f.detected ? '#a5d6a7' : '#e0e0e0'}">
+      <span style="font-size:.78rem;">${f.icon} ${f.label}</span>
+      <span style="font-size:.68rem;font-weight:700;
+                   color:${f.detected ? '#2e7d32' : '#9e9e9e'}">
+        ${f.detected ? '✓ Detected' : '— Not detected'}
+      </span>
+    </div>`).join('');
+
   rdUpdateQualityPanel(data);
   rdSyncEditUi();
 }
@@ -6590,6 +6620,8 @@ function rdResetDrawingSummary() {
   });
   const addr = document.getElementById('rdSheetAddr');
   if (addr) addr.textContent = _ridSelectedAddress() || '--';
+  const featEl2 = document.getElementById('rdDetectedFeatures');
+  if (featEl2) featEl2.innerHTML = '<div style="color:#999;font-size:.72rem;">Analysing features…</div>';
   const legend = document.getElementById('rdLegend');
   if (legend) legend.innerHTML = '<div style="color:#999;">Reading fresh roof geometry...</div>';
   const quality = document.getElementById('rdQualityPanel');
