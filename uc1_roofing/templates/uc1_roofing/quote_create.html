@@ -1011,6 +1011,11 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             <button type="button" title="Reset zoom" onclick="rdResetZoom()">Fit</button>
           </div>
           <div id="rdZoomReadout">Zoom: 100%</div>
+          <div style="display:flex;gap:6px;margin-top:8px;">
+            <button type="button" id="rdToggleLabelsBtn"
+              style="flex:1;min-height:28px;border:1px solid #d5d7dc;background:#fff;border-radius:5px;font-weight:600;color:#1a1a2e;font-size:.68rem;cursor:pointer;"
+              onclick="rdToggleSectionLabels()">🏷️ Hide Area Labels</button>
+          </div>
         </div>
 
         <div class="rd-panel-title">Manual Correction</div>
@@ -1413,7 +1418,7 @@ async function clickEstimate(lat, lon) {
             ridPolygon = chosen.coords;
             roofOutlineSource = chosen.source;
             detectionMethod = `Hybrid outline (${chosen.source})`;
-            if (chosen.apiData) rdData = rdBuildPlanData(chosen.apiData, lat, lon);
+            if (chosen.apiData) { rdData = rdBuildPlanData(chosen.apiData, lat, lon); rdRecomputeGeometry(); }
             _setFootprintOutline(ridPolygon, '#27ae60', 0.14, 4, false);
             estArea = roofArea;
             document.getElementById('flatArea').value = roofArea;
@@ -1474,7 +1479,7 @@ async function clickEstimate(lat, lon) {
       ridPolygon = chosen.coords;
       roofOutlineSource = chosen.source;
       detectionMethod = `Hybrid outline (${chosen.source})`;
-      if (chosen.apiData) rdData = rdBuildPlanData(chosen.apiData, lat, lon);
+      if (chosen.apiData) { rdData = rdBuildPlanData(chosen.apiData, lat, lon); rdRecomputeGeometry(); }
       _setFootprintOutline(ridPolygon, '#27ae60', 0.14, 4, false);
       setStatus(`<span class="det-badge db-p1">${chosen.badge}</span> <span class="text-muted small">${chosen.confidence} confidence outline</span>`);
     }
@@ -3844,6 +3849,7 @@ async function rdRerun() {
     if (!apiData.ok) { rdSetStatus('Drawing image failed: ' + (apiData.error || 'Unknown error'), false); return; }
 
     rdData = rdBuildPlanData(apiData, lat, lng);
+    rdRecomputeGeometry();  // converts polygon (%) → geo_polygon (lat/lng) so edge measurements work
     rdMPx  = rdData.scale && rdData.scale.meters_per_px ? rdData.scale.meters_per_px : rdMPx;
     rdImgW = rdData.width || 640;
     rdImgH = rdData.height || 400;
@@ -4158,6 +4164,7 @@ function rdFitCanvasFont(ctx, text, maxWidth, size, weight='') {
 }
 
 function rdDrawPlanLabel(ctx, cx, cy, num, sec, pts=[]) {
+  if (!rdShowSectionLabels) return;
   const color = sec.color || '#607D8B';
   const area = rdNum(sec.area_m2, 0);
   const pitch = rdNum(sec.pitch_est, rdNum(sec.pitch_deg, 0));
@@ -6528,6 +6535,7 @@ function _planNorthArrow(ctx, cx, cy, size) {
 // AI ROOF DRAWING
 // ══════════════════════════════════════════════════════════════════════════════
 let rdData      = null;   // last API response
+let rdShowSectionLabels = true;  // toggle: show/hide section area chips (S1 N / 83.6 m2 / 21 deg)
 let rdScaleMode = false;  // calibration click mode
 let rdScalePts  = [];     // two calibration points [[x,y],[x,y]]
 let rdMPx       = 1;      // metres per pixel (from API or calibration)
@@ -6559,6 +6567,13 @@ function openRoofDrawing() {
 function closeRoofDrawing() {
   document.getElementById('roofDrawDialog').close();
   document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function rdToggleSectionLabels() {
+  rdShowSectionLabels = !rdShowSectionLabels;
+  const btn = document.getElementById('rdToggleLabelsBtn');
+  if (btn) btn.textContent = rdShowSectionLabels ? '🏷️ Hide Area Labels' : '🏷️ Show Area Labels';
+  if (rdData) rdDrawCanvas(rdData);
 }
 
 function rdSetStatus(msg, spinning) {
