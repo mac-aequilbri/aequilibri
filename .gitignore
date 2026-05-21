@@ -31,13 +31,3 @@ desktop.ini
 
 # ── macOS ────────────────────────────────────────────────────
 .DS_Store
-
-# ── Local dev scripts ─────────────────────────────────────────
-.claude/
-serve.py
-install.ps1
-start_server.ps1
-start_server_background.ps1
-stop_server.ps1
-server.log
-server_err.log
