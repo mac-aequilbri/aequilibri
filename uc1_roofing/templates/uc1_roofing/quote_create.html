@@ -4395,15 +4395,23 @@ function rdClampZoom(value) {
 }
 
 function rdCanvasDisplaySize(data, wrap) {
+  // Compute a canvas size that, at zoom 1.0, FITS the entire roof image
+  // inside the wrap's viewport on BOTH axes (object-fit:contain style).
+  // At higher zoom levels the canvas grows past the viewport on whichever
+  // axis(es) overflow, so #rdCanvasWrap (overflow:auto) gets a real
+  // scrollbar on each overflowing axis.  This is bulletproof — no more
+  // "the image is cut off and I can't scroll".
   const sourceW = Math.max(1, rdNum(data && data.width, 640));
   const sourceH = Math.max(1, rdNum(data && data.height, 400));
-  const rectW = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect().width : 0;
-  const visibleW = Math.max(320, Math.ceil(rectW || (wrap ? wrap.clientWidth : 0) || 760));
-  const fitW = Math.max(visibleW, sourceW);
-  const width = Math.max(320, Math.round(fitW * rdClampZoom(rdViewZoom)));
-  const scale = width / sourceW;
+  const rect = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : null;
+  const visibleW = Math.max(320, Math.ceil((rect && rect.width)  || (wrap ? wrap.clientWidth  : 0) || 760));
+  const visibleH = Math.max(240, Math.ceil((rect && rect.height) || (wrap ? wrap.clientHeight : 0) || 500));
+  // Fit-to-viewport scale (preserve aspect ratio, contain inside the wrap).
+  const fitScale = Math.min(visibleW / sourceW, visibleH / sourceH);
+  const zoom = rdClampZoom(rdViewZoom);
+  const scale = fitScale * zoom;
   return {
-    width,
+    width:  Math.max(320, Math.round(sourceW * scale)),
     height: Math.max(240, Math.round(sourceH * scale)),
     scale,
   };
