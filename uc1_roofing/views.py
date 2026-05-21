@@ -1277,9 +1277,37 @@ The roof_outline must be tight — within 1-2 metres of the actual roof edge.
 If you are unsure which building has the yellow dot, draw the smallest reasonable outline
 around the dot and mark confidence as "low".
 
+═══ HOW TO IDENTIFY SECTIONS — use the ridge-line method ═══
+The correct way to find sections is to trace the visible ridge and valley lines first,
+then define one section per enclosed surface between those lines.
+
+Step 1 — Find the ridge lines. Look for:
+  • MAIN RIDGE: the brightest/highest horizontal line running along the roof peak.
+    On a hip or gable roof this is the central spine. It separates the north-facing
+    slope from the south-facing slope.
+  • HIP RIDGES: diagonal lines radiating from the ends of the main ridge down to the
+    roof corners. Each hip ridge separates two adjacent slopes (e.g. N from E).
+  • VALLEY LINES: inward V-shaped lines where two roof wings meet going downward.
+    These appear as darker recessed lines and separate different wings of the roof.
+
+Step 2 — Count sections. Each enclosed surface bounded by ridge lines, hip ridges,
+valley lines, and the eave (roof edge) is exactly ONE section. Do not subdivide
+a surface that has no ridge or valley line crossing it.
+
+Common section counts:
+  • Simple gable: 2 sections (main ridge only)
+  • Hip roof: 4 sections (main ridge + 4 hip ridges)
+  • L-shaped hip: 6–8 sections maximum
+  • Complex multi-wing Queensland home: typically 6–12 sections
+
+Do NOT create extra sections from:
+  • Colour variation or shadow within one slope (weathering, wet patches, glare)
+  • Solar panels sitting flat on a slope — they are NOT a separate section
+  • Fascia boards, gutters, or roof vents
+  • The flat ceiling plane visible inside an open eave
+
 Rules:
 - North is UP in the image (standard map orientation)
-- Each hip, gable, or lean-to slope is a separate section
 - Return polygon vertices as PERCENTAGE coordinates: x% of image width, y% of image height (origin top-left)
 - If the user prompt provides an approximate footprint polygon, use it only as a guide.
   It may be wrong or incomplete. Extend the outline to include the complete connected
@@ -1287,8 +1315,6 @@ Rules:
 - Do not include adjacent roofs, neighboring dwellings, carports, sheds, trees, pools, or roads.
 - facing: the compass direction the slope DRAINS toward (N/NE/E/SE/S/SW/W/NW)
 - pitch_est: estimated pitch in degrees (typical QLD: 15–30°; flat/metal shed: <5°; corrugated iron: 5–15°)
-- Draw the minimum number of sections that accurately represent visible distinct facets.
-  Do not over-segment — a simple gable roof should have 2 sections, a hip roof 4.
 - If you cannot clearly see the roof sections, still return your best estimate
 
 Respond with ONLY valid JSON, no explanation, no markdown fences. Format:
@@ -1932,7 +1958,8 @@ def roof_drawing_analyze(request):
             f"Use roof_outline as the boundary for all sections. "
             f"Before returning JSON, internally verify: (1) the yellow dot is inside roof_outline, "
             f"(2) all section polygons sit inside roof_outline, (3) no other building is included, "
-            f"(4) the section count is the minimum needed to describe the visible facets. "
+            f"(4) every section boundary aligns with a visible ridge line, hip ridge, or valley line — "
+            f"if no such line exists, the two surfaces are ONE section not two. "
             f"{solar_context}"
             f"Return the JSON as instructed."
         )

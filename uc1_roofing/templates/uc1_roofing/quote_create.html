@@ -61,24 +61,26 @@
 #roofInspBtn { font-size:.88rem; font-weight:700; }
 #roofInspBtn:disabled { opacity:.5; cursor:wait; }
 
-/* ── AI Roof Drawing dialog ── */
+/* ── AI Roof Drawing — full-page overlay ── */
 dialog#roofDrawDialog {
-  border:none; border-radius:12px; padding:0;
-  width:min(1120px,98vw); max-height:95vh;
-  box-shadow:0 20px 60px rgba(0,0,0,.5);
+  border:none; border-radius:0; padding:0;
+  width:100vw; max-width:100vw;
+  height:100dvh; max-height:100dvh;
+  inset:0; margin:0; box-shadow:none; overflow:hidden;
 }
-dialog#roofDrawDialog[open] { display:flex; flex-direction:column; }
-dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
+dialog#roofDrawDialog[open] { display:flex; flex-direction:column; animation:pageSlideIn .18s ease; }
+@keyframes pageSlideIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+dialog#roofDrawDialog::backdrop { background:transparent; }
 #rdHeader { background:#1a1a2e; color:#fff; padding:14px 18px; flex-shrink:0;
             display:flex; align-items:center; gap:10px; }
 #rdHeader h5 { margin:0; font-size:.95rem; font-weight:700; flex:1; }
-#rdClose { background:none; border:none; color:#aaa; font-size:1.3rem; cursor:pointer; }
-#rdClose:hover { color:#fff; }
+#rdClose { background:none; border:1px solid rgba(255,255,255,.25); color:#ccc; font-size:.78rem; font-weight:600; cursor:pointer; border-radius:6px; padding:4px 10px; }
+#rdClose:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.5); }
 /* #rdBody is the positioning root; #rdWorkArea is stretched to fill it absolutely.
    This sidesteps all flex/grid height-chain ambiguity caused by the canvas element
    setting intrinsic pixel dimensions after load. */
 #rdBody { flex:1; overflow:hidden; padding:0; min-height:0; position:relative; }
-#rdWorkArea { position:absolute; inset:0; display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:0; }
+#rdWorkArea { position:absolute; inset:0; display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:0; }
 #rdCanvasWrap { position:relative; background:#111; border-right:1px solid #e5e5e5; overflow-y:auto; overflow-x:hidden; }
 #rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
 #rdLoadingOverlay {
@@ -176,14 +178,13 @@ dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
 
 /* ── Roof Inspector <dialog> ── */
 dialog#roofInspDialog {
-  border:none; border-radius:12px; padding:0;
-  width:min(660px,96vw); max-height:92vh;
-  box-shadow:0 20px 60px rgba(0,0,0,.45);
+  border:none; border-radius:0; padding:0;
+  width:100vw; max-width:100vw;
+  height:100dvh; max-height:100dvh;
+  inset:0; margin:0; box-shadow:none; overflow:hidden;
 }
-dialog#roofInspDialog[open] {
-  display:flex; flex-direction:column;
-}
-dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
+dialog#roofInspDialog[open] { display:flex; flex-direction:column; animation:pageSlideIn .18s ease; }
+dialog#roofInspDialog::backdrop { background:transparent; }
 #ridHeader {
   background:#1a1a2e; color:#fff;
   padding:14px 18px; flex-shrink:0;
@@ -192,9 +193,17 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
 .rid-addr-block { flex:1; min-width:0; }
 #ridAddr   { font-weight:600; font-size:.9rem; line-height:1.35; }
 #ridCoords { font-size:.67rem; color:#9fa; margin-top:3px; }
-#ridClose  { background:none; border:none; color:#aaa; font-size:1.3rem; cursor:pointer; padding:0 4px; line-height:1; }
-#ridClose:hover { color:#fff; }
-#ridBody   { flex:1; overflow-y:auto; padding:16px 18px; }
+#ridClose { background:none; border:1px solid rgba(255,255,255,.25); color:#ccc; font-size:.78rem; font-weight:600; cursor:pointer; border-radius:6px; padding:4px 10px; flex-shrink:0; }
+#ridClose:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.5); }
+#ridBody   { flex:1; overflow:hidden; padding:0; display:flex; flex-direction:column; }
+.rid-data-col { width:480px; min-width:280px; flex-shrink:0; overflow-y:auto; padding:16px 18px; border-right:1px solid #eee; }
+.rid-viz-col  { flex:1; overflow:hidden; padding:16px 18px; display:flex; flex-direction:column; min-width:0; }
+.rid-viz-col #ridCanvasWrap { flex:1; min-height:300px; }
+@media (max-width:768px) {
+  #ridBody { flex-direction:column; overflow-y:auto; }
+  .rid-data-col { width:100%; border-right:none; border-bottom:1px solid #eee; overflow-y:visible; }
+  .rid-viz-col  { overflow:visible; }
+}
 #ridFooter {
   flex-shrink:0; display:none; padding:10px 18px;
   background:#f8f9fa; border-top:1px solid #eee;
@@ -750,7 +759,7 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
       <div id="ridAddr">Loading…</div>
       <div id="ridCoords"></div>
     </div>
-    <button type="button" id="ridClose" onclick="closeRoofInspector()">✕</button>
+    <button type="button" id="ridClose" onclick="closeRoofInspector()">← Back to Quote</button>
   </div>
   <div id="ridBody">
     <div id="ridStatus">
@@ -758,6 +767,7 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
       <span id="ridStatusText">Analysing roof…</span>
     </div>
     <div id="ridResults" style="display:none">
+      <div class="rid-data-col">
       <span id="ridSrcBadge" class="rid-src-badge"></span>
 
       <!-- Detected roof area (prominent) -->
@@ -872,6 +882,8 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
         </div>
       </div>
       <div id="ridScaffAlert"></div>
+      </div><!-- /rid-data-col -->
+      <div class="rid-viz-col">
       <!-- View toggle -->
       <div style="display:flex;gap:6px;margin-bottom:6px;">
         <button id="ridViewBtn3d" class="btn btn-ae btn-sm" onclick="ridSetView('3d')"
@@ -890,6 +902,7 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
       </div>
       <div id="ridNotes"></div>
       <div id="ridEstNote" style="display:none;font-size:.68rem;color:#aaa;margin-top:4px;">* Estimated from roof area — install API key for precise LiDAR data</div>
+      </div><!-- /rid-viz-col -->
     </div>
   </div>
   <div id="ridFooter">
@@ -958,7 +971,7 @@ dialog#roofInspDialog::backdrop { background:rgba(0,0,0,.55); }
     <span style="font-size:1.3rem;">🛰️</span>
     <h5>AI Roof Drawing</h5>
     <span id="rdConfBadge" style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#1565c0;color:#fff;"></span>
-    <button id="rdClose" onclick="closeRoofDrawing()">✕</button>
+    <button id="rdClose" onclick="closeRoofDrawing()">← Back to Quote</button>
   </div>
 
   <div id="rdStatus">
@@ -5611,7 +5624,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function _ridShowResults(loading) {
   document.getElementById('ridStatus').style.display   = loading ? 'flex' : 'none';
-  document.getElementById('ridResults').style.display  = loading ? 'none' : 'block';
+  document.getElementById('ridResults').style.display  = loading ? 'none' : 'flex';
   document.getElementById('ridFooter').style.display   = loading ? 'none' : 'flex';
 }
 
