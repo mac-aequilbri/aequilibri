@@ -1,0 +1,105 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}{{ report.title }} — UC3{% endblock %}
+{% block sb_reports %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">{{ report.title }}</h4>
+    <small class="text-muted">Week ending {{ report.week_ending }}</small>
+  </div>
+  <a href="{% url 'uc3:report_list' %}" class="btn btn-ae-outline">← Back to Reports</a>
+</div>
+
+<div class="px-4 pb-4">
+
+  <!-- Metadata bar -->
+  <div class="d-flex flex-wrap align-items-center gap-3 mb-4 p-3 rounded"
+       style="background:var(--ae-cream); font-size:.85rem">
+    <div>
+      <span class="text-muted">Generated:</span>
+      <strong>{% if report.generated_at %}{{ report.generated_at|date:"d M Y H:i" }}{% else %}—{% endif %}</strong>
+    </div>
+    <div class="text-muted">|</div>
+    <div>
+      <span class="text-muted">Project:</span>
+      <strong>{{ report.project.name }}</strong>
+    </div>
+    <div class="text-muted">|</div>
+    <div>
+      <span class="text-muted">Status:</span>
+      <span class="status-badge ms-1
+        {% if report.status == 'draft' %}status-draft
+        {% elif report.status == 'approved' %}status-confirmed
+        {% elif report.status == 'sent' %}status-active
+        {% endif %}">
+        {{ report.get_status_display|default:report.status }}
+      </span>
+    </div>
+    {% if report.is_ai_generated %}
+    <div class="text-muted">|</div>
+    <div>
+      <span class="badge" style="background:var(--ae-space);color:#fff">AI</span>
+      <span class="text-muted ms-1 small">AI-generated</span>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Report content -->
+  <div class="card p-4 mb-4">
+    <pre style="white-space:pre-wrap; font-family:inherit; font-size:.9rem; line-height:1.6; margin:0">{{ report.content }}</pre>
+  </div>
+
+  <!-- Action area -->
+  {% if report.status == 'draft' %}
+  <div class="card p-4">
+    <h6 class="fw-bold mb-3">Approve this Report</h6>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="approve">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-6">
+          <label class="form-label" for="approved_by">Approved by <span class="text-danger">*</span></label>
+          <input type="text" name="approved_by" id="approved_by" class="form-control"
+                 placeholder="Your name" required>
+        </div>
+        <div class="col-md-auto">
+          <button type="submit" class="btn btn-ae">✓ Approve Report</button>
+        </div>
+        <div class="col-md-auto">
+          <form method="post" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="revert_draft">
+            <button type="submit" class="btn btn-ae-outline btn-sm">Mark as Draft</button>
+          </form>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  {% elif report.status == 'approved' %}
+  <div class="card p-4">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="small text-muted">
+        Approved by: <strong>{{ report.approved_by }}</strong>
+        {% if report.approved_at %}&nbsp;on {{ report.approved_at|date:"d M Y" }}{% endif %}
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="mark_sent">
+        <button type="submit" class="btn btn-ae">📧 Mark as Sent</button>
+      </form>
+    </div>
+  </div>
+
+  {% elif report.status == 'sent' %}
+  <div class="d-flex align-items-center gap-2">
+    <span class="status-badge status-active" style="font-size:.95rem; padding:.4em .9em">Sent ✓</span>
+    {% if report.approved_by %}
+    <span class="text-muted small">Approved by {{ report.approved_by }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

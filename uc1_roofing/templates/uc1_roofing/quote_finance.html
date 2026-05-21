@@ -1,0 +1,105 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Finance Options — {{ quote.ref_number }}{% endblock %}
+{% block sb_quotes %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div class="d-flex align-items-center gap-3">
+    <a href="{% url 'uc1:quote_detail' quote.pk %}" class="btn btn-sm btn-outline-secondary">← Back</a>
+    <div>
+      <h4 class="mb-0">💳 Finance Options — {{ quote.ref_number }}</h4>
+      <small class="text-muted">{{ quote.property_address }}</small>
+    </div>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  {% if msg %}
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endif %}
+
+  <div class="card mb-4 border-0 bg-light">
+    <div class="card-body py-3 d-flex align-items-center gap-3">
+      <div>
+        <span class="text-muted small">Loan Amount (Quote Total inc GST)</span>
+        <div class="fs-4 fw-bold">${{ principal|floatformat:2 }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if providers %}
+  {% for entry in providers %}
+  {% with prov=entry.provider plans=entry.plans %}
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <span class="fw-semibold fs-6">{{ prov.name }}</span>
+        {% if prov.tagline %}
+        <span class="text-muted small ms-2">— {{ prov.tagline }}</span>
+        {% endif %}
+      </div>
+      <div>
+        {% if prov.interest_rate %}
+        <span class="badge bg-secondary">{{ prov.interest_rate }}% p.a.</span>
+        {% else %}
+        <span class="badge bg-success">0% Interest Free</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Term</th>
+            <th class="text-end">Monthly Payment</th>
+            <th class="text-end">Total Payable</th>
+            <th class="text-end">Interest Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for plan in plans %}
+          <tr{% if forloop.first %} class="table-primary fw-semibold"{% endif %}>
+            <td>
+              {{ plan.term_months }} months
+              {% if forloop.first %}
+              <span class="badge bg-primary ms-1" style="font-size:.65rem;">Shortest</span>
+              {% endif %}
+            </td>
+            <td class="text-end">${{ plan.monthly_payment|floatformat:2 }}</td>
+            <td class="text-end">${{ plan.total_payable|floatformat:2 }}</td>
+            <td class="text-end">
+              {% if plan.interest_total and plan.interest_total > 0 %}
+              ${{ plan.interest_total|floatformat:2 }}
+              {% else %}
+              <span class="text-success fw-semibold">Interest free</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="text-center text-muted py-3">No plans available for this provider.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endwith %}
+  {% endfor %}
+  {% else %}
+  <div class="alert alert-warning" role="alert">
+    No finance providers configured. Add providers in
+    <a href="{% url 'uc1:finance_providers' %}" class="alert-link">Finance Providers</a>.
+  </div>
+  {% endif %}
+
+  <p class="text-muted small mt-2">
+    Finance options are indicative only. Subject to provider approval.
+  </p>
+
+</div>
+{% endblock %}

@@ -1,0 +1,249 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Burn Rate Analytics — UC3{% endblock %}
+{% block sb_analytics %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">Burn Rate Analytics</h4>
+    <small class="text-muted">Budget vs schedule performance predictor</small>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  <!-- Project selector -->
+  <form method="get" class="mb-4">
+    <div class="d-flex align-items-center gap-2">
+      <label class="form-label mb-0 fw-semibold">Project:</label>
+      <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+        <option value="">— Select a project —</option>
+        {% for p in projects %}
+        <option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </form>
+
+  {% if not project %}
+  <!-- Placeholder -->
+  <div class="card p-5 text-center text-muted">
+    <div style="font-size:2.5rem" class="mb-3">📈</div>
+    <div class="fw-semibold">Select a project to view burn rate analytics</div>
+    <div class="small mt-1">Choose a project from the dropdown above to see budget vs schedule performance.</div>
+  </div>
+
+  {% else %}
+
+  <!-- Metric cards -->
+  <div class="row g-3 mb-4">
+    <!-- Burn rate -->
+    <div class="col-6 col-lg-3">
+      <div class="card p-4 text-center
+        {% if burn_pct > 100 %}border-danger{% elif burn_pct >= 80 %}border-warning{% else %}border-success{% endif %}"
+        style="border-width:2px!important">
+        <div class="text-muted small mb-1">Burn Rate</div>
+        <div class="fw-bold fs-5
+          {% if burn_pct > 100 %}text-danger{% elif burn_pct >= 80 %}text-warning{% else %}text-success{% endif %}">
+          {{ burn_pct|floatformat:1 }}%
+        </div>
+        <div class="small mt-1
+          {% if burn_pct > 100 %}text-danger{% elif burn_pct >= 80 %}text-warning{% else %}text-success{% endif %}">
+          {% if burn_pct > 100 %}Over budget{% elif burn_pct >= 80 %}Approaching limit{% else %}On track{% endif %}
+        </div>
+      </div>
+    </div>
+    <!-- Schedule -->
+    <div class="col-6 col-lg-3">
+      <div class="card p-4 text-center">
+        <div class="text-muted small mb-1">Schedule</div>
+        <div class="fw-bold fs-5">{{ schedule_pct|floatformat:1 }}%</div>
+        <div class="small text-muted mt-1">Project completion</div>
+      </div>
+    </div>
+    <!-- Cost variance -->
+    <div class="col-6 col-lg-3">
+      <div class="card p-4 text-center">
+        <div class="text-muted small mb-1">Cost vs Schedule</div>
+        <div class="fw-bold fs-5
+          {% if cost_variance > 0 %}text-danger{% else %}text-success{% endif %}">
+          {% if cost_variance > 0 %}+{% endif %}{{ cost_variance|floatformat:1 }}%
+        </div>
+        <div class="small mt-1 {% if cost_variance > 0 %}text-danger{% else %}text-success{% endif %}">
+          {% if cost_variance > 0 %}Over schedule{% else %}Under schedule{% endif %}
+        </div>
+      </div>
+    </div>
+    <!-- Forecast completion -->
+    <div class="col-6 col-lg-3">
+      <div class="card p-4 text-center">
+        <div class="text-muted small mb-1">Forecast Completion</div>
+        <div class="fw-bold fs-5">{{ months_left }} <small class="fw-normal fs-6">months</small></div>
+        <div class="small text-muted mt-1">At current burn rate</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Budget progress bar -->
+  <div class="card p-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="fw-semibold">Budget Utilisation</span>
+      <span class="fw-bold
+        {% if burn_pct > 100 %}text-danger{% elif burn_pct >= 80 %}text-warning{% else %}text-success{% endif %}">
+        ${{ total_act|floatformat:0 }} / ${{ total_est|floatformat:0 }}
+      </span>
+    </div>
+    <div class="progress" style="height:20px; border-radius:6px;">
+      <div class="progress-bar
+        {% if burn_pct > 100 %}bg-danger{% elif burn_pct >= 80 %}bg-warning{% else %}bg-success{% endif %}"
+        role="progressbar"
+        style="width:{% if burn_pct > 100 %}100{% else %}{{ burn_pct|floatformat:0 }}{% endif %}%"
+        aria-valuenow="{{ burn_pct|floatformat:0 }}"
+        aria-valuemin="0" aria-valuemax="100">
+        {{ burn_pct|floatformat:1 }}%
+      </div>
+    </div>
+    {% if burn_pct > 100 %}
+    <div class="small text-danger mt-1">Budget exceeded by {{ burn_pct|add:"-100"|floatformat:1 }}%</div>
+    {% endif %}
+  </div>
+
+  <!-- Schedule vs Cost indicator -->
+  <div class="card p-4 mb-4">
+    <h6 class="fw-bold mb-2">Spend vs Progress Indicator</h6>
+    {% if cost_variance > 5 %}
+    <div class="p-3 rounded" style="background:#fff3cd; border-left:3px solid #f0ad4e">
+      <span class="fw-semibold" style="color:#856404">
+        ⚡ Spending faster than progress (+{{ cost_variance|floatformat:1 }}%)
+      </span>
+      <div class="small text-muted mt-1">Budget is being consumed at a rate faster than project schedule progress.</div>
+    </div>
+    {% elif cost_variance < -5 %}
+    <div class="p-3 rounded" style="background:#d1f7e0; border-left:3px solid #27ae60">
+      <span class="fw-semibold" style="color:#155724">
+        💚 Under budget relative to schedule
+      </span>
+      <div class="small text-muted mt-1">Spend is tracking below schedule progress — ahead of budget.</div>
+    </div>
+    {% else %}
+    <div class="p-3 rounded" style="background:#d4edda; border-left:3px solid #28a745">
+      <span class="fw-semibold" style="color:#155724">
+        ✅ On track — spend aligned with schedule
+      </span>
+      <div class="small text-muted mt-1">Budget consumption is tracking closely with project progress.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Phase breakdown table -->
+  {% if phase_budgets %}
+  <div class="card p-0 mb-4">
+    <div class="px-4 pt-3 pb-2 border-bottom">
+      <h6 class="fw-bold mb-0">Phase Budget Breakdown</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Phase</th>
+            <th class="text-end">Estimated</th>
+            <th class="text-end">Actual</th>
+            <th class="text-end">Variance</th>
+            <th class="text-end">Variance %</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pb in phase_budgets %}
+          <tr>
+            <td class="fw-semibold">{{ pb.phase }}</td>
+            <td class="text-end">${{ pb.estimated|floatformat:0 }}</td>
+            <td class="text-end">${{ pb.actual|floatformat:0 }}</td>
+            <td class="text-end fw-bold {% if pb.variance > 0 %}text-danger{% else %}text-success{% endif %}">
+              {% if pb.variance > 0 %}+{% endif %}${{ pb.variance|floatformat:0 }}
+            </td>
+            <td class="text-end {% if pb.variance_pct > 0 %}text-danger{% else %}text-success{% endif %}">
+              {% if pb.variance_pct > 0 %}+{% endif %}{{ pb.variance_pct|floatformat:1 }}%
+            </td>
+            <td>
+              {% if pb.variance_pct > 10 %}
+              <span class="status-badge status-overdue">Over</span>
+              {% elif pb.variance_pct > 0 %}
+              <span class="status-badge status-pending">Watch</span>
+              {% else %}
+              <span class="status-badge status-active">OK</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Forecast box -->
+  <div class="card p-4 mb-4" style="background:var(--ae-cream)">
+    <h6 class="fw-bold mb-2">Forecast</h6>
+    <p class="mb-0">
+      At current burn rate of <strong>${{ avg_monthly|floatformat:0 }}/month</strong>,
+      budget will be exhausted in <strong>{{ months_left }} months</strong>.
+    </p>
+  </div>
+
+  <!-- Over-budget lines -->
+  {% if over_lines %}
+  <div class="card p-4 mb-4">
+    <h6 class="fw-bold mb-3 text-danger">Over-Budget Lines</h6>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th>Line Item</th><th class="text-end">Estimated</th><th class="text-end">Actual</th><th class="text-end">Over by</th></tr>
+        </thead>
+        <tbody>
+          {% for line in over_lines %}
+          <tr>
+            <td>{{ line.name|default:line }}</td>
+            <td class="text-end">${{ line.estimated|default:"—"|floatformat:0 }}</td>
+            <td class="text-end">${{ line.actual|default:"—"|floatformat:0 }}</td>
+            <td class="text-end text-danger fw-bold">
+              {% if line.variance %}+${{ line.variance|floatformat:0 }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Under-budget lines / savings opportunities -->
+  {% if under_lines %}
+  <div class="card p-4 mb-4">
+    <h6 class="fw-bold mb-3 text-success">Under-Budget Lines — Savings Opportunities</h6>
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead>
+          <tr><th>Line Item</th><th class="text-end">Estimated</th><th class="text-end">Actual</th><th class="text-end">Saving</th></tr>
+        </thead>
+        <tbody>
+          {% for line in under_lines %}
+          <tr>
+            <td>{{ line.name|default:line }}</td>
+            <td class="text-end">${{ line.estimated|default:"—"|floatformat:0 }}</td>
+            <td class="text-end">${{ line.actual|default:"—"|floatformat:0 }}</td>
+            <td class="text-end text-success fw-bold">
+              {% if line.variance %}${{ line.variance|floatformat:0 }}{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %} {# end if project #}
+
+</div>
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Finance Providers — UC1 Roofing{% endblock %}
+{% block sb_finance %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">💳 Finance Providers</h4>
+    <small class="text-muted">Manage lenders and finance options available to customers</small>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  {% if msg %}
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endif %}
+
+  <!-- Providers table -->
+  <div class="card p-0 mb-4">
+    <div class="card-header fw-semibold">All Finance Providers</div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Slug</th>
+            <th>Interest Rate</th>
+            <th>Term Range</th>
+            <th>Min Amount</th>
+            <th>Tagline</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in providers %}
+          <tr {% if not p.is_active %}style="opacity:0.55"{% endif %}>
+            <td class="fw-semibold">{{ p.name }}</td>
+            <td><code class="small">{{ p.slug }}</code></td>
+            <td>
+              {% if p.interest_rate_pct == 0 %}
+                <span class="badge bg-success">0%</span>
+              {% else %}
+                {{ p.interest_rate_pct }}%
+              {% endif %}
+            </td>
+            <td class="text-nowrap">{{ p.min_term_months }}–{{ p.max_term_months }} months</td>
+            <td>${{ p.min_amount }}</td>
+            <td class="text-muted small">{{ p.tagline }}</td>
+            <td>
+              {% if p.is_active %}
+                <span class="badge bg-success">Active</span>
+              {% else %}
+                <span class="badge bg-secondary">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="text-nowrap">
+              <!-- Toggle -->
+              <form method="post" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="toggle">
+                <input type="hidden" name="provider_id" value="{{ p.id }}">
+                <button type="submit"
+                        class="btn btn-sm {% if p.is_active %}btn-outline-warning{% else %}btn-outline-success{% endif %}">
+                  {% if p.is_active %}Deactivate{% else %}Activate{% endif %}
+                </button>
+              </form>
+              <!-- Delete -->
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('Delete {{ p.name }}? This cannot be undone.')">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="provider_id" value="{{ p.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center text-muted py-4">
+              No finance providers yet. Add one below.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Add Provider form card -->
+  <div class="card">
+    <div class="card-header fw-semibold">Add Provider</div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add">
+        <div class="row g-3">
+
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-semibold">Provider Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control" placeholder="e.g. Certegy Ezi-Pay" required>
+          </div>
+
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-semibold">Slug <span class="text-danger">*</span></label>
+            <input type="text" name="slug" class="form-control" placeholder="e.g. certegy-ezi-pay" required>
+            <div class="form-text">URL-safe identifier, no spaces.</div>
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label small fw-semibold">Interest Rate (%)</label>
+            <input type="number" name="interest_rate_pct" class="form-control"
+                   placeholder="0" min="0" step="0.01" value="0">
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label small fw-semibold">Min Term (months)</label>
+            <input type="number" name="min_term_months" class="form-control"
+                   placeholder="6" min="1">
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label small fw-semibold">Max Term (months)</label>
+            <input type="number" name="max_term_months" class="form-control"
+                   placeholder="60" min="1">
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label small fw-semibold">Min Amount ($)</label>
+            <input type="number" name="min_amount" class="form-control"
+                   placeholder="1000" min="0" step="0.01">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Tagline</label>
+            <input type="text" name="tagline" class="form-control"
+                   placeholder="e.g. Interest-free options up to 60 months">
+          </div>
+
+          <div class="col-12 d-flex justify-content-end">
+            <button type="submit" class="btn btn-ae">Add Finance Provider</button>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

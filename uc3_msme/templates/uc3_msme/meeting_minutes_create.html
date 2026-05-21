@@ -1,0 +1,80 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Record Meeting Minutes — UC3{% endblock %}
+{% block sb_minutes %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1 fw-bold">Record Meeting Minutes</h1>
+    <p class="text-muted mb-0">Paste notes · AI extracts action items</p>
+  </div>
+  <a href="{% url 'uc3:meeting_minutes_list' %}" class="btn btn-ae-outline">← Back to Meetings</a>
+</div>
+
+<div class="card p-4">
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="form_action" id="form_action_input" value="save_only">
+
+    <!-- Row 1: Project | Date | Title -->
+    <div class="row g-3 mb-3">
+      <div class="col-12 col-md-4">
+        <label for="project_id" class="form-label fw-semibold">Project <span class="text-danger">*</span></label>
+        <select id="project_id" name="project_id" class="form-select" required>
+          <option value="">Select a project…</option>
+          {% for p in projects %}
+            <option value="{{ p.pk }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-4">
+        <label for="meeting_date" class="form-label fw-semibold">Meeting Date <span class="text-danger">*</span></label>
+        <input type="date" id="meeting_date" name="meeting_date" class="form-control"
+               value="{{ today }}" required>
+      </div>
+      <div class="col-12 col-md-4">
+        <label for="title" class="form-label fw-semibold">Title <span class="text-muted fw-normal">(optional)</span></label>
+        <input type="text" id="title" name="title" class="form-control"
+               placeholder="e.g. Site meeting — Level 3 progress">
+      </div>
+    </div>
+
+    <!-- Row 2: Attendees -->
+    <div class="mb-3">
+      <label for="attendees" class="form-label fw-semibold">Attendees</label>
+      <textarea id="attendees" name="attendees" class="form-control" rows="1"
+                placeholder="John Smith, Sarah Lee, …"></textarea>
+    </div>
+
+    <!-- Row 3: Meeting Notes -->
+    <div class="mb-3">
+      <label for="raw_minutes" class="form-label fw-semibold">Meeting Notes <span class="text-danger">*</span></label>
+      <textarea id="raw_minutes" name="raw_minutes" class="form-control" rows="15"
+                placeholder="Paste or type your meeting notes here…" required></textarea>
+    </div>
+
+    <!-- Tip box -->
+    <div class="rounded p-3 mb-4 small" style="background:#fffbeb; border:1px solid #fde68a;">
+      💡 <strong>Tip:</strong> Include phrases like <em>"John to call supplier by Friday"</em> or
+      <em>"ACTION: Complete drawings by 15 May"</em> — AI will identify and structure these as
+      action items with owners and due dates.
+    </div>
+
+    <!-- Buttons -->
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="submit" class="btn btn-ae"
+              onclick="document.getElementById('form_action_input').value='extract'">
+        🤖 Extract Action Items
+      </button>
+      <button type="submit" class="btn btn-ae-outline"
+              onclick="document.getElementById('form_action_input').value='save_only'">
+        💾 Save Notes Only
+      </button>
+    </div>
+  </form>
+</div>
+
+<div class="mt-3">
+  <a href="{% url 'uc3:meeting_minutes_list' %}" class="btn btn-ae-outline">← Back to Meetings</a>
+</div>
+{% endblock %}

@@ -32,4 +32,26 @@ urlpatterns = [
     # Price check log
     path('price-check-log/', views.price_check_log, name='price_check_log'),
     path('api/vendor-prices/', api_views.api_vendor_prices, name='api_vendor_prices'),
+
+    # ── Revenue Feature 1: Guttering Auto-Quote ───────────────────────────────
+    path('guttering-rates/',                    views.guttering_rates,        name='guttering_rates'),
+    path('quotes/<int:pk>/auto-guttering/',     views.auto_add_guttering,     name='auto_guttering'),
+
+    # ── Revenue Feature 2: Solar Bundle ──────────────────────────────────────
+    path('solar-partners/',                     views.solar_partners,         name='solar_partners'),
+    path('quotes/<int:pk>/solar/',              views.solar_bundle,           name='solar_bundle'),
+
+    # ── Revenue Feature 3: Finance Integration ───────────────────────────────
+    path('finance-providers/',                  views.finance_providers,      name='finance_providers'),
+    path('quotes/<int:pk>/finance/',            views.quote_finance,          name='quote_finance'),
+
+    # ── Revenue Feature 4: Storm Lead Engine ─────────────────────────────────
+    path('storm/',                              views.storm_dashboard,        name='storm_dashboard'),
+    path('storm/<int:pk>/',                     views.storm_detail,           name='storm_detail'),
+
+    # ── Revenue Feature 5: Roof Condition Report ──────────────────────────────
+    path('condition-reports/',                  views.condition_report_list,  name='condition_report_list'),
+    path('quotes/<int:quote_pk>/condition-report/', views.condition_report_create, name='condition_report_create'),
+    path('condition-reports/<int:pk>/',         views.condition_report_detail, name='condition_report_detail'),
+    path('condition-reports/<int:pk>/print/',   views.condition_report_print,  name='condition_report_print'),
 ]

@@ -1,0 +1,224 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Risk Escalation Engine — UC3{% endblock %}
+{% block sb_escalation %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">Risk Escalation Engine</h4>
+    <small class="text-muted">Automated escalation based on age × severity</small>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  <!-- Project filter -->
+  <form method="get" class="mb-4">
+    <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+      <option value="">All Projects</option>
+      {% for p in projects %}
+        <option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <!-- Metric cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-4">
+      <div class="card p-4 text-center" style="border-left:4px solid #ef4444">
+        <div style="font-size:1.8rem; font-weight:700; color:#ef4444">{{ escalate_now|length }}</div>
+        <div class="small text-muted mt-1">🚨 Escalate Now</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="card p-4 text-center" style="border-left:4px solid #f97316">
+        <div style="font-size:1.8rem; font-weight:700; color:#f97316">{{ review_required|length }}</div>
+        <div class="small text-muted mt-1">⚠️ Review Required</div>
+      </div>
+    </div>
+    <div class="col-12 col-sm-4">
+      <div class="card p-4 text-center" style="border-left:4px solid var(--ae-earth)">
+        <div style="font-size:1.8rem; font-weight:700; color:#888">{{ monitoring|length }}</div>
+        <div class="small text-muted mt-1">👁 Monitoring</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SECTION 1: ESCALATE NOW ── -->
+  <div class="card p-0 mb-4" style="border:2px solid #ef4444">
+    <div class="px-4 pt-3 pb-2" style="background:#fef2f2; border-bottom:1px solid #fecaca">
+      <h6 class="fw-bold mb-0" style="color:#dc2626">🚨 Escalate Now</h6>
+      <div class="small text-muted">High risks open 7+ days — immediate action required</div>
+    </div>
+
+    {% if escalate_now %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Risk Description</th>
+            <th>Project</th>
+            <th>Score</th>
+            <th>Age (days)</th>
+            <th>Owner</th>
+            <th style="min-width:220px">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r, age_days in escalate_now %}
+          <tr>
+            <td style="max-width:240px; font-size:0.88rem">{{ r.description|truncatechars:100 }}</td>
+            <td class="small text-muted">{{ r.project.name }}</td>
+            <td>
+              <span class="status-badge status-overdue">{{ r.risk_score }}</span>
+            </td>
+            <td class="fw-bold text-danger">{{ age_days }}</td>
+            <td class="small text-muted">{{ r.owner|default:"—" }}</td>
+            <td>
+              <div class="d-flex flex-column gap-1">
+                <!-- Escalate form -->
+                <form method="post" class="d-flex gap-1 align-items-start">
+                  {% csrf_token %}
+                  <input type="hidden" name="form_action" value="escalate">
+                  <input type="hidden" name="risk_id" value="{{ r.id }}">
+                  <textarea name="escalation_note" class="form-control form-control-sm"
+                            rows="1" placeholder="Escalation reason…" style="min-width:120px; resize:none"></textarea>
+                  <button type="submit" class="btn btn-ae btn-sm text-nowrap">Escalate</button>
+                </form>
+                <!-- Accept risk form -->
+                <form method="post" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="form_action" value="accept">
+                  <input type="hidden" name="risk_id" value="{{ r.id }}">
+                  <button type="submit" class="btn btn-ae-outline btn-sm">Accept Risk</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-4 py-4 text-center">
+      <div class="text-success fw-semibold">✅ No risks requiring immediate escalation</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── SECTION 2: REVIEW REQUIRED ── -->
+  <div class="card p-0 mb-4" style="border:2px solid #f97316">
+    <div class="px-4 pt-3 pb-2" style="background:#fff7ed; border-bottom:1px solid #fed7aa">
+      <h6 class="fw-bold mb-0" style="color:#ea580c">⚠️ Review Required</h6>
+      <div class="small text-muted">Medium risks open 14+ days</div>
+    </div>
+
+    {% if review_required %}
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Risk Description</th>
+            <th>Project</th>
+            <th>Score</th>
+            <th>Age (days)</th>
+            <th>Owner</th>
+            <th style="min-width:220px">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r, age_days in review_required %}
+          <tr>
+            <td style="max-width:240px; font-size:0.88rem">{{ r.description|truncatechars:100 }}</td>
+            <td class="small text-muted">{{ r.project.name }}</td>
+            <td>
+              <span class="status-badge status-pending">{{ r.risk_score }}</span>
+            </td>
+            <td class="fw-bold" style="color:#ea580c">{{ age_days }}</td>
+            <td class="small text-muted">{{ r.owner|default:"—" }}</td>
+            <td>
+              <div class="d-flex flex-column gap-1">
+                <form method="post" class="d-flex gap-1 align-items-start">
+                  {% csrf_token %}
+                  <input type="hidden" name="form_action" value="escalate">
+                  <input type="hidden" name="risk_id" value="{{ r.id }}">
+                  <textarea name="escalation_note" class="form-control form-control-sm"
+                            rows="1" placeholder="Escalation reason…" style="min-width:120px; resize:none"></textarea>
+                  <button type="submit" class="btn btn-ae btn-sm text-nowrap">Escalate</button>
+                </form>
+                <form method="post" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="form_action" value="accept">
+                  <input type="hidden" name="risk_id" value="{{ r.id }}">
+                  <button type="submit" class="btn btn-ae-outline btn-sm">Accept Risk</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-4 py-4 text-center">
+      <div class="text-success fw-semibold">✅ No risks pending review</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ── SECTION 3: MONITORING ── -->
+  <div class="card p-0 mb-4" style="border:1px solid var(--ae-earth)">
+    <div class="px-4 pt-3 pb-2" style="background:var(--ae-cream); border-bottom:1px solid var(--ae-earth)">
+      <h6 class="fw-bold mb-0 text-muted">👁 Monitoring</h6>
+      <div class="small text-muted">Under monitoring — no action needed yet</div>
+    </div>
+
+    {% if monitoring %}
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Risk Description</th>
+            <th>Project</th>
+            <th>Score</th>
+            <th>Age (days)</th>
+            <th>Owner</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r, age_days in monitoring %}
+          <tr>
+            <td style="max-width:300px; font-size:0.85rem; color:#555">{{ r.description|truncatechars:120 }}</td>
+            <td class="small text-muted">{{ r.project.name }}</td>
+            <td>
+              {% if r.risk_level == 'HIGH' %}
+                <span class="status-badge status-overdue">{{ r.risk_score }}</span>
+              {% elif r.risk_level == 'MEDIUM' %}
+                <span class="status-badge status-pending">{{ r.risk_score }}</span>
+              {% else %}
+                <span class="status-badge status-draft">{{ r.risk_score }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">{{ age_days }}</td>
+            <td class="small text-muted">{{ r.owner|default:"—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="px-4 py-3 text-center text-muted small">No risks currently under monitoring.</div>
+    {% endif %}
+  </div>
+
+  <!-- Escalation logic note -->
+  <div class="rounded p-3" style="background:var(--ae-air)30; border:1px solid var(--ae-air); font-size:0.78rem; color:#555">
+    <strong>Escalation logic:</strong>
+    HIGH risks (score ≥ 15) open &gt; 7 days → <strong style="color:#dc2626">Escalate Now</strong>.
+    MEDIUM risks (score ≥ 8) open &gt; 14 days → <strong style="color:#ea580c">Review Required</strong>.
+    All other open risks → <strong>Monitoring</strong>.
+    Total open: <strong>{{ total_open }}</strong>
+  </div>
+
+</div>
+{% endblock %}

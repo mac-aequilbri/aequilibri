@@ -1,0 +1,74 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Generate Weekly Report — UC3{% endblock %}
+{% block sb_reports %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">Generate Weekly Report</h4>
+    <small class="text-muted">AI drafts a professional client report in seconds</small>
+  </div>
+  <a href="{% url 'uc3:report_list' %}" class="btn btn-ae-outline">← Back to Reports</a>
+</div>
+
+<div class="px-4 pb-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-7">
+
+      <div class="card p-4">
+        <form method="post" id="generateForm">
+          {% csrf_token %}
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="project_id">Project <span class="text-danger">*</span></label>
+            <select name="project_id" id="project_id" class="form-select" required>
+              <option value="">— Select a project —</option>
+              {% for p in projects %}
+              <option value="{{ p.pk }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="week_ending">Week Ending <span class="text-danger">*</span></label>
+            <input type="date" name="week_ending" id="week_ending" class="form-control" value="{{ today }}" required>
+          </div>
+
+          <div class="mb-4 p-3 rounded" style="background:var(--ae-cream); border-left:3px solid var(--ae-space)">
+            <div class="fw-semibold small mb-1" style="color:var(--ae-space)">💡 What the AI analyses</div>
+            <div class="small text-muted">
+              The AI will analyse phase progress, open actions, budget utilisation, and high risks to generate a
+              complete weekly status report. Review and approve before sending.
+            </div>
+          </div>
+
+          <div class="d-flex align-items-center gap-3">
+            <button type="submit" class="btn btn-ae" id="generateBtn">
+              🤖 Generate Report
+            </button>
+            <span class="text-muted small" id="loadingHint" style="display:none">
+              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              Generation takes 10–20 seconds…
+            </span>
+            <span class="text-muted small" id="staticHint">Generation takes 10–20 seconds</span>
+          </div>
+
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% block extra_js %}
+<script>
+  document.getElementById('generateForm').addEventListener('submit', function () {
+    const btn = document.getElementById('generateBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generating…';
+    document.getElementById('loadingHint').style.display = 'inline-flex';
+    document.getElementById('staticHint').style.display = 'none';
+  });
+</script>
+{% endblock %}
+{% endblock %}

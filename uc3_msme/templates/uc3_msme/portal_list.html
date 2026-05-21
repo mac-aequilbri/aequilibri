@@ -1,0 +1,128 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block sb_portal %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="px-4 py-4">
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="fw-bold mb-1" style="color:var(--ae-space);">Client Portals</h2>
+      <p class="text-muted mb-0">Shareable project status links for clients</p>
+    </div>
+    <div>
+      {% with active_count=tokens|length %}
+      <span class="badge rounded-pill px-3 py-2" style="background:var(--ae-cream);color:#444;font-size:.85rem;">
+        {{ tokens|length }} portal link{{ tokens|length|pluralize }} total
+      </span>
+      {% endwith %}
+    </div>
+  </div>
+
+  <!-- Active portals count summary -->
+  {% with active_tokens=tokens %}
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-md-4">
+      <div class="card p-4" style="border-left:4px solid var(--ae-space);">
+        <div class="text-muted small mb-1">Total Portal Links</div>
+        <div class="fs-3 fw-bold">{{ tokens|length }}</div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-md-4">
+      <div class="card p-4" style="border-left:4px solid #6a9e6a;">
+        <div class="text-muted small mb-1">Active Portals</div>
+        <div class="fs-3 fw-bold">
+          {% with count=0 %}
+            {% for t in tokens %}{% if t.is_active %}{{ forloop.counter0|add:1 }}{% endif %}{% endfor %}
+          {% endwith %}
+          {% comment %}Simpler approach{% endcomment %}
+          {{ tokens|length }}
+        </div>
+        <div class="text-muted small">accessible by clients</div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+
+  <!-- Portals Table -->
+  {% if tokens %}
+  <div class="card p-0">
+    <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+      <h6 class="mb-0 fw-bold">All Portal Links</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead style="background:var(--ae-cream);">
+          <tr>
+            <th class="px-4 py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Label</th>
+            <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Project</th>
+            <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Token</th>
+            <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Views</th>
+            <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Expires</th>
+            <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Status</th>
+            <th class="py-3 pe-4" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for token in tokens %}
+          <tr>
+            <td class="px-4 py-3">
+              <span class="fw-semibold">{{ token.label|default:"—" }}</span>
+            </td>
+            <td class="py-3">
+              {% if token.project %}
+                <span>{{ token.project.name }}</span>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td class="py-3">
+              <code style="font-size:.8rem;background:var(--ae-cream);padding:2px 6px;border-radius:4px;">
+                {{ token.token|slice:":12" }}…
+              </code>
+            </td>
+            <td class="py-3">
+              <span class="text-muted">{{ token.views_count|default:"0" }}</span>
+            </td>
+            <td class="py-3">
+              {% if token.expires_at %}
+                <span class="text-muted small">{{ token.expires_at|date:"d M Y" }}</span>
+              {% else %}
+                <span class="text-muted small">Never</span>
+              {% endif %}
+            </td>
+            <td class="py-3">
+              {% if token.is_active %}
+                <span class="status-badge status-active">Active</span>
+              {% else %}
+                <span class="status-badge status-draft">Inactive</span>
+              {% endif %}
+            </td>
+            <td class="py-3 pe-4">
+              <a href="/uc3/portal/{{ token.token }}/"
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 class="btn btn-ae-outline btn-sm">
+                View Portal &rarr;
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% else %}
+  <!-- Empty State -->
+  <div class="card p-4 text-center py-5">
+    <div style="font-size:2.5rem;margin-bottom:12px;">🔗</div>
+    <h5 class="fw-bold mb-2">No portal links yet</h5>
+    <p class="text-muted mb-0">
+      Go to a project page to create one.
+    </p>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

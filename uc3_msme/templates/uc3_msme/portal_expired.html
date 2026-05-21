@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+  :root {
+    --ae-space: #DC9F82;
+    --ae-cream: #E3DDCD;
+    --ae-earth: #BBB2AB;
+  }
+  .expired-wrap {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+    background: #f9f7f4;
+  }
+  .expired-card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e9e5dd;
+    padding: 3rem 2.5rem;
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 4px 32px rgba(0,0,0,.07);
+  }
+  .ae-branding {
+    font-size: .72rem;
+    color: var(--ae-space);
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+  .expired-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--ae-cream);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    margin: 0 auto 1.5rem;
+  }
+</style>
+
+<div class="expired-wrap">
+  <div class="expired-card">
+
+    <!-- Branding -->
+    <div class="ae-branding mb-4">&aelig;quilibri &bull; Client Portal</div>
+
+    <!-- Icon -->
+    <div class="expired-icon">&#128274;</div>
+
+    <!-- Heading -->
+    <h3 class="fw-bold mb-2" style="color:#3a3028;">This link has expired</h3>
+
+    <p class="text-muted mb-3">
+      This portal link expired on
+      <strong>{{ token.expires_at|date:"j F Y" }}</strong>.
+    </p>
+
+    <p class="text-muted mb-4" style="font-size:.92rem;">
+      Please contact your project manager for an updated link.
+    </p>
+
+    <hr style="border-color:#ece8e0;margin-bottom:1.5rem;">
+
+    <a href="/" class="btn btn-ae w-100">
+      Go to Homepage
+    </a>
+
+    <div class="mt-4" style="font-size:.75rem;color:#bbb;">
+      Powered by <span style="color:var(--ae-space);font-weight:700;">&aelig;quilibri</span>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}{{ event.name }} — Storm Detail{% endblock %}
+{% block sb_storm %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1">⛈️ {{ event.name }}</h4>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <span class="text-muted small">{{ event.get_event_type_display }}</span>
+      <span class="text-muted small">·</span>
+      <span class="text-muted small">{{ event.event_date|date:"d M Y" }}</span>
+      {% if event.state %}<span class="text-muted small">· {{ event.state }}</span>{% endif %}
+      {% if event.severity == 'extreme' %}
+        <span class="badge bg-danger">{{ event.get_severity_display }}</span>
+      {% elif event.severity == 'severe' %}
+        <span class="badge bg-warning text-dark">{{ event.get_severity_display }}</span>
+      {% elif event.severity == 'moderate' %}
+        <span class="badge bg-info text-dark">{{ event.get_severity_display }}</span>
+      {% else %}
+        <span class="badge bg-secondary">{{ event.get_severity_display }}</span>
+      {% endif %}
+    </div>
+    {% if event.affected_suburbs %}
+      <div class="small text-muted mt-1">Suburbs: {{ event.affected_suburbs }}</div>
+    {% endif %}
+  </div>
+  <a href="{% url 'uc1:storm_dashboard' %}" class="btn btn-outline-secondary btn-sm">← Back to Storm Dashboard</a>
+</div>
+
+<div class="px-4 pb-4">
+
+  {% if msg %}
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endif %}
+
+  <!-- Status Summary Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-sm-4 col-md">
+      <div class="card text-center p-3 border-0" style="background:#e8f4fd;">
+        <div class="fw-bold fs-4" style="color:#0d6efd;">{{ status_counts.new|default:0 }}</div>
+        <div class="small text-muted">New</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md">
+      <div class="card text-center p-3 border-0" style="background:#fff3cd;">
+        <div class="fw-bold fs-4" style="color:#856404;">{{ status_counts.contacted|default:0 }}</div>
+        <div class="small text-muted">Contacted</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md">
+      <div class="card text-center p-3 border-0" style="background:#e2d9f3;">
+        <div class="fw-bold fs-4" style="color:#6f42c1;">{{ status_counts.quoted|default:0 }}</div>
+        <div class="small text-muted">Quoted</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md">
+      <div class="card text-center p-3 border-0" style="background:#d1e7dd;">
+        <div class="fw-bold fs-4" style="color:#0f5132;">{{ status_counts.won|default:0 }}</div>
+        <div class="small text-muted">Won</div>
+      </div>
+    </div>
+    <div class="col-6 col-sm-4 col-md">
+      <div class="card text-center p-3 border-0" style="background:#f8d7da;">
+        <div class="fw-bold fs-4" style="color:#842029;">{{ status_counts.lost|default:0 }}</div>
+        <div class="small text-muted">Lost</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline Value -->
+  <div class="card p-4 mb-4 d-flex flex-row align-items-center justify-content-between flex-wrap gap-3" style="background:var(--ae-cream);">
+    <div>
+      <div class="text-muted small fw-bold text-uppercase" style="letter-spacing:.08em;">Active Pipeline (New + Contacted + Quoted)</div>
+      <div style="font-size:2rem; font-weight:700; color:var(--ae-space);">${{ est_pipeline|floatformat:2 }}</div>
+    </div>
+    <div class="text-muted small">
+      <div>Total leads generated: <strong>{{ event.leads_generated }}</strong></div>
+      {% if event.notes %}<div class="mt-1 fst-italic">{{ event.notes }}</div>{% endif %}
+    </div>
+  </div>
+
+  <!-- Leads Table -->
+  <div class="card p-0 mb-4">
+    <div class="d-flex align-items-center px-4 pt-3 pb-2 border-bottom justify-content-between">
+      <h6 class="mb-0 fw-bold">Storm Leads</h6>
+      <span class="badge bg-secondary">{{ leads|length }} leads</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle small">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>Address</th>
+            <th>Suburb</th>
+            <th>State</th>
+            <th>Area (m²)</th>
+            <th>Est. Value</th>
+            <th>Contact</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Quote</th>
+            <th>Notes</th>
+            <th>Created</th>
+            <th>Update</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+          <tr>
+            <td class="text-muted">{{ lead.id }}</td>
+            <td>{{ lead.address }}</td>
+            <td>{{ lead.suburb }}</td>
+            <td>{{ lead.state }}</td>
+            <td>{{ lead.roof_area_sqm|floatformat:1 }}</td>
+            <td>${{ lead.estimated_value|floatformat:0 }}</td>
+            <td>{{ lead.contact_name|default:"—" }}</td>
+            <td>{{ lead.contact_phone|default:"—" }}</td>
+            <td>{{ lead.contact_email|default:"—" }}</td>
+            <td>
+              {% if lead.status == 'new' %}
+                <span class="badge bg-primary">{{ lead.get_status_display }}</span>
+              {% elif lead.status == 'contacted' %}
+                <span class="badge bg-warning text-dark">{{ lead.get_status_display }}</span>
+              {% elif lead.status == 'quoted' %}
+                <span class="badge" style="background:#6f42c1;">{{ lead.get_status_display }}</span>
+              {% elif lead.status == 'won' %}
+                <span class="badge bg-success">{{ lead.get_status_display }}</span>
+              {% elif lead.status == 'lost' %}
+                <span class="badge bg-danger">{{ lead.get_status_display }}</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ lead.get_status_display }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if lead.quote_id %}
+                <a href="{% url 'uc1:quote_detail' lead.quote_id %}" class="btn btn-xs btn-outline-secondary btn-sm py-0 px-1">View Quote</a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if lead.notes %}
+                <span data-bs-toggle="tooltip" title="{{ lead.notes }}">📝</span>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td class="text-muted">{{ lead.created_at|date:"d M Y" }}</td>
+            <td>
+              <form method="post" class="d-flex gap-1 align-items-center">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_lead">
+                <input type="hidden" name="lead_id" value="{{ lead.id }}">
+                <select name="status" class="form-select form-select-sm" style="width:110px; font-size:.75rem;">
+                  <option value="new"       {% if lead.status == 'new' %}selected{% endif %}>New</option>
+                  <option value="contacted" {% if lead.status == 'contacted' %}selected{% endif %}>Contacted</option>
+                  <option value="quoted"    {% if lead.status == 'quoted' %}selected{% endif %}>Quoted</option>
+                  <option value="won"       {% if lead.status == 'won' %}selected{% endif %}>Won</option>
+                  <option value="lost"      {% if lead.status == 'lost' %}selected{% endif %}>Lost</option>
+                </select>
+                <button class="btn btn-sm btn-ae py-0 px-2" style="font-size:.75rem;">✓</button>
+              </form>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="14" class="text-center text-muted py-4">No leads recorded for this event yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- Import CSV -->
+    <div class="col-lg-6">
+      <div class="accordion" id="importAccordion">
+        <div class="accordion-item border">
+          <h2 class="accordion-header">
+            <button class="accordion-button collapsed fw-bold" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#importCollapse"
+                    aria-expanded="false" aria-controls="importCollapse">
+              📥 Import Leads from CSV
+            </button>
+          </h2>
+          <div id="importCollapse" class="accordion-collapse collapse" data-bs-parent="#importAccordion">
+            <div class="accordion-body">
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="import_csv">
+                <div class="mb-3">
+                  <label class="form-label small fw-bold">CSV Data</label>
+                  <textarea name="csv_data" class="form-control form-control-sm font-monospace" rows="8"
+                            placeholder="One lead per line:&#10;address,suburb,area,value,name,phone&#10;&#10;Example:&#10;12 Oak St,Springfield,120,8500,Jane Doe,0412000001&#10;5 Elm Ave,Rivertown,95,6200,John Smith,0411999888"
+                            required></textarea>
+                  <div class="form-text">Format: <code>address,suburb,area,value,name,phone</code> — one lead per line. State defaults to event state.</div>
+                </div>
+                <button class="btn btn-ae btn-sm">Import CSV</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Add Lead -->
+    <div class="col-lg-6">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">＋ Add Lead Manually</h6>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="add_lead">
+          <div class="row g-2 mb-2">
+            <div class="col-8">
+              <label class="form-label small">Address *</label>
+              <input type="text" name="address" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Suburb *</label>
+              <input type="text" name="suburb" class="form-control form-control-sm" required>
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-4">
+              <label class="form-label small">State</label>
+              <input type="text" name="state" class="form-control form-control-sm" value="{{ event.state }}" maxlength="3">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Roof Area (m²)</label>
+              <input type="number" name="roof_area_sqm" class="form-control form-control-sm" step="0.1" min="0">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Est. Value ($)</label>
+              <input type="number" name="estimated_value" class="form-control form-control-sm" step="0.01" min="0">
+            </div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-4">
+              <label class="form-label small">Contact Name</label>
+              <input type="text" name="contact_name" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Phone</label>
+              <input type="tel" name="contact_phone" class="form-control form-control-sm">
+            </div>
+            <div class="col-4">
+              <label class="form-label small">Email</label>
+              <input type="email" name="contact_email" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small">Notes</label>
+            <textarea name="notes" class="form-control form-control-sm" rows="2"></textarea>
+          </div>
+          <button class="btn btn-ae btn-sm w-100">Add Lead</button>
+        </form>
+      </div>
+    </div>
+
+  </div><!-- /row -->
+</div>
+
+<script>
+// Initialise Bootstrap tooltips
+(function () {
+  var tooltipEls = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+  tooltipEls.forEach(function (el) { new bootstrap.Tooltip(el); });
+})();
+</script>
+{% endblock %}

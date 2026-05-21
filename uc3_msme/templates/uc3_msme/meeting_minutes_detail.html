@@ -1,0 +1,132 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Meeting Minutes Detail — UC3{% endblock %}
+{% block sb_minutes %}active{% endblock %}
+
+{% block uc3_content %}
+<!-- Page header -->
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+      <h1 class="h3 mb-0 fw-bold">{{ mm.title|default:mm.meeting_date }}</h1>
+      {% if mm.status == 'raw' %}
+        <span class="status-badge status-draft">Raw</span>
+      {% elif mm.status == 'processed' %}
+        <span class="status-badge status-pending">Processed</span>
+      {% elif mm.status == 'confirmed' %}
+        <span class="status-badge status-active">Confirmed</span>
+      {% endif %}
+    </div>
+    <p class="text-muted mb-0">Meeting Minutes — {{ mm.project.name }}</p>
+  </div>
+  <a href="{% url 'uc3:meeting_minutes_list' %}" class="btn btn-ae-outline">← Back to Meetings</a>
+</div>
+
+<!-- Metadata bar -->
+<div class="d-flex flex-wrap gap-3 mb-4 px-1" style="font-size:0.85rem">
+  <div><span class="text-muted">Date:</span> <strong>{{ mm.meeting_date|date:"d M Y" }}</strong></div>
+  <div><span class="text-muted">Project:</span> <strong>{{ mm.project.name }}</strong></div>
+  {% if mm.attendees %}
+  <div><span class="text-muted">Attendees:</span> <strong>{{ mm.attendees }}</strong></div>
+  {% endif %}
+  <div>
+    <span class="text-muted">Actions:</span>
+    <strong>{{ mm.actions_count|default:"0" }}</strong>
+  </div>
+  <div><span class="text-muted">Recorded:</span> <strong>{{ mm.created_at|date:"d M Y" }}</strong></div>
+</div>
+
+<!-- Two-column layout -->
+<div class="row g-4 px-0">
+
+  <!-- Left: Original notes -->
+  <div class="col-12 col-md-6">
+    <div class="card p-4 h-100">
+      <h6 class="fw-bold mb-3">Original Meeting Notes</h6>
+      <pre style="white-space:pre-wrap; max-height:400px; overflow-y:auto; font-family:inherit; font-size:0.88rem; margin:0; color:#444">{{ mm.raw_minutes }}</pre>
+    </div>
+  </div>
+
+  <!-- Right: Extracted Action Items -->
+  <div class="col-12 col-md-6">
+    <div class="card p-4 h-100">
+      <h6 class="fw-bold mb-3">Extracted Action Items</h6>
+
+      {% if mm.status == 'processed' %}
+        {% if extracted_actions %}
+        <div class="table-responsive mb-3">
+          <table class="table table-sm table-hover mb-0">
+            <thead>
+              <tr>
+                <th>Action</th>
+                <th>Owner</th>
+                <th>Due Date</th>
+                <th>Priority</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in extracted_actions %}
+              <tr>
+                <td style="font-size:0.85rem">{{ a.action }}</td>
+                <td class="small text-muted">{{ a.owner|default:"—" }}</td>
+                <td class="small text-muted">{{ a.due_date|default:"—" }}</td>
+                <td>
+                  {% if a.priority == 'critical' %}
+                    <span class="status-badge status-overdue">Critical</span>
+                  {% elif a.priority == 'high' %}
+                    <span class="status-badge status-pending">High</span>
+                  {% elif a.priority == 'medium' %}
+                    <span class="status-badge status-draft">Medium</span>
+                  {% else %}
+                    <span class="status-badge status-active">Low</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted small mb-3">No action items were extracted from these notes.</p>
+        {% endif %}
+
+        <div class="d-flex gap-2 flex-wrap">
+          <form method="post" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="confirm_actions">
+            <button type="submit" class="btn btn-ae btn-sm">✅ Confirm &amp; Create Action Items</button>
+          </form>
+          <form method="post" class="d-inline">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="re_extract">
+            <button type="submit" class="btn btn-ae-outline btn-sm">🔄 Re-extract</button>
+          </form>
+        </div>
+
+      {% elif mm.status == 'confirmed' %}
+        <div class="rounded p-3" style="background:#f0fdf4; border:1px solid #bbf7d0">
+          <div class="fw-semibold text-success mb-1">Actions confirmed and added to Action Hub</div>
+          <div class="text-muted small mb-2">{{ mm.actions_count }} item{{ mm.actions_count|pluralize }} created from this meeting.</div>
+          <a href="{% url 'uc3:action_list' %}" class="btn btn-ae-outline btn-sm">View Action Items →</a>
+        </div>
+
+      {% else %}
+        {# status == 'raw' #}
+        <div class="rounded p-3 mb-3" style="background:var(--ae-cream); border:1px solid var(--ae-earth)">
+          <div class="fw-semibold mb-1">No action items extracted yet.</div>
+          <div class="text-muted small">Click 'Re-extract' to process these notes with AI.</div>
+        </div>
+        <form method="post" class="d-inline">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="re_extract">
+          <button type="submit" class="btn btn-ae btn-sm">🔄 Re-extract</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<div class="mt-4">
+  <a href="{% url 'uc3:meeting_minutes_list' %}" class="btn btn-ae-outline">← Back to Meetings</a>
+</div>
+{% endblock %}

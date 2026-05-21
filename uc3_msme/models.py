@@ -1,4 +1,5 @@
 """UC3 MSME Project Coordinator — Database Models (Multi-tenant)"""
+import secrets as _secrets
 from django.db import models
 
 
@@ -142,6 +143,8 @@ class Risk(models.Model):
     owner           = models.CharField(max_length=200, blank=True)
     created_by_ai   = models.BooleanField(default=False)
     created_at      = models.DateTimeField(auto_now_add=True)
+    escalated_at    = models.DateTimeField(null=True, blank=True)
+    escalation_note = models.TextField(blank=True)
 
     @property
     def risk_score(self):
@@ -227,6 +230,9 @@ class Document(models.Model):
     upload_date     = models.DateField(null=True, blank=True)
     uploaded_by     = models.CharField(max_length=200, blank=True)
     notes           = models.TextField(blank=True)
+    file_content    = models.TextField(blank=True, help_text='Paste document content for AI analysis')
+    ai_analysis     = models.TextField(blank=True)
+    analyzed_at     = models.DateTimeField(null=True, blank=True)
 
     def __str__(self): return f"{self.name} v{self.version}"
     class Meta: verbose_name = 'Document'; ordering = ['name']
@@ -295,3 +301,132 @@ class ChatMessage(models.Model):
 
     def __str__(self): return f"[{self.role}] {self.content[:60]}"
     class Meta: ordering = ['created_at']
+
+
+# ─── Feature 4: Variation Orders ──────────────────────────────────────────────
+
+VO_STATUS = [
+    ('draft', 'Draft'),
+    ('pending_approval', 'Pending Approval'),
+    ('approved', 'Approved'),
+    ('rejected', 'Rejected'),
+    ('withdrawn', 'Withdrawn'),
+]
+
+
+class VariationOrder(models.Model):
+    project          = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='variations')
+    tenant           = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    ref_number       = models.CharField(max_length=20, blank=True)
+    title            = models.CharField(max_length=300)
+    description      = models.TextField()
+    scope_change     = models.TextField(blank=True)
+    cost_impact      = models.DecimalField(max_digits=12, decimal_places=2, default=0,
+                                            help_text='Positive = cost increase')
+    time_impact_days = models.IntegerField(default=0,
+                                            help_text='Positive = schedule delay in days')
+    status           = models.CharField(max_length=30, choices=VO_STATUS, default='draft')
+    is_ai_drafted    = models.BooleanField(default=False)
+    submitted_by     = models.CharField(max_length=200, blank=True)
+    approved_by      = models.CharField(max_length=200, blank=True)
+    approved_at      = models.DateTimeField(null=True, blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.ref_number and self.project_id:
+            count = VariationOrder.objects.filter(project_id=self.project_id).count()
+            self.ref_number = f"VO-{self.project_id:03d}-{count + 1:03d}"
+        super().save(*args, **kwargs)
+
+    def __str__(self): return f"{self.ref_number}: {self.title}"
+    class Meta: verbose_name = 'Variation Order'; ordering = ['-created_at']
+
+
+# ─── Feature 2: Client Portal ─────────────────────────────────────────────────
+
+class ClientPortalToken(models.Model):
+    project     = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='portal_tokens')
+    tenant      = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    token       = models.CharField(max_length=64, unique=True, blank=True)
+    label       = models.CharField(max_length=200, blank=True,
+                                    help_text='e.g. client company name')
+    is_active   = models.BooleanField(default=True)
+    views_count = models.IntegerField(default=0)
+    expires_at  = models.DateField(null=True, blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            self.token = _secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def __str__(self): return f"Portal: {self.project.name} / {self.label or self.token[:12]}"
+    class Meta: verbose_name = 'Client Portal Token'; ordering = ['-created_at']
+
+
+# ─── Feature 1: Accounting Sync ───────────────────────────────────────────────
+
+class AccountingConnection(models.Model):
+    PROVIDER    = [('xero', 'Xero'), ('myob', 'MYOB AccountRight'), ('qbo', 'QuickBooks Online')]
+    SYNC_STATUS = [('disconnected', 'Disconnected'), ('connected', 'Connected'), ('error', 'Sync Error')]
+    tenant         = models.ForeignKey(Tenant, on_delete=models.CASCADE,
+                                        related_name='accounting_connections')
+    provider       = models.CharField(max_length=20, choices=PROVIDER, default='xero')
+    status         = models.CharField(max_length=20, choices=SYNC_STATUS, default='disconnected')
+    org_name       = models.CharField(max_length=200, blank=True)
+    access_token   = models.TextField(blank=True)
+    last_sync      = models.DateTimeField(null=True, blank=True)
+    sync_log       = models.TextField(blank=True)
+    records_synced = models.IntegerField(default=0)
+    created_at     = models.DateTimeField(auto_now_add=True)
+    updated_at     = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.tenant.name} — {self.get_provider_display()} ({self.get_status_display()})"
+    class Meta: verbose_name = 'Accounting Connection'; ordering = ['-created_at']
+
+
+# ─── Feature 5: Weekly Reports ────────────────────────────────────────────────
+
+class WeeklyReport(models.Model):
+    REPORT_STATUS = [('draft', 'Draft'), ('approved', 'Approved'), ('sent', 'Sent')]
+    project         = models.ForeignKey(Project, on_delete=models.CASCADE,
+                                         related_name='weekly_reports')
+    tenant          = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    week_ending     = models.DateField()
+    title           = models.CharField(max_length=300, blank=True)
+    content         = models.TextField()
+    is_ai_generated = models.BooleanField(default=True)
+    status          = models.CharField(max_length=20, choices=REPORT_STATUS, default='draft')
+    generated_at    = models.DateTimeField(auto_now_add=True)
+    approved_by     = models.CharField(max_length=200, blank=True)
+    approved_at     = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self): return f"{self.project.name} — Week ending {self.week_ending}"
+    class Meta: verbose_name = 'Weekly Report'; ordering = ['-week_ending']
+
+
+# ─── Feature 9: Meeting Minutes ───────────────────────────────────────────────
+
+class MeetingMinutes(models.Model):
+    MM_STATUS = [
+        ('raw', 'Raw'),
+        ('processed', 'Actions Extracted'),
+        ('confirmed', 'Actions Confirmed'),
+    ]
+    project           = models.ForeignKey(Project, on_delete=models.CASCADE,
+                                           related_name='meeting_minutes')
+    tenant            = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    meeting_date      = models.DateField()
+    title             = models.CharField(max_length=300, blank=True)
+    attendees         = models.CharField(max_length=500, blank=True)
+    raw_minutes       = models.TextField()
+    extracted_actions = models.TextField(default='[]',
+                                          help_text='JSON list of extracted action items')
+    actions_count     = models.IntegerField(default=0)
+    status            = models.CharField(max_length=30, choices=MM_STATUS, default='raw')
+    created_at        = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self): return f"{self.project.name} / {self.title or str(self.meeting_date)}"
+    class Meta: verbose_name = 'Meeting Minutes'; ordering = ['-meeting_date']

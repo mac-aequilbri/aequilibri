@@ -1,0 +1,164 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Storm Lead Engine — UC1 Roofing{% endblock %}
+{% block sb_storm %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+  <div>
+    <h4 class="mb-0">
+      ⛈️ Storm Lead Engine
+      <span class="badge bg-primary ms-2 fw-normal fs-6">
+        ${{ total_pipeline|floatformat:0 }} total pipeline
+      </span>
+    </h4>
+    <small class="text-muted">Track storm events and generate roofing leads by affected area</small>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  {% if msg %}
+  <div class="alert alert-info alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endif %}
+
+  <!-- Events table -->
+  <div class="card p-0 mb-4">
+    <div class="card-header fw-semibold">Storm Events</div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Date</th>
+            <th>Severity</th>
+            <th>Affected Suburbs</th>
+            <th>State</th>
+            <th>Leads</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ev in events %}
+          <tr>
+            <td class="fw-semibold">{{ ev.name }}</td>
+            <td>{{ ev.get_event_type_display }}</td>
+            <td class="text-nowrap">{{ ev.event_date }}</td>
+            <td>
+              {% if ev.severity <= 2 %}
+                <span class="badge bg-success">{{ ev.get_severity_display }}</span>
+              {% elif ev.severity == 3 %}
+                <span class="badge bg-warning text-dark">{{ ev.get_severity_display }}</span>
+              {% else %}
+                <span class="badge bg-danger">{{ ev.get_severity_display }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">
+              {% if ev.affected_suburbs|length > 40 %}
+                {{ ev.affected_suburbs|slice:":40" }}…
+              {% else %}
+                {{ ev.affected_suburbs }}
+              {% endif %}
+            </td>
+            <td>{{ ev.state }}</td>
+            <td>
+              <span class="badge bg-secondary">{{ ev.leads_generated }}</span>
+            </td>
+            <td>
+              <a href="{% url 'uc1:storm_detail' ev.id %}" class="btn btn-sm btn-outline-primary">
+                View
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="text-center py-5">
+              <div class="text-muted mb-2" style="font-size:2.5rem;">⛈️</div>
+              <p class="mb-1 fw-semibold">No storm events yet</p>
+              <p class="text-muted small mb-0">
+                Create your first storm event to track leads and monitor pipeline value by affected area.
+              </p>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Create Storm Event form card -->
+  <div class="card">
+    <div class="card-header fw-semibold">Create Storm Event</div>
+    <div class="card-body">
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="create">
+        <div class="row g-3">
+
+          <div class="col-12 col-md-6">
+            <label class="form-label small fw-semibold">Event Name <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control"
+                   placeholder="e.g. Hail Storm — Brisbane North April 2026" required>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label small fw-semibold">Event Type <span class="text-danger">*</span></label>
+            <select name="event_type" class="form-select" required>
+              <option value="" disabled selected>— select —</option>
+              <option value="hail">Hail</option>
+              <option value="cyclone">Cyclone</option>
+              <option value="wind">Wind</option>
+              <option value="flood">Flood</option>
+              <option value="fire">Fire</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label small fw-semibold">Event Date <span class="text-danger">*</span></label>
+            <input type="date" name="event_date" class="form-control" required>
+          </div>
+
+          <div class="col-12 col-md-2">
+            <label class="form-label small fw-semibold">Severity <span class="text-danger">*</span></label>
+            <select name="severity" class="form-select" required>
+              <option value="" disabled selected>—</option>
+              <option value="1">1 — Minor</option>
+              <option value="2">2 — Low</option>
+              <option value="3">3 — Moderate</option>
+              <option value="4">4 — Severe</option>
+              <option value="5">5 — Catastrophic</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-7">
+            <label class="form-label small fw-semibold">Affected Suburbs</label>
+            <input type="text" name="affected_suburbs" class="form-control"
+                   placeholder="Comma-separated, e.g. Chermside, Aspley, Zillmere">
+            <div class="form-text">Separate multiple suburbs with commas.</div>
+          </div>
+
+          <div class="col-12 col-md-3">
+            <label class="form-label small fw-semibold">State</label>
+            <input type="text" name="state" class="form-control" placeholder="e.g. QLD">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small fw-semibold">Notes</label>
+            <textarea name="notes" class="form-control" rows="3"
+                      placeholder="Additional context about the event, insurance codes, media references…"></textarea>
+          </div>
+
+          <div class="col-12 d-flex justify-content-end">
+            <button type="submit" class="btn btn-ae">Create Storm Event</button>
+          </div>
+
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block nav_uc3 %}active{% endblock %}
 
+{% block extra_head %}
+<style>
+  .sidebar-section { font-size:.68rem; text-transform:uppercase; letter-spacing:.09em;
+    color:#999; padding: 12px 16px 4px; font-weight:600; }
+</style>
+{% endblock %}
+
 {% block content %}
 
 <!-- Mobile/Tablet toggle bar (hidden on desktop) -->
@@ -28,9 +35,24 @@
     <nav class="nav flex-column gap-1">
       <a class="nav-link" href="{% url 'uc3:dashboard' %}">📊 Dashboard</a>
       <a class="nav-link" href="{% url 'uc3:project_list' %}">🏗 Projects</a>
+      <div class="sidebar-section">Work Management</div>
       <a class="nav-link" href="{% url 'uc3:action_list' %}">✅ Action Items</a>
-      <a class="nav-link" href="{% url 'uc3:risk_list' %}">⚠️ Risk Register</a>
+      <a class="nav-link" href="{% url 'uc3:meeting_minutes_list' %}">📝 Meeting Minutes</a>
+      <a class="nav-link" href="{% url 'uc3:delay_cascade' %}">⚡ Delay Cascade</a>
+      <div class="sidebar-section">Finance</div>
       <a class="nav-link" href="{% url 'uc3:budget' %}">💰 Budget</a>
+      <a class="nav-link" href="{% url 'uc3:budget_analytics' %}">📈 Burn Rate Analytics</a>
+      <a class="nav-link" href="{% url 'uc3:cashflow_planner' %}">💵 Cashflow Planner</a>
+      <a class="nav-link" href="{% url 'uc3:accounting_sync' %}">🔗 Accounting Sync</a>
+      <div class="sidebar-section">Risk &amp; Compliance</div>
+      <a class="nav-link" href="{% url 'uc3:risk_list' %}">⚠️ Risk Register</a>
+      <a class="nav-link" href="{% url 'uc3:risk_escalation' %}">🔔 Escalation Engine</a>
+      <a class="nav-link" href="{% url 'uc3:variation_list' %}">📋 Variation Orders</a>
+      <div class="sidebar-section">Communication</div>
+      <a class="nav-link" href="{% url 'uc3:report_list' %}">📄 Weekly Reports</a>
+      <a class="nav-link" href="{% url 'uc3:portal_list' %}">🔗 Client Portals</a>
+      <a class="nav-link" href="{% url 'uc3:document_list' %}">📁 Documents</a>
+      <div class="sidebar-section">Intelligence</div>
       <a class="nav-link" href="{% url 'uc3:ai_chat' %}">🤖 AI Assistant</a>
       <a class="nav-link" href="{% url 'uc3:exec_log' %}">🔍 Audit Log</a>
     </nav>
@@ -39,7 +61,7 @@
 
 <div class="d-flex">
   <!-- Desktop sidebar (visible only on lg+) -->
-  <div class="sidebar d-none d-lg-block px-3 py-4 flex-shrink-0" style="width:220px;">
+  <div class="sidebar d-none d-lg-block px-3 py-4 flex-shrink-0" style="width:230px;">
     <div class="mb-3"><span class="uc-badge uc3-badge">UC3</span> <small class="fw-bold">MSME</small></div>
     {% if tenant %}
     <div class="mb-3 p-2 rounded" style="background:var(--ae-cream); font-size:0.8rem">
@@ -50,9 +72,29 @@
     <nav class="nav flex-column gap-1">
       <a class="nav-link {% block sb_dash %}{% endblock %}" href="{% url 'uc3:dashboard' %}">📊 Dashboard</a>
       <a class="nav-link {% block sb_projects %}{% endblock %}" href="{% url 'uc3:project_list' %}">🏗 Projects</a>
+
+      <div class="sidebar-section">Work Management</div>
       <a class="nav-link {% block sb_actions %}{% endblock %}" href="{% url 'uc3:action_list' %}">✅ Action Items</a>
-      <a class="nav-link {% block sb_risks %}{% endblock %}" href="{% url 'uc3:risk_list' %}">⚠️ Risk Register</a>
+      <a class="nav-link {% block sb_minutes %}{% endblock %}" href="{% url 'uc3:meeting_minutes_list' %}">📝 Meeting Minutes</a>
+      <a class="nav-link {% block sb_delay %}{% endblock %}" href="{% url 'uc3:delay_cascade' %}">⚡ Delay Cascade</a>
+
+      <div class="sidebar-section">Finance</div>
       <a class="nav-link {% block sb_budget %}{% endblock %}" href="{% url 'uc3:budget' %}">💰 Budget</a>
+      <a class="nav-link {% block sb_analytics %}{% endblock %}" href="{% url 'uc3:budget_analytics' %}">📈 Burn Rate Analytics</a>
+      <a class="nav-link {% block sb_cashflow %}{% endblock %}" href="{% url 'uc3:cashflow_planner' %}">💵 Cashflow Planner</a>
+      <a class="nav-link {% block sb_accounting %}{% endblock %}" href="{% url 'uc3:accounting_sync' %}">🔗 Accounting Sync</a>
+
+      <div class="sidebar-section">Risk &amp; Compliance</div>
+      <a class="nav-link {% block sb_risks %}{% endblock %}" href="{% url 'uc3:risk_list' %}">⚠️ Risk Register</a>
+      <a class="nav-link {% block sb_escalation %}{% endblock %}" href="{% url 'uc3:risk_escalation' %}">🔔 Escalation Engine</a>
+      <a class="nav-link {% block sb_variations %}{% endblock %}" href="{% url 'uc3:variation_list' %}">📋 Variation Orders</a>
+
+      <div class="sidebar-section">Communication</div>
+      <a class="nav-link {% block sb_reports %}{% endblock %}" href="{% url 'uc3:report_list' %}">📄 Weekly Reports</a>
+      <a class="nav-link {% block sb_portal %}{% endblock %}" href="{% url 'uc3:portal_list' %}">🔗 Client Portals</a>
+      <a class="nav-link {% block sb_documents %}{% endblock %}" href="{% url 'uc3:document_list' %}">📁 Documents</a>
+
+      <div class="sidebar-section">Intelligence</div>
       <a class="nav-link {% block sb_chat %}{% endblock %}" href="{% url 'uc3:ai_chat' %}">🤖 AI Assistant</a>
       <a class="nav-link {% block sb_log %}{% endblock %}" href="{% url 'uc3:exec_log' %}">🔍 Audit Log</a>
     </nav>

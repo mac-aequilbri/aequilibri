@@ -451,3 +451,228 @@ class ExecutionLog(models.Model):
     class Meta:
         ordering = ['-created_at']
         verbose_name = 'Execution Log (UC1)'
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 1 — Guttering Auto-Quote
+# ═══════════════════════════════════════════════════════════════════════════════
+
+GUTTERING_ITEM_TYPES = [
+    ('gutter',    'Guttering (per linear metre)'),
+    ('downpipe',  'Downpipe (each)'),
+    ('fascia',    'Fascia Board (per linear metre)'),
+    ('valley',    'Valley Iron (per linear metre)'),
+    ('ridge_cap', 'Ridge Cap (per linear metre)'),
+]
+
+
+class GutteringRate(models.Model):
+    item_type   = models.CharField(max_length=30, choices=GUTTERING_ITEM_TYPES)
+    description = models.CharField(max_length=200)
+    unit        = models.CharField(max_length=20, default='lm')
+    rate_ex_gst = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active   = models.BooleanField(default=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    def __str__(self): return f"{self.get_item_type_display()} — ${self.rate_ex_gst}/{self.unit}"
+    class Meta: verbose_name = 'Guttering Rate'; ordering = ['item_type']
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 2 — Solar Bundle
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class SolarPartner(models.Model):
+    name               = models.CharField(max_length=200)
+    contact_name       = models.CharField(max_length=200, blank=True)
+    contact_email      = models.EmailField(blank=True)
+    contact_phone      = models.CharField(max_length=30, blank=True)
+    referral_fee_pct   = models.DecimalField(max_digits=5, decimal_places=2, default=10.0,
+                                              help_text='% of solar install value paid as referral fee')
+    avg_install_value  = models.DecimalField(max_digits=10, decimal_places=2, default=10000,
+                                              help_text='Average system value for commission estimate')
+    is_active          = models.BooleanField(default=True)
+    notes              = models.TextField(blank=True)
+    created_at         = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self): return self.name
+    class Meta: verbose_name = 'Solar Partner'; ordering = ['name']
+
+
+SOLAR_REFERRAL_STATUS = [
+    ('pending',   'Pending'),
+    ('submitted', 'Submitted to Partner'),
+    ('contacted', 'Client Contacted'),
+    ('won',       'Won'),
+    ('lost',      'Lost'),
+]
+
+
+class SolarReferral(models.Model):
+    quote                  = models.ForeignKey(Quote, on_delete=models.CASCADE,
+                                                related_name='solar_referrals')
+    partner                = models.ForeignKey(SolarPartner, on_delete=models.SET_NULL,
+                                                null=True, blank=True)
+    status                 = models.CharField(max_length=20, choices=SOLAR_REFERRAL_STATUS,
+                                               default='pending')
+    solar_potential_kwh    = models.FloatField(default=0)
+    best_section_area      = models.FloatField(default=0)
+    best_section_facing    = models.CharField(max_length=20, blank=True)
+    estimated_capacity_kw  = models.FloatField(default=0)
+    estimated_install_value = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    estimated_referral_fee  = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    client_notes           = models.TextField(blank=True)
+    submitted_at           = models.DateTimeField(null=True, blank=True)
+    created_at             = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self): return f"Solar Referral: {self.quote.ref_number}"
+    class Meta: verbose_name = 'Solar Referral'; ordering = ['-created_at']
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 3 — Finance Integration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class FinanceProvider(models.Model):
+    name              = models.CharField(max_length=100)
+    slug              = models.CharField(max_length=30, unique=True)
+    interest_rate_pct = models.DecimalField(max_digits=5, decimal_places=2, default=0,
+                                             help_text='Annual %. 0 = interest-free.')
+    min_term_months   = models.IntegerField(default=12)
+    max_term_months   = models.IntegerField(default=60)
+    min_amount        = models.DecimalField(max_digits=10, decimal_places=2, default=1000)
+    tagline           = models.CharField(max_length=200, blank=True)
+    is_active         = models.BooleanField(default=True)
+    created_at        = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self): return self.name
+    class Meta: verbose_name = 'Finance Provider'; ordering = ['name']
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 4 — Storm Lead Engine
+# ═══════════════════════════════════════════════════════════════════════════════
+
+STORM_TYPES = [
+    ('hail',    'Hailstorm'),
+    ('cyclone', 'Cyclone'),
+    ('wind',    'Severe Wind'),
+    ('flood',   'Flooding / Water Ingress'),
+    ('fire',    'Ember Attack / Bushfire'),
+]
+STORM_SEVERITY = [(i, f'{i} — {"Low" if i<=2 else "Moderate" if i==3 else "Severe" if i==4 else "Extreme"}')
+                  for i in range(1, 6)]
+
+LEAD_STATUS = [
+    ('new',       'New — Not Contacted'),
+    ('contacted', 'Contacted'),
+    ('quoted',    'Quoted'),
+    ('won',       'Won'),
+    ('lost',      'Lost / No Response'),
+]
+
+
+class StormEvent(models.Model):
+    name             = models.CharField(max_length=200)
+    event_type       = models.CharField(max_length=20, choices=STORM_TYPES, default='hail')
+    event_date       = models.DateField()
+    severity         = models.IntegerField(choices=STORM_SEVERITY, default=3)
+    affected_suburbs = models.TextField(help_text='Comma-separated list of affected suburbs')
+    state            = models.CharField(max_length=10, default='QLD')
+    notes            = models.TextField(blank=True)
+    leads_generated  = models.IntegerField(default=0)
+    created_at       = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self): return f"{self.name} ({self.event_date})"
+    class Meta: verbose_name = 'Storm Event'; ordering = ['-event_date']
+
+
+class StormLead(models.Model):
+    storm_event      = models.ForeignKey(StormEvent, on_delete=models.CASCADE,
+                                          related_name='leads')
+    address          = models.CharField(max_length=300)
+    suburb           = models.CharField(max_length=100)
+    state            = models.CharField(max_length=10, default='QLD')
+    roof_area_sqm    = models.FloatField(default=0)
+    estimated_value  = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status           = models.CharField(max_length=20, choices=LEAD_STATUS, default='new')
+    contact_name     = models.CharField(max_length=200, blank=True)
+    contact_phone    = models.CharField(max_length=30, blank=True)
+    contact_email    = models.EmailField(blank=True)
+    notes            = models.TextField(blank=True)
+    quote            = models.ForeignKey(Quote, on_delete=models.SET_NULL,
+                                          null=True, blank=True, related_name='storm_leads')
+    created_at       = models.DateTimeField(auto_now_add=True)
+    updated_at       = models.DateTimeField(auto_now=True)
+
+    def __str__(self): return f"{self.address} ({self.storm_event.name})"
+    class Meta: verbose_name = 'Storm Lead'; ordering = ['-created_at']
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 5 — Roof Condition Report
+# ═══════════════════════════════════════════════════════════════════════════════
+
+CONDITION_GRADE = [
+    ('A', 'A — Excellent (new/near-new, no action)'),
+    ('B', 'B — Good (minor maintenance, 10+ years life)'),
+    ('C', 'C — Fair (scheduled replacement within 5 years)'),
+    ('D', 'D — Poor (replacement within 2 years recommended)'),
+    ('F', 'F — Failed (immediate replacement required)'),
+]
+REPORT_TYPE = [
+    ('homebuyer',    'Pre-Purchase Inspection'),
+    ('insurance',    'Insurance Assessment'),
+    ('maintenance',  'Routine Maintenance Report'),
+    ('strata',       'Strata / Body Corporate'),
+]
+REPORT_STATUS = [('draft', 'Draft'), ('final', 'Final'), ('delivered', 'Delivered')]
+URGENCY = [
+    ('routine',       'Routine — No urgency'),
+    ('within_5_years','Within 5 Years'),
+    ('within_2_years','Within 2 Years'),
+    ('within_1_year', 'Within 1 Year'),
+    ('immediate',     'Immediate Action Required'),
+]
+
+
+class RoofConditionReport(models.Model):
+    quote                = models.ForeignKey(Quote, on_delete=models.CASCADE,
+                                              related_name='condition_reports')
+    report_number        = models.CharField(max_length=20, unique=True, editable=False)
+    report_type          = models.CharField(max_length=20, choices=REPORT_TYPE, default='homebuyer')
+    client_name          = models.CharField(max_length=200, blank=True)
+    client_email         = models.EmailField(blank=True)
+    client_company       = models.CharField(max_length=200, blank=True)
+    condition_grade      = models.CharField(max_length=2, choices=CONDITION_GRADE, default='B')
+    condition_score      = models.IntegerField(default=70, help_text='0-100 overall score')
+    life_remaining_years = models.IntegerField(default=10)
+    urgency_level        = models.CharField(max_length=20, choices=URGENCY, default='routine')
+    ai_assessment        = models.TextField(blank=True)
+    recommended_works    = models.TextField(blank=True)
+    inspector_name       = models.CharField(max_length=200, blank=True)
+    price_ex_gst         = models.DecimalField(max_digits=8, decimal_places=2, default=350)
+    status               = models.CharField(max_length=20, choices=REPORT_STATUS, default='draft')
+    generated_at         = models.DateTimeField(auto_now_add=True)
+    updated_at           = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.report_number:
+            from datetime import date as _date
+            d = _date.today().strftime('%Y%m%d')
+            count = RoofConditionReport.objects.filter(
+                report_number__startswith=f'RCR-{d}').count()
+            self.report_number = f'RCR-{d}-{count+1:04d}'
+        super().save(*args, **kwargs)
+
+    @property
+    def price_inc_gst(self):
+        return round(float(self.price_ex_gst) * 1.10, 2)
+
+    @property
+    def grade_color(self):
+        return {'A': '#27ae60', 'B': '#2ecc71', 'C': '#f39c12',
+                'D': '#e67e22', 'F': '#e74c3c'}.get(self.condition_grade, '#888')
+
+    def __str__(self): return f"{self.report_number} — {self.quote.property_address[:60]}"
+    class Meta: verbose_name = 'Roof Condition Report'; ordering = ['-generated_at']

@@ -1,0 +1,206 @@
+{% extends "uc3_msme/base_uc3.html" %}
+
+{% block sb_variations %}active{% endblock %}
+
+{% block uc3_content %}
+<!-- Page header -->
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div class="d-flex align-items-center gap-3 flex-wrap">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1 flex-wrap">
+        <h1 class="h3 mb-0 fw-bold font-monospace">{{ vo.ref_number }}</h1>
+
+        <!-- Status badge -->
+        {% if vo.status == 'draft' %}
+          <span class="status-badge status-draft">Draft</span>
+        {% elif vo.status == 'pending_approval' %}
+          <span class="status-badge status-pending">Pending Approval</span>
+        {% elif vo.status == 'approved' %}
+          <span class="status-badge status-confirmed">Approved</span>
+        {% elif vo.status == 'rejected' %}
+          <span class="status-badge status-overdue">Rejected</span>
+        {% elif vo.status == 'withdrawn' %}
+          <span class="status-badge status-draft">Withdrawn</span>
+        {% endif %}
+
+        <!-- AI Drafted badge -->
+        {% if vo.is_ai_drafted %}
+          <span class="badge" style="background: #1d6fa6; color: #fff; font-size: 0.8rem; padding: 0.4em 0.75em; border-radius: 999px;">
+            🤖 AI Drafted
+          </span>
+        {% endif %}
+      </div>
+      <p class="text-muted mb-0">Variation Order Detail</p>
+    </div>
+  </div>
+  <a href="{% url 'uc3:variation_list' %}" class="btn btn-ae-outline">
+    ← Back to Variations
+  </a>
+</div>
+
+<!-- Main detail card -->
+<div class="card p-4 mb-4">
+  <h5 class="fw-bold mb-3">{{ vo.title }}</h5>
+
+  {% if vo.description %}
+  <p class="text-muted mb-4">{{ vo.description }}</p>
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- Left column -->
+    <div class="col-12 col-md-6">
+      <dl class="row mb-0">
+        <dt class="col-sm-5 text-muted fw-normal">Project</dt>
+        <dd class="col-sm-7 fw-semibold">{{ vo.project.name }}</dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Cost Impact</dt>
+        <dd class="col-sm-7 fw-bold
+          {% if vo.cost_impact < 0 %}text-success{% elif vo.cost_impact > 0 %}text-danger{% endif %}">
+          {% if vo.cost_impact > 0 %}+{% endif %}${{ vo.cost_impact|floatformat:2 }}
+        </dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Time Impact</dt>
+        <dd class="col-sm-7 fw-semibold
+          {% if vo.time_impact_days > 0 %}text-danger{% elif vo.time_impact_days < 0 %}text-success{% endif %}">
+          {% if vo.time_impact_days %}
+            {% if vo.time_impact_days > 0 %}+{% endif %}{{ vo.time_impact_days }} day{{ vo.time_impact_days|pluralize }}
+          {% else %}
+            <span class="text-muted">No impact</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Submitted By</dt>
+        <dd class="col-sm-7">
+          {% if vo.submitted_by %}{{ vo.submitted_by }}{% else %}<span class="text-muted">—</span>{% endif %}
+        </dd>
+      </dl>
+    </div>
+
+    <!-- Right column -->
+    <div class="col-12 col-md-6">
+      <dl class="row mb-0">
+        <dt class="col-sm-5 text-muted fw-normal">Status</dt>
+        <dd class="col-sm-7">
+          {% if vo.status == 'draft' %}
+            <span class="status-badge status-draft">Draft</span>
+          {% elif vo.status == 'pending_approval' %}
+            <span class="status-badge status-pending">Pending Approval</span>
+          {% elif vo.status == 'approved' %}
+            <span class="status-badge status-confirmed">Approved</span>
+          {% elif vo.status == 'rejected' %}
+            <span class="status-badge status-overdue">Rejected</span>
+          {% elif vo.status == 'withdrawn' %}
+            <span class="status-badge status-draft">Withdrawn</span>
+          {% endif %}
+        </dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Created</dt>
+        <dd class="col-sm-7">{{ vo.created_at|date:"d M Y" }}</dd>
+
+        {% if vo.approved_by %}
+        <dt class="col-sm-5 text-muted fw-normal">Approved By</dt>
+        <dd class="col-sm-7 fw-semibold">{{ vo.approved_by }}</dd>
+        {% endif %}
+
+        {% if vo.approved_at %}
+        <dt class="col-sm-5 text-muted fw-normal">Approved At</dt>
+        <dd class="col-sm-7">{{ vo.approved_at|date:"d M Y H:i" }}</dd>
+        {% endif %}
+
+        <dt class="col-sm-5 text-muted fw-normal">AI Drafted</dt>
+        <dd class="col-sm-7">
+          {% if vo.is_ai_drafted %}
+            <span style="color: #1d6fa6; font-weight: 600;">🤖 Yes</span>
+          {% else %}
+            <span class="text-muted">No</span>
+          {% endif %}
+        </dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<!-- Scope Change -->
+{% if vo.scope_change %}
+<div class="card p-4 mb-4">
+  <h6 class="fw-bold mb-3">Scope Change</h6>
+  <div class="rounded p-3" style="background: var(--ae-cream); white-space: pre-wrap; font-size: 0.95rem; line-height: 1.6;">{{ vo.scope_change }}</div>
+</div>
+{% endif %}
+
+<!-- ── ACTION: Submit for Approval (Draft) ── -->
+{% if vo.status == 'draft' %}
+<div class="card p-4 mb-4" style="border-left: 4px solid var(--ae-space);">
+  <h6 class="fw-bold mb-1">Submit for Approval</h6>
+  <p class="text-muted small mb-3">Once submitted, the variation order will be reviewed for approval.</p>
+  <form method="post" class="d-flex align-items-end gap-3 flex-wrap">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="submit">
+    <div>
+      <label for="confirmed_by" class="form-label fw-semibold mb-1">Confirmed By</label>
+      <input type="text" id="confirmed_by" name="confirmed_by" class="form-control form-control-sm"
+             placeholder="Your name" style="min-width: 200px;">
+    </div>
+    <button type="submit" class="btn btn-ae">
+      Submit for Approval
+    </button>
+  </form>
+</div>
+{% endif %}
+
+<!-- ── ACTION: Approve / Reject (Pending Approval) ── -->
+{% if vo.status == 'pending_approval' %}
+<div class="card p-4 mb-4" style="border-left: 4px solid var(--ae-air);">
+  <h6 class="fw-bold mb-1">Review Decision</h6>
+  <p class="text-muted small mb-3">This variation order is awaiting approval.</p>
+
+  <div class="row g-3">
+    <!-- Approve -->
+    <div class="col-12 col-md-6">
+      <div class="rounded p-3 h-100" style="background: #f0fdf4; border: 1px solid #bbf7d0;">
+        <div class="fw-semibold text-success mb-2">Approve Variation</div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="approve">
+          <div class="mb-2">
+            <label for="approved_by" class="form-label small fw-semibold mb-1">Approved By <span class="text-danger">*</span></label>
+            <input type="text" id="approved_by" name="approved_by" class="form-control form-control-sm"
+                   placeholder="Approver name" required>
+          </div>
+          <button type="submit" class="btn btn-ae btn-sm w-100">
+            ✓ Approve
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Reject -->
+    <div class="col-12 col-md-6">
+      <div class="rounded p-3 h-100" style="background: #fff5f5; border: 1px solid #fecaca;">
+        <div class="fw-semibold text-danger mb-2">Reject Variation</div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reject">
+          <div class="mb-2">
+            <label for="reject_reason" class="form-label small fw-semibold mb-1">Reason (optional)</label>
+            <input type="text" id="reject_reason" name="reject_reason" class="form-control form-control-sm"
+                   placeholder="Reason for rejection…">
+          </div>
+          <button type="submit" class="btn btn-sm w-100"
+                  style="background: #ef4444; color: #fff; border: none;">
+            ✕ Reject
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Bottom nav -->
+<div class="d-flex gap-2">
+  <a href="{% url 'uc3:variation_list' %}" class="btn btn-ae-outline">
+    ← Back to Variations
+  </a>
+</div>
+{% endblock %}

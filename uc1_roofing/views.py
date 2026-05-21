@@ -21,7 +21,9 @@ from .models import (Quote, QuoteItem, Contact, RateCard, RoofPolygon,
                      ExecutionLog, BuildingFootprint,
                      Vendor, VendorMaterialPrice, PurchaseOrder, PurchaseOrderItem,
                      PriceCheckLog, RoofLidarAnalysis,
-                     PITCH_FACTORS, PITCH_CHOICES, MATERIAL_CHOICES)
+                     PITCH_FACTORS, PITCH_CHOICES, MATERIAL_CHOICES,
+                     GutteringRate, SolarPartner, SolarReferral, FinanceProvider,
+                     StormEvent, StormLead, RoofConditionReport)
 from .forms import QuoteForm, ContactForm, RateCardForm
 from .geoscape_service import GeoscapeError, lookup_geoscape_building
 from .services.correction_memory import roof_correction_learning_prompt
@@ -2190,3 +2192,541 @@ def area_preview(request):
         return JsonResponse({'adjusted_area': adjusted, 'pitch_factor': pitch_factor})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=400)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 1 — Guttering Auto-Quote
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def guttering_rates(request):
+    qs = GutteringRate.objects.all()
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'create':
+            GutteringRate.objects.create(
+                item_type   = request.POST.get('item_type'),
+                description = request.POST.get('description', ''),
+                unit        = request.POST.get('unit', 'lm'),
+                rate_ex_gst = request.POST.get('rate_ex_gst'),
+            )
+            messages.success(request, 'Guttering rate added.')
+        elif action == 'delete':
+            GutteringRate.objects.filter(pk=request.POST.get('rate_id')).delete()
+            messages.success(request, 'Rate deleted.')
+        elif action == 'toggle':
+            r = get_object_or_404(GutteringRate, pk=request.POST.get('rate_id'))
+            r.is_active = not r.is_active
+            r.save()
+        return redirect('uc1:guttering_rates')
+    return render(request, 'uc1_roofing/guttering_rates.html', {
+        'rates': qs, 'item_type_choices': GutteringRate._meta.get_field('item_type').choices,
+    })
+
+
+def auto_add_guttering(request, pk):
+    """Auto-calculate guttering from LiDAR data and add to quote as line items."""
+    quote = get_object_or_404(Quote, pk=pk)
+
+    # Check for existing guttering items
+    existing = quote.items.filter(description__icontains='gutter').count()
+    if existing > 0:
+        messages.warning(request, 'Guttering items already exist on this quote. Remove them first.')
+        return redirect('uc1:quote_detail', pk=pk)
+
+    # Require LiDAR data
+    try:
+        lidar = quote.lidar_analysis
+    except Exception:
+        messages.error(request, 'No LiDAR data for this quote. Run the Roof Inspector first.')
+        return redirect('uc1:quote_detail', pk=pk)
+
+    perimeter = lidar.perimeter_m
+    if not perimeter:
+        messages.error(request, 'LiDAR data has no perimeter measurement.')
+        return redirect('uc1:quote_detail', pk=pk)
+
+    rates = GutteringRate.objects.filter(is_active=True)
+    if not rates.exists():
+        messages.warning(request, 'No guttering rates configured. Set rates in Guttering Rates first.')
+        return redirect('uc1:guttering_rates')
+
+    added = 0
+
+    gutter_r = rates.filter(item_type='gutter').first()
+    if gutter_r:
+        QuoteItem.objects.create(
+            quote=quote, description=f'Guttering — {gutter_r.description}',
+            quantity=round(perimeter, 1), unit='lm',
+            unit_price_ex_gst=gutter_r.rate_ex_gst, sort_order=100,
+        )
+        added += 1
+
+    downpipe_r = rates.filter(item_type='downpipe').first()
+    if downpipe_r:
+        count = max(2, math.ceil(perimeter / 15))
+        QuoteItem.objects.create(
+            quote=quote, description=f'Downpipes — {downpipe_r.description}',
+            quantity=count, unit='each',
+            unit_price_ex_gst=downpipe_r.rate_ex_gst, sort_order=101,
+        )
+        added += 1
+
+    valley_r = rates.filter(item_type='valley').first()
+    if valley_r:
+        QuoteItem.objects.create(
+            quote=quote, description=f'Valley Iron — {valley_r.description}',
+            quantity=round(perimeter * 0.20, 1), unit='lm',
+            unit_price_ex_gst=valley_r.rate_ex_gst, sort_order=102,
+        )
+        added += 1
+
+    ridge_r = rates.filter(item_type='ridge_cap').first()
+    if ridge_r:
+        QuoteItem.objects.create(
+            quote=quote, description=f'Ridge Cap — {ridge_r.description}',
+            quantity=round(perimeter * 0.30, 1), unit='lm',
+            unit_price_ex_gst=ridge_r.rate_ex_gst, sort_order=103,
+        )
+        added += 1
+
+    ExecutionLog.objects.create(
+        tool_name='auto_guttering',
+        payload=json.dumps({'perimeter_m': perimeter, 'items': added}),
+        result='{"status":"success"}', status='success', quote=quote,
+    )
+    messages.success(request,
+        f'✅ Added {added} guttering items based on {perimeter:.0f}m perimeter from LiDAR data.')
+    return redirect('uc1:quote_detail', pk=pk)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 2 — Solar Bundle
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def solar_partners(request):
+    partners = SolarPartner.objects.all()
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'create':
+            SolarPartner.objects.create(
+                name=request.POST.get('name', ''),
+                contact_name=request.POST.get('contact_name', ''),
+                contact_email=request.POST.get('contact_email', ''),
+                contact_phone=request.POST.get('contact_phone', ''),
+                referral_fee_pct=request.POST.get('referral_fee_pct', 10),
+                avg_install_value=request.POST.get('avg_install_value', 10000),
+                notes=request.POST.get('notes', ''),
+            )
+            messages.success(request, 'Solar partner added.')
+        elif action == 'toggle':
+            p = get_object_or_404(SolarPartner, pk=request.POST.get('partner_id'))
+            p.is_active = not p.is_active
+            p.save()
+        elif action == 'delete':
+            SolarPartner.objects.filter(pk=request.POST.get('partner_id')).delete()
+        return redirect('uc1:solar_partners')
+    return render(request, 'uc1_roofing/solar_partners.html', {'partners': partners})
+
+
+def solar_bundle(request, pk):
+    """Solar opportunity analysis + referral submission for a quote."""
+    from core.claude_client import call_claude as _call_claude
+    quote            = get_object_or_404(Quote, pk=pk)
+    partners         = SolarPartner.objects.filter(is_active=True)
+    existing_referral = quote.solar_referrals.first()
+
+    # Parse roof sections from Google Solar API data
+    solar_sections = []
+    best_section   = None
+    total_kwh      = 0.0
+    total_cap_kw   = 0.0
+
+    if quote.roof_sections_json:
+        try:
+            raw = json.loads(quote.roof_sections_json)
+            for s in raw:
+                area   = float(s.get('area', 0))
+                sun_h  = float(s.get('sun_hours', s.get('sunshine_hours', 0)))
+                kwh    = round(sun_h * area / 1000, 0)
+                cap_kw = round(area / 6.5, 1)
+                solar_sections.append({**s, 'annual_kwh': kwh, 'capacity_kw': cap_kw})
+                total_kwh  += kwh
+                total_cap_kw += cap_kw
+            if solar_sections:
+                best_section = max(solar_sections, key=lambda x: x.get('annual_kwh', 0))
+        except Exception:
+            pass
+
+    total_kwh    = round(total_kwh, 0)
+    total_cap_kw = round(total_cap_kw, 1)
+
+    if request.method == 'POST' and not existing_referral:
+        partner_id = request.POST.get('partner_id')
+        if partner_id:
+            partner   = get_object_or_404(SolarPartner, pk=partner_id)
+            est_value = round(total_cap_kw * 1500, 2)
+            est_fee   = round(float(est_value) * float(partner.referral_fee_pct) / 100, 2)
+            ref = SolarReferral.objects.create(
+                quote=quote, partner=partner,
+                solar_potential_kwh=total_kwh,
+                best_section_area=float(best_section.get('area', 0)) if best_section else 0,
+                best_section_facing=best_section.get('facing', '') if best_section else '',
+                estimated_capacity_kw=total_cap_kw,
+                estimated_install_value=est_value,
+                estimated_referral_fee=est_fee,
+                client_notes=request.POST.get('client_notes', ''),
+                status='submitted',
+                submitted_at=timezone.now(),
+            )
+            ExecutionLog.objects.create(
+                tool_name='solar_referral_submit',
+                payload=json.dumps({'partner': partner.name, 'capacity_kw': total_cap_kw}),
+                result=json.dumps({'fee': float(est_fee), 'ref_id': ref.id}),
+                status='success', quote=quote,
+            )
+            messages.success(request,
+                f'☀️ Solar referral submitted to {partner.name}. '
+                f'Estimated referral fee: ${est_fee:,.2f}')
+            return redirect('uc1:solar_bundle', pk=pk)
+
+    return render(request, 'uc1_roofing/solar_bundle.html', {
+        'quote': quote, 'partners': partners,
+        'solar_sections': solar_sections, 'best_section': best_section,
+        'total_kwh': total_kwh, 'total_cap_kw': total_cap_kw,
+        'existing_referral': existing_referral,
+        'has_solar_data': bool(solar_sections),
+        'lidar': getattr(quote, 'lidar_analysis', None),
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 3 — Finance Integration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _seed_finance_providers():
+    """Create default providers if none exist."""
+    if FinanceProvider.objects.exists():
+        return
+    defaults = [
+        dict(name='Brighte Green Loan', slug='brighte',
+             interest_rate_pct=0, min_term_months=12, max_term_months=60,
+             min_amount=1000, tagline='0% interest · Fast approval · Green home loan'),
+        dict(name='Zip Money', slug='zip',
+             interest_rate_pct=19.9, min_term_months=3, max_term_months=36,
+             min_amount=500, tagline='Buy now, pay later · 3-month interest-free period'),
+        dict(name='Commonwealth Bank HomeStart', slug='commbank',
+             interest_rate_pct=6.99, min_term_months=12, max_term_months=84,
+             min_amount=5000, tagline='CBA personal loan · fixed rate'),
+    ]
+    for d in defaults:
+        FinanceProvider.objects.create(**d)
+
+
+def finance_providers(request):
+    _seed_finance_providers()
+    providers = FinanceProvider.objects.all()
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'create':
+            FinanceProvider.objects.create(
+                name=request.POST.get('name', ''),
+                slug=request.POST.get('slug', '').lower().replace(' ', '_'),
+                interest_rate_pct=request.POST.get('interest_rate_pct', 0),
+                min_term_months=request.POST.get('min_term_months', 12),
+                max_term_months=request.POST.get('max_term_months', 60),
+                min_amount=request.POST.get('min_amount', 1000),
+                tagline=request.POST.get('tagline', ''),
+            )
+            messages.success(request, 'Finance provider added.')
+        elif action == 'toggle':
+            fp = get_object_or_404(FinanceProvider, pk=request.POST.get('fp_id'))
+            fp.is_active = not fp.is_active
+            fp.save()
+        return redirect('uc1:finance_providers')
+    return render(request, 'uc1_roofing/finance_providers.html', {'providers': providers})
+
+
+def quote_finance(request, pk):
+    """Show finance options for a specific quote."""
+    _seed_finance_providers()
+    quote     = get_object_or_404(Quote, pk=pk)
+    providers = FinanceProvider.objects.filter(is_active=True)
+    principal = float(quote.total_inc_gst)
+
+    finance_options = []
+    for fp in providers:
+        options = []
+        for term in [12, 24, 36, 48, 60]:
+            if fp.min_term_months <= term <= fp.max_term_months and principal >= float(fp.min_amount):
+                rate = float(fp.interest_rate_pct) / 100 / 12
+                if rate == 0:
+                    monthly = principal / term
+                else:
+                    monthly = (principal * rate) / (1 - (1 + rate) ** (-term))
+                total_paid = monthly * term
+                options.append({
+                    'term': term,
+                    'monthly': round(monthly, 2),
+                    'total': round(total_paid, 2),
+                    'interest': round(total_paid - principal, 2),
+                })
+        if options:
+            finance_options.append({'provider': fp, 'options': options})
+
+    return render(request, 'uc1_roofing/quote_finance.html', {
+        'quote': quote, 'finance_options': finance_options, 'principal': principal,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 4 — Storm Lead Engine
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def storm_dashboard(request):
+    events     = StormEvent.objects.all()
+    total_leads = StormLead.objects.count()
+    won_leads   = StormLead.objects.filter(status='won').count()
+    est_pipeline = sum(float(l.estimated_value) for l in
+                       StormLead.objects.filter(status__in=['new','contacted','quoted']))
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'create':
+            event = StormEvent.objects.create(
+                name=request.POST.get('name', ''),
+                event_type=request.POST.get('event_type', 'hail'),
+                event_date=request.POST.get('event_date'),
+                severity=request.POST.get('severity', 3),
+                affected_suburbs=request.POST.get('affected_suburbs', ''),
+                state=request.POST.get('state', 'QLD'),
+                notes=request.POST.get('notes', ''),
+            )
+            messages.success(request, f'Storm event "{event.name}" created.')
+            return redirect('uc1:storm_detail', pk=event.pk)
+        return redirect('uc1:storm_dashboard')
+
+    return render(request, 'uc1_roofing/storm_dashboard.html', {
+        'events': events, 'total_leads': total_leads,
+        'won_leads': won_leads, 'est_pipeline': est_pipeline,
+        'storm_type_choices': StormEvent._meta.get_field('event_type').choices,
+        'severity_choices': StormEvent._meta.get_field('severity').choices,
+    })
+
+
+def storm_detail(request, pk):
+    event  = get_object_or_404(StormEvent, pk=pk)
+    leads  = event.leads.select_related('quote').all()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'scan':
+            # Use Geoscape building footprint data to scan affected suburbs
+            suburbs = [s.strip() for s in event.affected_suburbs.split(',') if s.strip()]
+            added = 0
+            for suburb_raw in suburbs:
+                # Attempt Geoscape property search (simulated for POC without suburb→bbox geocoding)
+                # In production: geocode suburb → bbox → Geoscape /buildings query
+                # For now: flag as scanned, allow manual addition via form
+                pass
+            if added == 0:
+                messages.info(request,
+                    'Geoscape scan requires suburb geocoding in production. '
+                    'Add leads manually below, or paste a CSV of addresses.')
+            else:
+                event.leads_generated = event.leads.count()
+                event.save()
+                messages.success(request, f'Scan complete — {added} new leads added.')
+
+        elif action == 'import_csv':
+            csv_text = request.POST.get('csv_text', '')
+            added = 0
+            for line in csv_text.strip().splitlines():
+                parts = [p.strip() for p in line.split(',')]
+                if len(parts) >= 1 and parts[0]:
+                    suburb = parts[1] if len(parts) > 1 else event.affected_suburbs.split(',')[0].strip()
+                    StormLead.objects.create(
+                        storm_event=event,
+                        address=parts[0],
+                        suburb=suburb,
+                        state=event.state,
+                        roof_area_sqm=float(parts[2]) if len(parts) > 2 else 0,
+                        estimated_value=float(parts[3]) if len(parts) > 3 else 0,
+                        contact_name=parts[4] if len(parts) > 4 else '',
+                        contact_phone=parts[5] if len(parts) > 5 else '',
+                        status='new',
+                    )
+                    added += 1
+            event.leads_generated = event.leads.count()
+            event.save()
+            messages.success(request, f'Imported {added} leads.')
+
+        elif action == 'add_lead':
+            StormLead.objects.create(
+                storm_event=event,
+                address=request.POST.get('address', ''),
+                suburb=request.POST.get('suburb', ''),
+                state=event.state,
+                roof_area_sqm=request.POST.get('roof_area_sqm') or 0,
+                estimated_value=request.POST.get('estimated_value') or 0,
+                contact_name=request.POST.get('contact_name', ''),
+                contact_phone=request.POST.get('contact_phone', ''),
+                contact_email=request.POST.get('contact_email', ''),
+                status='new',
+            )
+            event.leads_generated = event.leads.count()
+            event.save()
+            messages.success(request, 'Lead added.')
+
+        elif action == 'update_lead':
+            lead = get_object_or_404(StormLead, pk=request.POST.get('lead_id'),
+                                     storm_event=event)
+            lead.status       = request.POST.get('status', lead.status)
+            lead.contact_name = request.POST.get('contact_name', lead.contact_name)
+            lead.contact_phone = request.POST.get('contact_phone', lead.contact_phone)
+            lead.notes        = request.POST.get('notes', lead.notes)
+            lead.save()
+
+        return redirect('uc1:storm_detail', pk=pk)
+
+    stats = {
+        'total':     leads.count(),
+        'new':       leads.filter(status='new').count(),
+        'contacted': leads.filter(status='contacted').count(),
+        'quoted':    leads.filter(status='quoted').count(),
+        'won':       leads.filter(status='won').count(),
+        'lost':      leads.filter(status='lost').count(),
+        'pipeline':  sum(float(l.estimated_value) for l in
+                         leads.filter(status__in=['new','contacted','quoted'])),
+    }
+    return render(request, 'uc1_roofing/storm_detail.html', {
+        'event': event, 'leads': leads, 'stats': stats,
+        'lead_status_choices': StormLead._meta.get_field('status').choices,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# FEATURE 5 — Roof Condition Report
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def condition_report_list(request):
+    reports = RoofConditionReport.objects.select_related('quote').all()
+    total_value = sum(float(r.price_ex_gst) for r in reports)
+    return render(request, 'uc1_roofing/condition_report_list.html', {
+        'reports': reports, 'total_value': total_value,
+    })
+
+
+def condition_report_create(request, quote_pk):
+    from core.claude_client import call_claude as _call_claude
+    quote    = get_object_or_404(Quote, pk=quote_pk)
+    existing = quote.condition_reports.first()
+    lidar    = getattr(quote, 'lidar_analysis', None)
+
+    if request.method == 'POST':
+        report_type    = request.POST.get('report_type', 'homebuyer')
+        client_name    = request.POST.get('client_name',
+                         quote.contact.name if quote.contact else '')
+        client_email   = request.POST.get('client_email',
+                         quote.contact.email if quote.contact else '')
+        client_company = request.POST.get('client_company', '')
+        inspector_name = request.POST.get('inspector_name', '')
+        price_ex_gst   = request.POST.get('price_ex_gst', 350)
+        extra_notes    = request.POST.get('inspector_notes', '')
+
+        # Build context for AI assessment
+        lidar_block = ''
+        if lidar:
+            lidar_block = f"""
+LiDAR Measurements:
+  Perimeter: {lidar.perimeter_m:.0f} m
+  Ridge height: {lidar.ridge_height_m or 'N/A'} m
+  Eave height: {lidar.eave_height_m or 'N/A'} m
+  Solar panels detected: {lidar.solar_panels}
+  Scaffolding required: {lidar.scaffolding_required} ({lidar.scaffolding_risk_level} risk)
+  LiDAR coverage: {lidar.get_lidar_coverage_display()}"""
+
+        context_text = f"""Property: {quote.property_address}
+Roof material: {quote.get_material_display()}
+Roof pitch: {quote.get_pitch_type_display()}
+Plan area: {quote.flat_area_sqm} m²  (adjusted: {quote.adjusted_area_sqm} m²)
+{lidar_block}
+Inspector notes: {extra_notes}
+Report type: {report_type}"""
+
+        system = """You are a licensed roof inspector in Australia generating a formal Roof Condition Report.
+Assess the roof based on the provided data.
+Return ONLY valid JSON with these exact keys:
+  condition_grade: "A", "B", "C", "D", or "F"
+  condition_score: integer 0-100 (100=perfect, 0=failed)
+  life_remaining_years: integer
+  urgency_level: one of "routine", "within_5_years", "within_2_years", "within_1_year", "immediate"
+  assessment: 3 professional paragraphs (narrative condition description)
+  recommended_works: numbered list of recommended works in priority order"""
+
+        result   = _call_claude(system, context_text, max_tokens=1024)
+        ai_data  = {}
+        try:
+            m = re.search(r'\{.*\}', result['content'], re.DOTALL)
+            ai_data = json.loads(m.group()) if m else {}
+        except Exception:
+            pass
+
+        report = RoofConditionReport.objects.create(
+            quote=quote,
+            report_type=report_type,
+            client_name=client_name,
+            client_email=client_email,
+            client_company=client_company,
+            condition_grade=ai_data.get('condition_grade', 'B'),
+            condition_score=ai_data.get('condition_score', 70),
+            life_remaining_years=ai_data.get('life_remaining_years', 10),
+            urgency_level=ai_data.get('urgency_level', 'routine'),
+            ai_assessment=ai_data.get('assessment', result['content'][:2000]),
+            recommended_works=ai_data.get('recommended_works', ''),
+            inspector_name=inspector_name,
+            price_ex_gst=price_ex_gst,
+            status='draft',
+        )
+        ExecutionLog.objects.create(
+            tool_name='condition_report_generate',
+            payload=json.dumps({'type': report_type, 'quote': quote.ref_number}),
+            result=json.dumps({'report': report.report_number,
+                               'grade': report.condition_grade,
+                               'score': report.condition_score}),
+            status='success', quote=quote,
+        )
+        messages.success(request, f'Report {report.report_number} generated (Grade {report.condition_grade}).')
+        return redirect('uc1:condition_report_detail', pk=report.pk)
+
+    return render(request, 'uc1_roofing/condition_report_create.html', {
+        'quote': quote, 'lidar': lidar, 'existing': existing,
+        'report_type_choices': RoofConditionReport._meta.get_field('report_type').choices,
+    })
+
+
+def condition_report_detail(request, pk):
+    report = get_object_or_404(RoofConditionReport, pk=pk)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'finalise':
+            report.status = 'final'
+            report.save()
+            messages.success(request, 'Report finalised.')
+        elif action == 'deliver':
+            report.status = 'delivered'
+            report.save()
+            messages.success(request, 'Report marked as delivered.')
+        elif action == 'update_price':
+            report.price_ex_gst = request.POST.get('price_ex_gst', report.price_ex_gst)
+            report.save()
+            messages.success(request, 'Price updated.')
+        return redirect('uc1:condition_report_detail', pk=pk)
+
+    return render(request, 'uc1_roofing/condition_report_detail.html', {'report': report})
+
+
+def condition_report_print(request, pk):
+    report = get_object_or_404(RoofConditionReport, pk=pk)
+    return render(request, 'uc1_roofing/condition_report_print.html', {'report': report})

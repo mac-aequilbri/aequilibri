@@ -169,6 +169,39 @@
       <div class="small">{{ quote.created_at|date:"d M Y H:i" }}</div>
       <div class="small text-muted">Updated {{ quote.updated_at|date:"d M Y H:i" }}</div>
     </div>
+
+    <!-- Revenue Tools Panel -->
+    <div class="card p-4 mt-3" style="background:#1a1a2e; color:#fff; border:none;">
+      <div class="fw-bold mb-3" style="color:#f1c40f; font-size:.75rem; letter-spacing:.1em; text-transform:uppercase;">
+        ⚡ Revenue Tools
+      </div>
+      <div class="d-grid gap-2">
+        <a href="{% url 'uc1:auto_guttering' quote.pk %}"
+           class="btn btn-sm text-start"
+           style="background:#2d2d44; color:#fff; border:1px solid #3d3d5c;">
+          🪣 Auto-Add Guttering
+          <span class="d-block small" style="color:#aaa; font-weight:400;">LiDAR-derived linear metres</span>
+        </a>
+        <a href="{% url 'uc1:solar_bundle' quote.pk %}"
+           class="btn btn-sm text-start"
+           style="background:#2d2d44; color:#fff; border:1px solid #3d3d5c;">
+          ☀️ Solar Bundle Referral
+          <span class="d-block small" style="color:#aaa; font-weight:400;">Earn referral fee via Solar API</span>
+        </a>
+        <a href="{% url 'uc1:quote_finance' quote.pk %}"
+           class="btn btn-sm text-start"
+           style="background:#2d2d44; color:#fff; border:1px solid #3d3d5c;">
+          💳 Finance Options
+          <span class="d-block small" style="color:#aaa; font-weight:400;">Monthly payment plans</span>
+        </a>
+        <a href="{% url 'uc1:condition_report_create' quote.pk %}"
+           class="btn btn-sm text-start"
+           style="background:#2d2d44; color:#fff; border:1px solid #3d3d5c;">
+          🏠 Condition Report
+          <span class="d-block small" style="color:#aaa; font-weight:400;">AI-generated + charge $350</span>
+        </a>
+      </div>
+    </div>
   </div>
 
 </div>

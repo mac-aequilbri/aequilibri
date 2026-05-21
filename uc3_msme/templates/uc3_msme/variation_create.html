@@ -1,0 +1,215 @@
+{% extends "uc3_msme/base_uc3.html" %}
+
+{% block sb_variations %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1 fw-bold">New Variation Order</h1>
+    <p class="text-muted mb-0">Use AI to draft in seconds, or fill in manually</p>
+  </div>
+  <a href="{% url 'uc3:variation_list' %}" class="btn btn-ae-outline">
+    ← Back to Variations
+  </a>
+</div>
+
+<!-- AI Draft error alert -->
+{% if ai_draft.error %}
+<div class="alert alert-danger d-flex align-items-start gap-2 mb-4" role="alert">
+  <span style="font-size: 1.2rem;">⚠️</span>
+  <div>
+    <div class="fw-semibold">AI Draft Failed</div>
+    <div>{{ ai_draft.error }}</div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── STEP 1: AI DRAFT TRIGGER ── -->
+<div class="card p-4 mb-4">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span style="font-size: 1.4rem;">🤖</span>
+    <div>
+      <h5 class="mb-0 fw-bold">Step 1 — AI Draft</h5>
+      <p class="text-muted small mb-0">Describe what changed and AI will generate a formal Variation Order</p>
+    </div>
+  </div>
+
+  <!-- Tip -->
+  <div class="rounded p-3 mb-4 small" style="background: var(--ae-cream); border-left: 4px solid var(--ae-space);">
+    <strong>Tip:</strong> Describe what changed — AI will structure the formal VO including scope, cost and time impact.
+    For example: <em>"Client requested an additional bathroom on level 2, adding approx 15sqm of wet area work."</em>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="form_action" value="ai_draft">
+
+    <div class="row g-3">
+      <div class="col-12 col-md-5">
+        <label for="ai_project" class="form-label fw-semibold">Project <span class="text-danger">*</span></label>
+        <select id="ai_project" name="project" class="form-select" required>
+          <option value="">Select a project…</option>
+          {% for project in projects %}
+            <option value="{{ project.pk }}"
+              {% if ai_draft.project_id == project.pk|stringformat:"s" %}selected{% endif %}>
+              {{ project.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12">
+        <label for="ai_trigger" class="form-label fw-semibold">
+          What changed / what triggered this variation? <span class="text-danger">*</span>
+        </label>
+        <textarea id="ai_trigger" name="trigger" class="form-control" rows="4"
+                  placeholder="e.g. Client requested an upgrade to premium fixtures throughout Level 3 bathrooms. This was not in the original scope and requires additional labour and materials…"
+                  required>{% if ai_draft.trigger %}{{ ai_draft.trigger }}{% endif %}</textarea>
+      </div>
+
+      <div class="col-12">
+        <button type="submit" class="btn btn-ae">
+          🤖 AI Draft VO
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- ── STEP 2: AI-DRAFTED CONTENT (shown when ai_draft is present and no error) ── -->
+{% if ai_draft and not ai_draft.error %}
+<div class="card p-4 mb-4" style="border: 2px solid var(--ae-space);">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span style="font-size: 1.4rem;">✅</span>
+    <div>
+      <h5 class="mb-0 fw-bold">Step 2 — Review &amp; Save AI Draft</h5>
+      <p class="text-muted small mb-0">
+        AI has structured your variation order for
+        <strong>{{ ai_draft.project_name }}</strong>.
+        Review and adjust before saving.
+      </p>
+    </div>
+    <span class="ms-auto badge" style="background: #1d6fa6; color: #fff; font-size: 0.8rem; padding: 0.4em 0.75em; border-radius: 999px;">
+      🤖 AI Drafted
+    </span>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="form_action" value="save">
+    <input type="hidden" name="is_ai_drafted" value="1">
+    <input type="hidden" name="project" value="{{ ai_draft.project_id }}">
+
+    <div class="row g-3">
+      <div class="col-12">
+        <label for="ai_title" class="form-label fw-semibold">Title</label>
+        <input type="text" id="ai_title" name="title" class="form-control"
+               value="{{ ai_draft.title }}" required>
+      </div>
+
+      <div class="col-12">
+        <label for="ai_description" class="form-label fw-semibold">Description</label>
+        <textarea id="ai_description" name="description" class="form-control" rows="3">{{ ai_draft.description }}</textarea>
+      </div>
+
+      <div class="col-12">
+        <label for="ai_scope_change" class="form-label fw-semibold">Scope Change</label>
+        <textarea id="ai_scope_change" name="scope_change" class="form-control" rows="4">{{ ai_draft.scope_change }}</textarea>
+        <div class="form-text">Formal description of what is being added, removed, or modified.</div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <label for="ai_cost_impact" class="form-label fw-semibold">Cost Impact ($)</label>
+        <input type="number" id="ai_cost_impact" name="cost_impact" class="form-control"
+               value="{{ ai_draft.cost_impact }}" step="0.01"
+               placeholder="0.00">
+        <div class="form-text">Use negative values for savings/reductions.</div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <label for="ai_time_impact" class="form-label fw-semibold">Time Impact (days)</label>
+        <input type="number" id="ai_time_impact" name="time_impact_days" class="form-control"
+               value="{{ ai_draft.time_impact_days }}" step="1"
+               placeholder="0">
+        <div class="form-text">Use negative values for schedule reductions.</div>
+      </div>
+
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-ae">
+          💾 Save Variation Order
+        </button>
+        <a href="{% url 'uc3:variation_list' %}" class="btn btn-ae-outline">Cancel</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+<!-- ── MANUAL FORM ── -->
+<div class="card p-4">
+  <div class="d-flex align-items-center gap-2 mb-3">
+    <span style="font-size: 1.4rem;">✏️</span>
+    <div>
+      <h5 class="mb-0 fw-bold">Manual Entry</h5>
+      <p class="text-muted small mb-0">Fill in the variation order details yourself</p>
+    </div>
+  </div>
+
+  <form method="post">
+    {% csrf_token %}
+    <input type="hidden" name="form_action" value="save">
+    <input type="hidden" name="is_ai_drafted" value="0">
+
+    <div class="row g-3">
+      <div class="col-12 col-md-6">
+        <label for="manual_project" class="form-label fw-semibold">Project <span class="text-danger">*</span></label>
+        <select id="manual_project" name="project" class="form-select" required>
+          <option value="">Select a project…</option>
+          {% for project in projects %}
+            <option value="{{ project.pk }}">{{ project.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <label for="manual_title" class="form-label fw-semibold">Title <span class="text-danger">*</span></label>
+        <input type="text" id="manual_title" name="title" class="form-control"
+               placeholder="e.g. Level 3 bathroom fixture upgrade" required>
+      </div>
+
+      <div class="col-12">
+        <label for="manual_description" class="form-label fw-semibold">Description</label>
+        <textarea id="manual_description" name="description" class="form-control" rows="3"
+                  placeholder="Brief summary of the variation…"></textarea>
+      </div>
+
+      <div class="col-12">
+        <label for="manual_scope_change" class="form-label fw-semibold">Scope Change</label>
+        <textarea id="manual_scope_change" name="scope_change" class="form-control" rows="4"
+                  placeholder="Formal description of what is being added, removed, or modified…"></textarea>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <label for="manual_cost_impact" class="form-label fw-semibold">Cost Impact ($)</label>
+        <input type="number" id="manual_cost_impact" name="cost_impact" class="form-control"
+               step="0.01" placeholder="0.00">
+        <div class="form-text">Use negative values for savings/reductions.</div>
+      </div>
+
+      <div class="col-12 col-md-6">
+        <label for="manual_time_impact" class="form-label fw-semibold">Time Impact (days)</label>
+        <input type="number" id="manual_time_impact" name="time_impact_days" class="form-control"
+               step="1" placeholder="0">
+        <div class="form-text">Use negative values for schedule reductions.</div>
+      </div>
+
+      <div class="col-12 d-flex gap-2">
+        <button type="submit" class="btn btn-ae">
+          💾 Save Variation Order
+        </button>
+        <a href="{% url 'uc3:variation_list' %}" class="btn btn-ae-outline">Cancel</a>
+      </div>
+    </div>
+  </form>
+</div>
+{% endblock %}

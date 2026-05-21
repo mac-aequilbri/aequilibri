@@ -1,0 +1,211 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block sb_accounting %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="px-4 py-4">
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="fw-bold mb-1" style="color:var(--ae-space);">Accounting Sync</h2>
+      <p class="text-muted mb-0">Connect Xero or MYOB to sync project financials</p>
+    </div>
+    <div>
+      <span class="badge rounded-pill px-3 py-2"
+            style="background:var(--ae-cream);color:#666;font-size:.8rem;">
+        POC Mode &mdash; OAuth simulated
+      </span>
+    </div>
+  </div>
+
+  <!-- POC Notice -->
+  <div class="alert mb-4" style="background:#fff8f0;border:1px solid #f5d9c0;border-radius:8px;">
+    <div class="d-flex align-items-start gap-2">
+      <span style="font-size:1.1rem;">&#128161;</span>
+      <div>
+        <strong>POC Mode &mdash; OAuth flow is simulated.</strong>
+        <span class="text-muted"> In production, clicking Connect will redirect to Xero/MYOB/QuickBooks authorisation.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Metric Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+      <div class="card p-4" style="border-left:4px solid var(--ae-space);">
+        <div class="text-muted small mb-1">Budget Lines Ready</div>
+        <div class="fs-3 fw-bold">{{ budget_count|default:"0" }}</div>
+        <div class="text-muted small">to sync</div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card p-4" style="border-left:4px solid var(--ae-earth);">
+        <div class="text-muted small mb-1">Cashflow Entries</div>
+        <div class="fs-3 fw-bold">{{ cashflow_count|default:"0" }}</div>
+        <div class="text-muted small">available</div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card p-4" style="border-left:4px solid #6a9e6a;">
+        <div class="text-muted small mb-1">Total Estimated</div>
+        <div class="fs-3 fw-bold">${{ total_est|floatformat:0|default:"0" }}</div>
+        <div class="text-muted small">across all budgets</div>
+      </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+      <div class="card p-4" style="border-left:4px solid #5a8fa3;">
+        <div class="text-muted small mb-1">Total Actual</div>
+        <div class="fs-3 fw-bold">${{ total_act|floatformat:0|default:"0" }}</div>
+        <div class="text-muted small">spent to date</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- Connect New Provider -->
+    <div class="col-12 col-lg-4">
+      <div class="card p-4 h-100">
+        <h6 class="fw-bold mb-3">&#128279; Connect New Provider</h6>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="connect">
+
+          <div class="mb-3">
+            <label for="id_provider" class="form-label small fw-semibold">Provider</label>
+            <select id="id_provider" name="provider" class="form-select">
+              <option value="">&#8212; Select provider &#8212;</option>
+              <option value="xero">Xero</option>
+              <option value="myob">MYOB</option>
+              <option value="qbo">QuickBooks Online</option>
+            </select>
+          </div>
+
+          <div class="mb-4">
+            <label for="id_org_name" class="form-label small fw-semibold">
+              Organisation Name <span class="text-muted">(optional)</span>
+            </label>
+            <input type="text"
+                   id="id_org_name"
+                   name="org_name"
+                   class="form-control"
+                   placeholder="e.g. Acme Pty Ltd">
+          </div>
+
+          <button type="submit" class="btn btn-ae w-100">
+            Connect
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Existing Connections -->
+    <div class="col-12 col-lg-8">
+      <div class="card p-0">
+        <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+          <h6 class="mb-0 fw-bold">Connected Accounts</h6>
+          <span class="text-muted small">{{ connections|length }} connection{{ connections|length|pluralize }}</span>
+        </div>
+
+        {% if connections %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead style="background:var(--ae-cream);">
+              <tr>
+                <th class="px-4 py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Provider</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Organisation</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Status</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Last Sync</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Records</th>
+                <th class="py-3 pe-4" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for conn in connections %}
+              <tr>
+                <td class="px-4 py-3">
+                  <span class="fw-semibold">{{ conn.get_provider_display }}</span>
+                </td>
+                <td class="py-3">
+                  <span class="text-muted">{{ conn.org_name|default:"—" }}</span>
+                </td>
+                <td class="py-3">
+                  <div class="d-flex align-items-center gap-2">
+                    {% if conn.status == "connected" %}
+                      <span style="width:8px;height:8px;border-radius:50%;background:#6a9e6a;display:inline-block;flex-shrink:0;"></span>
+                      <span class="status-badge status-active">{{ conn.get_status_display }}</span>
+                    {% elif conn.status == "error" %}
+                      <span style="width:8px;height:8px;border-radius:50%;background:#c0392b;display:inline-block;flex-shrink:0;"></span>
+                      <span class="status-badge status-overdue">{{ conn.get_status_display }}</span>
+                    {% else %}
+                      <span style="width:8px;height:8px;border-radius:50%;background:#aaa;display:inline-block;flex-shrink:0;"></span>
+                      <span class="status-badge status-draft">{{ conn.get_status_display }}</span>
+                    {% endif %}
+                  </div>
+                </td>
+                <td class="py-3">
+                  {% if conn.last_sync %}
+                    <span class="text-muted small">{{ conn.last_sync|date:"d M Y H:i" }}</span>
+                  {% else %}
+                    <span class="text-muted small">Never</span>
+                  {% endif %}
+                </td>
+                <td class="py-3">
+                  <span class="text-muted">{{ conn.records_synced|default:"0" }}</span>
+                </td>
+                <td class="py-3 pe-4">
+                  <div class="d-flex gap-2 flex-wrap">
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="sync_now">
+                      <input type="hidden" name="conn_id" value="{{ conn.id }}">
+                      <button type="submit" class="btn btn-ae btn-sm">
+                        Sync Now
+                      </button>
+                    </form>
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="disconnect">
+                      <input type="hidden" name="conn_id" value="{{ conn.id }}">
+                      <button type="submit"
+                              class="btn btn-ae-outline btn-sm"
+                              onclick="return confirm('Disconnect {{ conn.get_provider_display }}? This will stop all data syncing.')">
+                        Disconnect
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- Sync Log Row -->
+              {% if conn.sync_log %}
+              <tr style="background:#fafaf8;">
+                <td colspan="6" class="px-4 py-2">
+                  <div class="small text-muted fw-semibold mb-1">Sync Log &mdash; {{ conn.get_provider_display }}</div>
+                  <textarea class="form-control form-control-sm font-monospace"
+                            rows="5"
+                            readonly
+                            style="font-size:.75rem;background:#f5f3ee;resize:vertical;">{{ conn.sync_log }}</textarea>
+                </td>
+              </tr>
+              {% endif %}
+
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="px-4 py-5 text-center">
+          <div style="font-size:2.2rem;margin-bottom:12px;">&#128279;</div>
+          <h6 class="fw-bold mb-2">No accounting connections yet</h6>
+          <p class="text-muted mb-0 small">
+            Use the form on the left to connect Xero, MYOB, or QuickBooks.
+          </p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "uc3_msme/base_uc3.html" %}
+
+{% block sb_delay %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <h2 class="fw-bold mb-1" style="color: var(--ae-space);">Delay Cascade Analyser</h2>
+    <p class="text-muted mb-0">Simulate how a phase delay flows through the project</p>
+  </div>
+</div>
+
+<!-- Project selector -->
+<div class="card p-4 mb-4">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-sm-auto col-12">
+      <label class="form-label fw-semibold mb-1" for="projectSelector">Select Project</label>
+      <select id="projectSelector" name="project" class="form-select" style="min-width: 260px;" onchange="this.form.submit()">
+        <option value="">— Choose a project —</option>
+        {% for proj in projects %}
+        <option value="{{ proj.pk }}"
+          {% if project_filter == proj.pk|stringformat:"s" or project and project.pk == proj.pk %}selected{% endif %}>
+          {{ proj.name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-sm-auto col-12">
+      <button type="submit" class="btn btn-ae-outline">Load</button>
+    </div>
+  </form>
+</div>
+
+{% if not project %}
+<!-- No project selected -->
+<div class="card p-0">
+  <div class="text-center py-5 text-muted">
+    <div style="font-size: 2.8rem; margin-bottom: .75rem; opacity: .55;">📅</div>
+    <p class="fw-semibold mb-1">No project selected</p>
+    <p class="mb-0" style="font-size: .9rem;">Choose a project above to begin cascade analysis.</p>
+  </div>
+</div>
+
+{% else %}
+
+<div class="row g-4">
+  <!-- Input form col -->
+  <div class="col-lg-5 col-12">
+
+    <!-- Input form card -->
+    <div class="card p-4 mb-4">
+      <h6 class="fw-bold mb-3" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+        Simulate Delay
+      </h6>
+      <form method="post" action="">
+        {% csrf_token %}
+        <input type="hidden" name="project" value="{{ project.pk }}">
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="delayPhase" style="font-size: .9rem;">Trigger Phase</label>
+          <select id="delayPhase" name="phase_id" class="form-select" required>
+            <option value="">— Select phase —</option>
+            {% for phase in phases %}
+            <option value="{{ phase.id }}"
+              {% if cascade_result and cascade_result.delayed_phase_name == phase.name %}selected{% endif %}>
+              {{ phase.order }}. {{ phase.name }}
+              {% if phase.status %} ({{ phase.status }}){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-semibold" for="delayDays" style="font-size: .9rem;">Delay (days)</label>
+          <input type="number" id="delayDays" name="delay_days" class="form-control" min="1"
+            placeholder="e.g. 14"
+            value="{% if cascade_result %}{{ cascade_result.delay_days }}{% endif %}"
+            required>
+        </div>
+
+        <button type="submit" class="btn btn-ae w-100">
+          ⚡ Analyse Impact
+        </button>
+      </form>
+    </div>
+
+    <!-- Phase overview card (always shown) -->
+    <div class="card p-4">
+      <h6 class="fw-bold mb-3" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+        Phase Overview — {{ project.name }}
+      </h6>
+      {% if phases %}
+      <ul class="list-unstyled mb-0">
+        {% for phase in phases %}
+        <li class="d-flex justify-content-between align-items-start py-2"
+          style="border-bottom: 1px solid color-mix(in srgb, var(--ae-earth) 30%, white); font-size: .875rem;">
+          <div>
+            <span class="fw-semibold">{{ phase.order }}. {{ phase.name }}</span>
+            {% if phase.status %}
+            <span class="badge rounded-pill ms-1"
+              style="background: color-mix(in srgb, var(--ae-air) 60%, white); color: #333; font-size: .72rem;">
+              {{ phase.status }}
+            </span>
+            {% endif %}
+          </div>
+          <div class="text-muted text-end ms-3" style="font-size: .8rem; white-space: nowrap;">
+            {{ phase.start_date|date:"d M Y"|default:"TBD" }}<br>
+            → {{ phase.end_date|date:"d M Y"|default:"TBD" }}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="text-muted mb-0" style="font-size: .875rem;">No phases defined for this project.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Results col -->
+  <div class="col-lg-7 col-12">
+
+    {% if cascade_result %}
+
+    <!-- Impact summary bar -->
+    <div class="mb-4 p-3 rounded-3"
+      style="background: color-mix(in srgb, var(--ae-space) 12%, white); border-left: 5px solid var(--ae-space);">
+      <div class="fw-semibold" style="color: var(--ae-space); font-size: .95rem;">
+        Phase <strong>"{{ cascade_result.delayed_phase_name }}"</strong> delayed
+        <strong>{{ cascade_result.delay_days }} days</strong>
+      </div>
+      <div class="text-muted mt-1" style="font-size: .875rem;">
+        Project completion moves from
+        <strong>{{ cascade_result.orig_completion|date:"d M Y"|default:"TBD" }}</strong>
+        to
+        <strong>{{ cascade_result.new_completion|date:"d M Y"|default:"TBD" }}</strong>
+        &nbsp;<span class="badge bg-danger">+{{ cascade_result.total_impact }} days</span>
+      </div>
+    </div>
+
+    <!-- Cascade table -->
+    <div class="card p-0 mb-4">
+      <div class="px-4 pt-3 pb-2">
+        <h6 class="fw-bold mb-0" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+          Cascade Impact
+        </h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle" style="font-size: .875rem;">
+          <thead style="background: color-mix(in srgb, var(--ae-cream) 60%, white);">
+            <tr>
+              <th class="px-4 py-2 fw-semibold">Phase</th>
+              <th class="py-2 fw-semibold">Original End</th>
+              <th class="py-2 fw-semibold">New End</th>
+              <th class="py-2 fw-semibold">Days Delayed</th>
+              <th class="py-2 fw-semibold">Impact</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in cascade_result.cascade_phases %}
+            <tr {% if row.is_trigger %}style="background: color-mix(in srgb, #fd7e14 10%, white);"{% endif %}>
+              <td class="px-4 py-2 fw-semibold">
+                {% if row.is_trigger %}
+                <span class="me-1" title="Trigger phase">🔶</span>
+                {% endif %}
+                {{ row.phase }}
+              </td>
+              <td class="py-2 text-muted">{{ row.original_end|date:"d M Y"|default:"TBD" }}</td>
+              <td class="py-2">
+                {% if row.delay_days > 0 %}
+                <span style="color: #c0392b; font-weight: 600;">{{ row.new_end|date:"d M Y"|default:"TBD" }}</span>
+                {% else %}
+                {{ row.new_end|date:"d M Y"|default:"TBD" }}
+                {% endif %}
+              </td>
+              <td class="py-2">
+                {% if row.delay_days > 0 %}
+                <span style="color: #c0392b; font-weight: 600;">🔴 {{ row.delay_days }} days</span>
+                {% else %}
+                <span class="text-muted">✅ No impact</span>
+                {% endif %}
+              </td>
+              <td class="py-2">
+                {% if row.is_trigger %}
+                <span class="badge" style="background: #fd7e14;">Trigger</span>
+                {% elif row.delay_days > 0 %}
+                <span class="badge bg-danger">Delayed</span>
+                {% else %}
+                <span class="badge bg-success">On schedule</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="5" class="text-center text-muted py-3">No cascade data available.</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AI Mitigations card -->
+    {% if cascade_result.ai_mitigations %}
+    <div class="card p-4">
+      <h6 class="fw-bold mb-3" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+        🤖 AI Mitigation Suggestions
+      </h6>
+      <div class="rounded-3 p-3"
+        style="background: color-mix(in srgb, var(--ae-air) 25%, white); font-size: .88rem; line-height: 1.65; color: #2c2c2c;">
+        {{ cascade_result.ai_mitigations|linebreaksbr }}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- No results yet -->
+    <div class="card p-4 d-flex flex-column align-items-center justify-content-center text-center"
+      style="min-height: 260px; background: color-mix(in srgb, var(--ae-cream) 25%, white); border: 2px dashed var(--ae-earth);">
+      <div style="font-size: 2.8rem; margin-bottom: .75rem; opacity: .55;">⚡</div>
+      <p class="fw-semibold mb-1" style="color: var(--ae-space);">No analysis run yet</p>
+      <p class="text-muted mb-0" style="font-size: .9rem; max-width: 320px;">
+        Select a trigger phase and a delay in days, then click <strong>Analyse Impact</strong> to see the cascade.
+      </p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}

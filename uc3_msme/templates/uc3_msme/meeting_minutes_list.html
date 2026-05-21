@@ -1,0 +1,86 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Meeting Minutes — UC3{% endblock %}
+{% block sb_minutes %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">Meeting Minutes</h4>
+    <small class="text-muted">Paste meeting notes → AI extracts action items instantly</small>
+  </div>
+  <a href="{% url 'uc3:meeting_minutes_create' %}" class="btn btn-ae">＋ New Meeting</a>
+</div>
+
+<div class="px-4 pb-4">
+  <!-- Project filter -->
+  <form method="get" class="mb-3">
+    <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+      <option value="">All Projects</option>
+      {% for p in projects %}
+        <option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Meeting Date</th>
+            <th>Title</th>
+            <th>Project</th>
+            <th>Attendees</th>
+            <th>Actions Extracted</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for mm in minutes_list %}
+          <tr>
+            <td class="small fw-bold">{{ mm.meeting_date|date:"d M Y" }}</td>
+            <td>{{ mm.title|default:"—" }}</td>
+            <td class="small text-muted">{{ mm.project.name }}</td>
+            <td class="small text-muted">{{ mm.attendees|default:"—"|truncatechars:40 }}</td>
+            <td class="text-center">
+              {% if mm.actions_count %}
+                <span class="badge rounded-pill" style="background:var(--ae-space); color:#fff">{{ mm.actions_count }}</span>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if mm.status == 'raw' %}
+                <span class="status-badge status-draft">Raw</span>
+              {% elif mm.status == 'processed' %}
+                <span class="status-badge status-pending">Processed</span>
+              {% elif mm.status == 'confirmed' %}
+                <span class="status-badge status-active">Confirmed</span>
+              {% else %}
+                <span class="status-badge status-draft">{{ mm.status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'uc3:meeting_minutes_detail' mm.pk %}" class="btn btn-ae-outline btn-sm">View</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-5">
+              <div class="mb-2" style="font-size:1.5rem">📝</div>
+              <div class="fw-semibold">No meetings recorded yet.</div>
+              <div class="small mt-1">Record your first meeting to get started.</div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="alert mt-3 py-2 px-3" style="font-size:0.78rem; background:var(--ae-cream); border:1px solid var(--ae-earth)">
+    📝 <strong>Tip:</strong> Paste your meeting notes — Didi extracts all action items in seconds
+  </div>
+</div>
+{% endblock %}

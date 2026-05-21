@@ -1,0 +1,82 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Weekly Reports — UC3{% endblock %}
+{% block sb_reports %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div>
+    <h4 class="mb-0">Weekly Reports</h4>
+    <small class="text-muted">AI-generated client status reports</small>
+  </div>
+  <a href="{% url 'uc3:report_generate' %}" class="btn btn-ae">＋ Generate New Report</a>
+</div>
+
+<div class="px-4 pb-4">
+
+  <form method="get" class="mb-3">
+    <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+      <option value="">All Projects</option>
+      {% for p in projects %}
+      <option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Week Ending</th>
+            <th>Project</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>AI?</th>
+            <th>Generated</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in reports %}
+          <tr>
+            <td class="text-nowrap">{{ r.week_ending }}</td>
+            <td class="small text-muted">{{ r.project.name }}</td>
+            <td>{{ r.title }}</td>
+            <td>
+              <span class="status-badge
+                {% if r.status == 'draft' %}status-draft
+                {% elif r.status == 'approved' %}status-confirmed
+                {% elif r.status == 'sent' %}status-active
+                {% endif %}">
+                {{ r.get_status_display|default:r.status }}
+              </span>
+            </td>
+            <td>
+              {% if r.is_ai_generated %}
+              <span class="badge" style="background:var(--ae-space);color:#fff">AI</span>
+              {% else %}
+              <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted text-nowrap">
+              {% if r.generated_at %}{{ r.generated_at|date:"d M Y H:i" }}{% else %}—{% endif %}
+            </td>
+            <td>
+              <a href="{% url 'uc3:report_detail' r.pk %}" class="btn btn-ae-outline btn-sm">View</a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="text-center text-muted py-5">
+              <div class="mb-2" style="font-size:2rem">📄</div>
+              No reports yet. Generate your first weekly report.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

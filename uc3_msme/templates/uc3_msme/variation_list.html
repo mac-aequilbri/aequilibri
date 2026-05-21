@@ -1,0 +1,151 @@
+{% extends "uc3_msme/base_uc3.html" %}
+
+{% block sb_variations %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h1 class="h3 mb-1 fw-bold">Variation Orders</h1>
+    <p class="text-muted mb-0">Track scope &amp; cost changes — AI drafting available</p>
+  </div>
+  <a href="{% url 'uc3:variation_create' %}" class="btn btn-ae">
+    ＋ New Variation
+  </a>
+</div>
+
+<!-- Metric bar -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card p-4">
+      <div class="text-muted small mb-1">Total Cost Impact</div>
+      <div class="h4 fw-bold mb-0
+        {% if total_cost < 0 %}text-success{% else %}text-danger{% endif %}">
+        {% if total_cost < 0 %}-${% else %}+${% endif %}{{ total_cost|floatformat:0 }}
+      </div>
+      <div class="text-muted small">across all variation orders</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-8">
+    <!-- Project filter -->
+    <div class="card p-4 h-100 d-flex flex-column justify-content-center">
+      <form method="get" class="d-flex align-items-center gap-3 flex-wrap">
+        <label for="project_filter" class="form-label mb-0 fw-semibold text-nowrap">Filter by project:</label>
+        <select id="project_filter" name="project" class="form-select form-select-sm" style="max-width: 280px;"
+                onchange="this.form.submit()">
+          <option value="">All Projects</option>
+          {% for project in projects %}
+            <option value="{{ project.pk }}"
+              {% if project_filter == project.pk|stringformat:"s" %}selected{% endif %}>
+              {{ project.name }}
+            </option>
+          {% endfor %}
+        </select>
+        {% if project_filter %}
+          <a href="?" class="btn btn-ae-outline btn-sm">Clear</a>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Variation Orders table -->
+<div class="card p-0">
+  <table class="table table-hover mb-0">
+    <thead class="table-dark">
+      <tr>
+        <th class="ps-4">Ref</th>
+        <th>Title</th>
+        <th>Project</th>
+        <th class="text-end">Cost Impact</th>
+        <th class="text-end">Time Impact</th>
+        <th class="text-center">AI?</th>
+        <th class="text-center">Status</th>
+        <th class="pe-4"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for vo in variations %}
+      <tr>
+        <td class="ps-4 font-monospace fw-semibold text-nowrap">{{ vo.ref_number }}</td>
+        <td>
+          <div class="fw-semibold">{{ vo.title }}</div>
+          {% if vo.submitted_by %}
+            <div class="text-muted small">by {{ vo.submitted_by }}</div>
+          {% endif %}
+        </td>
+        <td class="text-muted">{{ vo.project.name }}</td>
+
+        <!-- Cost impact: green for savings (negative), red for increases (positive) -->
+        <td class="text-end fw-semibold text-nowrap
+          {% if vo.cost_impact < 0 %}text-success{% elif vo.cost_impact > 0 %}text-danger{% endif %}">
+          {% if vo.cost_impact != 0 %}
+            {% if vo.cost_impact < 0 %}-${% else %}+${% endif %}{{ vo.cost_impact|floatformat:0 }}
+          {% else %}
+            <span class="text-muted">$0</span>
+          {% endif %}
+        </td>
+
+        <td class="text-end text-nowrap">
+          {% if vo.time_impact_days %}
+            {% if vo.time_impact_days > 0 %}
+              <span class="text-danger">+{{ vo.time_impact_days }}d</span>
+            {% elif vo.time_impact_days < 0 %}
+              <span class="text-success">{{ vo.time_impact_days }}d</span>
+            {% else %}
+              <span class="text-muted">0d</span>
+            {% endif %}
+          {% else %}
+            <span class="text-muted">—</span>
+          {% endif %}
+        </td>
+
+        <td class="text-center">
+          {% if vo.is_ai_drafted %}
+            <span title="AI Drafted" style="font-size: 1.1rem;">🤖</span>
+          {% else %}
+            <span class="text-muted small">—</span>
+          {% endif %}
+        </td>
+
+        <td class="text-center">
+          {% if vo.status == 'draft' %}
+            <span class="status-badge status-draft">Draft</span>
+          {% elif vo.status == 'pending_approval' %}
+            <span class="status-badge status-pending">Pending</span>
+          {% elif vo.status == 'approved' %}
+            <span class="status-badge status-confirmed">Approved</span>
+          {% elif vo.status == 'rejected' %}
+            <span class="status-badge status-overdue">Rejected</span>
+          {% elif vo.status == 'withdrawn' %}
+            <span class="status-badge status-draft">Withdrawn</span>
+          {% else %}
+            <span class="status-badge status-draft">{{ vo.status }}</span>
+          {% endif %}
+        </td>
+
+        <td class="pe-4 text-end">
+          <a href="{% url 'uc3:variation_detail' vo.pk %}" class="btn btn-ae-outline btn-sm">
+            View
+          </a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td colspan="8" class="text-center py-5 text-muted">
+          <div class="mb-2" style="font-size: 2rem;">📋</div>
+          <div class="fw-semibold mb-1">No variation orders yet</div>
+          {% if project_filter %}
+            <div class="small">No variations found for the selected project.</div>
+          {% else %}
+            <div class="small">Create your first variation order to track scope and cost changes.</div>
+          {% endif %}
+          <a href="{% url 'uc3:variation_create' %}" class="btn btn-ae btn-sm mt-3">
+            ＋ New Variation
+          </a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

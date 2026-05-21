@@ -1,0 +1,145 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Roof Condition Reports{% endblock %}
+{% block sb_reports %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-start justify-content-between flex-wrap gap-2">
+  <div>
+    <h4 class="mb-1">🏠 Roof Condition Reports</h4>
+    <small class="text-muted">AI-generated condition assessments charged per report</small>
+  </div>
+  <div class="d-flex align-items-center gap-2">
+    <span class="badge fs-6 px-3 py-2" style="background:var(--ae-space); color:#fff;">
+      ${{ total_value|floatformat:2 }} total
+    </span>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  {% if msg %}
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endif %}
+
+  <!-- Info note -->
+  <div class="alert alert-info d-flex align-items-center gap-3 mb-4" role="alert">
+    <span style="font-size:1.4rem;">ℹ️</span>
+    <div>
+      <strong>To generate a new condition report</strong>, open the relevant quote and click
+      <em>"🏠 Condition Report"</em> in the Revenue Tools panel.
+      &nbsp;<a href="{% url 'uc1:quote_list' %}" class="alert-link">Go to Quotes →</a>
+    </div>
+  </div>
+
+  <!-- Reports Table -->
+  <div class="card p-0">
+    <div class="d-flex align-items-center px-4 pt-3 pb-2 border-bottom justify-content-between">
+      <h6 class="mb-0 fw-bold">All Reports</h6>
+      <span class="badge bg-secondary">{{ reports|length }} report{{ reports|length|pluralize }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0 align-middle small">
+        <thead class="table-light">
+          <tr>
+            <th>Report #</th>
+            <th>Quote Ref</th>
+            <th>Client</th>
+            <th>Grade</th>
+            <th>Score</th>
+            <th>Urgency</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th class="text-end">Price inc GST</th>
+            <th>Generated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+          <tr>
+            <td>
+              <a href="{% url 'uc1:condition_report_detail' report.id %}" class="fw-bold text-decoration-none">
+                {{ report.report_number }}
+              </a>
+            </td>
+            <td>
+              {% if report.quote %}
+                <a href="{% url 'uc1:quote_detail' report.quote.id %}" class="text-decoration-none">
+                  {{ report.quote.ref_number|default:report.quote.id }}
+                </a>
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>{{ report.client_name|default:"—" }}</td>
+            <td>
+              <span class="badge" style="background:{{ report.grade_color|default:'#6c757d' }};">
+                {{ report.get_condition_grade_display }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                <div class="progress flex-grow-1" style="height:6px; min-width:60px;">
+                  <div class="progress-bar" role="progressbar"
+                       style="width:{{ report.condition_score }}%; background:{{ report.grade_color|default:'#6c757d' }};"
+                       aria-valuenow="{{ report.condition_score }}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <span class="text-muted" style="white-space:nowrap;">{{ report.condition_score }}/100</span>
+              </div>
+            </td>
+            <td>
+              {% if report.urgency_level == 'immediate' %}
+                <span class="badge bg-danger">{{ report.get_urgency_level_display }}</span>
+              {% elif report.urgency_level == 'urgent' %}
+                <span class="badge bg-warning text-dark">{{ report.get_urgency_level_display }}</span>
+              {% elif report.urgency_level == 'monitor' %}
+                <span class="badge bg-info text-dark">{{ report.get_urgency_level_display }}</span>
+              {% else %}
+                <span class="badge bg-success">{{ report.get_urgency_level_display }}</span>
+              {% endif %}
+            </td>
+            <td>{{ report.get_report_type_display }}</td>
+            <td>
+              {% if report.status == 'draft' %}
+                <span class="badge bg-secondary">{{ report.get_status_display }}</span>
+              {% elif report.status == 'issued' %}
+                <span class="badge bg-primary">{{ report.get_status_display }}</span>
+              {% elif report.status == 'paid' %}
+                <span class="badge bg-success">{{ report.get_status_display }}</span>
+              {% else %}
+                <span class="badge bg-secondary">{{ report.get_status_display }}</span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-bold">${{ report.price_inc_gst|floatformat:2 }}</td>
+            <td class="text-muted">{{ report.generated_at|date:"d M Y" }}</td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="10" class="text-center text-muted py-5">
+              <div class="mb-2" style="font-size:2rem;">🏠</div>
+              <div>No condition reports yet.</div>
+              <div class="small mt-1">Open a quote and use the <strong>Condition Report</strong> button to generate one.</div>
+              <a href="{% url 'uc1:quote_list' %}" class="btn btn-ae btn-sm mt-3">Go to Quotes →</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if reports %}
+        <tfoot style="background:var(--ae-cream);">
+          <tr>
+            <td colspan="8" class="text-end fw-bold">Total Revenue (inc GST)</td>
+            <td class="text-end fw-bold" style="color:var(--ae-space); font-size:1.05rem;">
+              ${{ total_value|floatformat:2 }}
+            </td>
+            <td></td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

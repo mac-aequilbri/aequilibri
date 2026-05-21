@@ -1,0 +1,171 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block sb_portal %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="px-4 py-4">
+
+  <!-- Page Header -->
+  <div class="mb-1">
+    <a href="{% url 'uc3:project_detail' project.pk %}" class="btn btn-ae-outline btn-sm mb-3">
+      &larr; Back to Project
+    </a>
+  </div>
+  <div class="d-flex align-items-start justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="fw-bold mb-1" style="color:var(--ae-space);">Client Portal &mdash; {{ project.name }}</h2>
+      <p class="text-muted mb-0">Manage shareable links for this project</p>
+    </div>
+  </div>
+
+  <!-- Info Box -->
+  <div class="alert mb-4" style="background:var(--ae-cream);border:1px solid var(--ae-earth);border-radius:8px;">
+    <div class="d-flex align-items-start gap-2">
+      <span style="font-size:1.2rem;">ℹ️</span>
+      <div>
+        <strong>How client portals work</strong>
+        <p class="mb-0 mt-1 text-muted small">
+          Clients can view project health, phase progress, and open actions without logging in.
+          No financial figures are shown. Links can be given an expiry date and deactivated at any time.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- Existing Tokens Table -->
+    <div class="col-12">
+      <div class="card p-0">
+        <div class="px-4 py-3 border-bottom">
+          <h6 class="mb-0 fw-bold">Existing Portal Links</h6>
+        </div>
+
+        {% if tokens %}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0">
+            <thead style="background:var(--ae-cream);">
+              <tr>
+                <th class="px-4 py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Label</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Portal URL</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Views</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Expires</th>
+                <th class="py-3" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Active?</th>
+                <th class="py-3 pe-4" style="font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for token in tokens %}
+              <tr>
+                <td class="px-4 py-3 fw-semibold">{{ token.label|default:"—" }}</td>
+                <td class="py-3">
+                  <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <code style="font-size:.78rem;background:var(--ae-cream);padding:2px 8px;border-radius:4px;word-break:break-all;">
+                      https://yourdomain.com/uc3/portal/{{ token.token }}/
+                    </code>
+                    <a href="/uc3/portal/{{ token.token }}/"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="btn btn-ae-outline btn-sm">
+                      Open &rarr;
+                    </a>
+                  </div>
+                </td>
+                <td class="py-3 text-muted">{{ token.views_count|default:"0" }}</td>
+                <td class="py-3">
+                  {% if token.expires_at %}
+                    <span class="small text-muted">{{ token.expires_at|date:"d M Y" }}</span>
+                  {% else %}
+                    <span class="small text-muted">Never</span>
+                  {% endif %}
+                </td>
+                <td class="py-3">
+                  {% if token.is_active %}
+                    <span class="status-badge status-active">Yes</span>
+                  {% else %}
+                    <span class="status-badge status-draft">No</span>
+                  {% endif %}
+                </td>
+                <td class="py-3 pe-4">
+                  {% if token.is_active %}
+                  <form method="post" class="d-inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="deactivate">
+                    <input type="hidden" name="token_id" value="{{ token.pk }}">
+                    <button type="submit"
+                            class="btn btn-ae-outline btn-sm"
+                            onclick="return confirm('Deactivate this portal link? Clients will no longer be able to access it.')">
+                      Deactivate
+                    </button>
+                  </form>
+                  {% else %}
+                    <span class="text-muted small">Inactive</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="px-4 py-4 text-center text-muted">
+          <p class="mb-0">No portal links created yet for this project.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Create New Portal Link -->
+    <div class="col-12 col-md-6">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">&#xff0b; Create New Portal Link</h6>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create">
+
+          <div class="mb-3">
+            <label for="id_label" class="form-label small fw-semibold">Label <span class="text-muted">(optional)</span></label>
+            <input type="text"
+                   id="id_label"
+                   name="label"
+                   class="form-control"
+                   placeholder="e.g. Client Review Q2">
+            <div class="form-text">A friendly name to identify this link.</div>
+          </div>
+
+          <div class="mb-4">
+            <label for="id_expires_at" class="form-label small fw-semibold">Expiry Date <span class="text-muted">(optional)</span></label>
+            <input type="date"
+                   id="id_expires_at"
+                   name="expires_at"
+                   class="form-control">
+            <div class="form-text">Leave blank for a link that never expires.</div>
+          </div>
+
+          <button type="submit" class="btn btn-ae w-100">
+            Create Link
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Newly Created Token Display (shown after creation) -->
+    {% if new_token %}
+    <div class="col-12">
+      <div class="alert" style="background:#e8f5e9;border:1px solid #a5d6a7;border-radius:8px;">
+        <h6 class="fw-bold mb-2" style="color:#2e7d32;">✅ Portal link created!</h6>
+        <p class="mb-2 small text-muted">Share this URL with your client. It gives read-only access to this project's status.</p>
+        <div class="p-3 rounded" style="background:#fff;border:1px solid #c8e6c9;">
+          <code style="word-break:break-all;font-size:.9rem;">
+            https://yourdomain.com/uc3/portal/{{ new_token }}/
+          </code>
+        </div>
+        <p class="mb-0 mt-2 small text-muted">
+          You can copy this link and send it directly &mdash; no login required for the recipient.
+        </p>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

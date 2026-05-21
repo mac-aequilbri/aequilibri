@@ -1,0 +1,173 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}{{ report.report_number }} — Condition Report{% endblock %}
+{% block sb_reports %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-start justify-content-between">
+  <div>
+    <h4 class="mb-1">{{ report.report_number }}</h4>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <span class="badge bg-secondary">{{ report.get_report_type_display }}</span>
+      {% if report.status == 'draft' %}
+        <span class="badge bg-warning text-dark">Draft</span>
+      {% elif report.status == 'final' %}
+        <span class="badge bg-primary">Final</span>
+      {% elif report.status == 'delivered' %}
+        <span class="badge bg-success">Delivered</span>
+      {% else %}
+        <span class="badge bg-light text-dark">{{ report.get_status_display }}</span>
+      {% endif %}
+      <small class="text-muted">{{ report.generated_at|date:"d M Y H:i" }}</small>
+    </div>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'uc1:condition_report_print' report.pk %}" target="_blank" class="btn btn-ae">🖨 Print Report</a>
+    <a href="{% url 'uc1:condition_report_list' %}" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+
+  {% if msg %}
+  <div class="alert alert-success alert-dismissible fade show" role="alert">
+    {{ msg }}
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  </div>
+  {% endif %}
+
+  <div class="row g-4">
+
+    <!-- LEFT: Assessment & Recommended Works -->
+    <div class="col-md-8">
+
+      <!-- AI Assessment -->
+      <div class="card p-4 mb-4">
+        <h6 class="fw-bold mb-3">🤖 AI Assessment</h6>
+        <blockquote class="blockquote mb-0">
+          <pre class="mb-0" style="white-space:pre-wrap; font-family:inherit; font-size:.9rem; color:#2c2c2c; background:var(--ae-cream,#f8f5f0); border-radius:6px; padding:16px; border-left:4px solid #DC9F82;">{{ report.ai_assessment }}</pre>
+        </blockquote>
+      </div>
+
+      <!-- Recommended Works -->
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">🔧 Recommended Works</h6>
+        <pre style="white-space:pre-wrap; font-family:inherit; font-size:.9rem; color:#2c2c2c; margin:0;">{{ report.recommended_works }}</pre>
+      </div>
+
+    </div>
+
+    <!-- RIGHT: Score, Property, Pricing, Actions -->
+    <div class="col-md-4">
+
+      <!-- Condition Score -->
+      <div class="card p-4 mb-3 text-center">
+        <div class="text-muted small fw-bold mb-2" style="text-transform:uppercase; letter-spacing:.08em;">Condition Score</div>
+        <div style="font-size:5rem; font-weight:900; line-height:1; color:{{ report.grade_color }};">
+          {{ report.condition_grade }}
+        </div>
+        <div class="mt-1 mb-1" style="font-size:1.5rem; font-weight:700; color:#333;">
+          {{ report.condition_score }}<span class="text-muted fs-6"> / 100</span>
+        </div>
+        <div class="fw-semibold mb-1">{{ report.get_condition_grade_display }}</div>
+        <div class="text-muted small mb-1">
+          <strong>{{ report.life_remaining_years }}</strong> years remaining
+        </div>
+        <div class="mt-2">
+          <span class="badge" style="background:{{ report.grade_color }}; font-size:.8rem; padding:.4em .9em;">
+            {{ report.get_urgency_level_display }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Property -->
+      <div class="card p-4 mb-3">
+        <div class="text-muted small fw-bold mb-2" style="text-transform:uppercase; letter-spacing:.08em;">Property</div>
+        {% if report.quote %}
+        <div class="mb-1">
+          <div class="text-muted small">Quote</div>
+          <div class="fw-bold">
+            <a href="{% url 'uc1:quote_detail' report.quote.pk %}">{{ report.quote.ref_number }}</a>
+          </div>
+        </div>
+        <div class="mb-1">
+          <div class="text-muted small">Address</div>
+          <div>{{ report.quote.property_address }}</div>
+        </div>
+        {% endif %}
+        <div class="mb-1">
+          <div class="text-muted small">Client</div>
+          <div class="fw-bold">{{ report.client_name }}</div>
+          {% if report.client_company %}<div class="small">{{ report.client_company }}</div>{% endif %}
+          {% if report.client_email %}<div class="small text-muted">{{ report.client_email }}</div>{% endif %}
+        </div>
+        {% if report.inspector_name %}
+        <div class="mb-0">
+          <div class="text-muted small">Inspector</div>
+          <div>{{ report.inspector_name }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Pricing -->
+      <div class="card p-4 mb-3" style="background:var(--ae-cream,#f8f5f0);">
+        <div class="text-muted small fw-bold mb-2" style="text-transform:uppercase; letter-spacing:.08em;">Pricing</div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="text-muted small">Price ex GST</span>
+          <strong>${{ report.price_ex_gst|floatformat:2 }}</strong>
+        </div>
+        <div class="d-flex justify-content-between mb-3">
+          <span class="text-muted small">Price inc GST</span>
+          <strong style="font-size:1.1rem; color:var(--ae-space,#1a1a2e)">${{ report.price_inc_gst|floatformat:2 }}</strong>
+        </div>
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_price">
+          <label class="form-label small fw-semibold">Update Price (ex GST)</label>
+          <div class="input-group input-group-sm">
+            <span class="input-group-text">$</span>
+            <input type="number" name="price_ex_gst" class="form-control"
+                   step="0.01" min="0" value="{{ report.price_ex_gst }}" required>
+            <button class="btn btn-ae btn-sm" type="submit">Update</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Actions -->
+      <div class="card p-4">
+        <div class="text-muted small fw-bold mb-3" style="text-transform:uppercase; letter-spacing:.08em;">Actions</div>
+        <div class="d-grid gap-2">
+          {% if report.status == 'draft' %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="finalise">
+            <button type="submit" class="btn btn-primary w-100"
+                    onclick="return confirm('Mark this report as final? This cannot be undone.')">
+              ✅ Finalise Report
+            </button>
+          </form>
+          {% endif %}
+
+          {% if report.status == 'final' %}
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="deliver">
+            <button type="submit" class="btn btn-success w-100"
+                    onclick="return confirm('Mark as delivered and send email to client?')">
+              📧 Deliver to Client
+            </button>
+          </form>
+          {% endif %}
+
+          {% if report.status == 'delivered' %}
+          <div class="text-center text-muted small py-1">
+            Report delivered on {{ report.generated_at|date:"d M Y" }}.
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+    </div><!-- /col-md-4 -->
+
+  </div><!-- /row -->
+</div><!-- /px-4 -->
+{% endblock %}

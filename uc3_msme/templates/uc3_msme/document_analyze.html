@@ -1,0 +1,115 @@
+{% extends "uc3_msme/base_uc3.html" %}
+
+{% block sb_documents %}active{% endblock %}
+
+{% block uc3_content %}
+<!-- Back link + header -->
+<div class="mb-4">
+  <a href="{% url 'uc3:document_list' %}" class="btn btn-ae-outline btn-sm mb-3">
+    ← Back to Documents
+  </a>
+  <h2 class="fw-bold mb-1" style="color: var(--ae-space);">{{ doc.name }}</h2>
+  <p class="text-muted mb-0">Document Intelligence Analysis</p>
+</div>
+
+<div class="row g-4">
+  <!-- Left column: metadata + input form (40%) -->
+  <div class="col-lg-5 col-12">
+
+    <!-- Metadata card -->
+    <div class="card p-4 mb-4">
+      <h6 class="fw-bold mb-3" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+        Document Details
+      </h6>
+      <dl class="row mb-0" style="font-size: .9rem;">
+        <dt class="col-sm-5 text-muted fw-normal">Name</dt>
+        <dd class="col-sm-7 fw-semibold">{{ doc.name }}</dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Type</dt>
+        <dd class="col-sm-7">
+          <span class="badge rounded-pill"
+            style="background: color-mix(in srgb, var(--ae-earth) 50%, white); color: #333;">
+            {{ doc.doc_type|default:"—" }}
+          </span>
+        </dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Version</dt>
+        <dd class="col-sm-7">{{ doc.version|default:"—" }}</dd>
+
+        <dt class="col-sm-5 text-muted fw-normal">Project</dt>
+        <dd class="col-sm-7">{{ doc.project.name|default:"—" }}</dd>
+
+        {% if doc.analyzed_at %}
+        <dt class="col-sm-5 text-muted fw-normal">Analysed on</dt>
+        <dd class="col-sm-7">{{ doc.analyzed_at|date:"d M Y, H:i" }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+
+    <!-- Update content + run analysis form -->
+    <div class="card p-4">
+      <h6 class="fw-bold mb-3" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+        Paste / Update Document Content
+      </h6>
+
+      {% if not doc.file_content %}
+      <div class="alert mb-3"
+        style="background: color-mix(in srgb, #fff3cd 80%, white); border-left: 4px solid #ffc107; font-size: .875rem; border-radius: 6px;">
+        <strong>No document content yet</strong> — paste below to enable AI analysis.
+      </div>
+      {% endif %}
+
+      <form method="post" action="">
+        {% csrf_token %}
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="fileContent" style="font-size: .9rem;">Document Content</label>
+          <textarea id="fileContent" name="file_content" class="form-control" rows="10"
+            placeholder="Paste the full text of the document or contract here…"
+            style="font-size: .83rem; font-family: inherit; line-height: 1.55; resize: vertical;">{{ doc.file_content }}</textarea>
+          <div class="form-text text-muted mt-1" style="font-size: .78rem;">
+            AI analyses the first 8,000 characters of document content.
+          </div>
+        </div>
+        <button type="submit" class="btn btn-ae w-100">
+          🤖 Run Analysis
+        </button>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Right column: AI analysis output (60%) -->
+  <div class="col-lg-7 col-12">
+
+    {% if doc.ai_analysis %}
+    <div class="card p-4" style="background: #fff;">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="fw-bold mb-0" style="color: var(--ae-space); text-transform: uppercase; letter-spacing: .05em; font-size: .8rem;">
+          AI Analysis
+        </h6>
+        {% if doc.analyzed_at %}
+        <span class="text-muted" style="font-size: .8rem;">
+          Analysed on: {{ doc.analyzed_at|date:"d M Y, H:i" }}
+        </span>
+        {% endif %}
+      </div>
+
+      <div style="background: color-mix(in srgb, var(--ae-cream) 30%, white); border-radius: 8px; padding: 1.25rem;">
+        <pre style="white-space: pre-wrap; font-family: inherit; font-size: .88rem; line-height: 1.6; margin: 0; color: #2c2c2c;">{{ doc.ai_analysis }}</pre>
+      </div>
+    </div>
+
+    {% else %}
+    <div class="card p-4 d-flex flex-column align-items-center justify-content-center text-center"
+      style="min-height: 280px; background: color-mix(in srgb, var(--ae-cream) 25%, white); border: 2px dashed var(--ae-earth);">
+      <div style="font-size: 2.8rem; margin-bottom: .75rem; opacity: .55;">🤖</div>
+      <p class="fw-semibold mb-1" style="color: var(--ae-space);">AI analysis will appear here</p>
+      <p class="text-muted mb-0" style="font-size: .9rem; max-width: 320px;">
+        Paste document content and click <strong>Run Analysis</strong> to extract key clauses, risk flags, critical dates and action items.
+      </p>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
