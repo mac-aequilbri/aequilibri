@@ -244,7 +244,7 @@ def detect_roof_features(request):
         except Exception:
             pass
 
-    # ── 2. Street View — check availability then fetch ────────────────────
+    # ── 2. Check Street View availability ────────────────────────────────
     sv_available = False
     if google_key:
         meta_url = (
@@ -254,33 +254,49 @@ def detect_roof_features(request):
         try:
             req = urllib.request.Request(meta_url, headers={"User-Agent": "aequilibri/1.0"})
             with urllib.request.urlopen(req, timeout=8) as resp:
-                meta = json.loads(resp.read())
-                sv_available = meta.get("status") == "OK"
+                sv_available = json.loads(resp.read()).get("status") == "OK"
         except Exception:
             sv_available = False
 
+    # ── 3. Fetch 4-direction Street Views (N / E / S / W) ─────────────────
+    # Each heading = camera points that direction → reveals the opposite facade.
+    # pitch=12 gives a slight upward angle to show roof edges clearly.
+    _SV_HEADINGS = [
+        (0,   "NORTH"),   # camera→N: reveals south-facing facade + south roof slope
+        (90,  "EAST"),    # camera→E: reveals west-facing facade + west roof slope
+        (180, "SOUTH"),   # camera→S: reveals north-facing (street) facade + north slope
+        (270, "WEST"),    # camera→W: reveals east-facing facade + east roof slope
+    ]
     if sv_available and google_key:
-        sv_url = (
-            f"https://maps.googleapis.com/maps/api/streetview"
-            f"?size=640x480&location={lat},{lng}"
-            f"&fov=90&pitch=10&source=outdoor&key={google_key}"
-        )
-        try:
-            req = urllib.request.Request(sv_url, headers={"User-Agent": "aequilibri/1.0"})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                images.append({
-                    "b64": base64.b64encode(resp.read()).decode(),
-                    "media_type": "image/jpeg",
-                    "label": "streetview",
-                })
-        except Exception:
-            sv_available = False
+        for heading, direction in _SV_HEADINGS:
+            sv_url = (
+                f"https://maps.googleapis.com/maps/api/streetview"
+                f"?size=640x480&location={lat},{lng}"
+                f"&heading={heading}&fov=90&pitch=12&source=outdoor&key={google_key}"
+            )
+            try:
+                req = urllib.request.Request(sv_url, headers={"User-Agent": "aequilibri/1.0"})
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    images.append({
+                        "b64": base64.b64encode(resp.read()).decode(),
+                        "media_type": "image/jpeg",
+                        "label": f"sv_{direction.lower()}",
+                    })
+            except Exception:
+                pass
 
-    # ── 3. Build prompt and call Claude Vision ────────────────────────────
+    # ── 4. Build prompt and call Claude Vision ────────────────────────────
     from core.claude_client import call_claude_vision, call_claude_vision_multi
 
     has_aerial = any(i["label"] == "aerial" for i in images)
-    has_sv     = any(i["label"] == "streetview" for i in images)
+    sv_labels  = [i["label"] for i in images if i["label"].startswith("sv_")]
+
+    _SV_DESCRIPTIONS = {
+        "sv_north": "camera faces North — reveals south-facing facade and south roof slope",
+        "sv_east":  "camera faces East  — reveals west-facing facade and west roof slope",
+        "sv_south": "camera faces South — reveals north-facing (street) facade and north slope",
+        "sv_west":  "camera faces West  — reveals east-facing facade and east roof slope",
+    }
 
     _BASE_JSON = (
         '"solar_panels": true/false, '
@@ -291,7 +307,9 @@ def detect_roof_features(request):
         '"roof_style_confidence": "high/medium/low", '
         '"roof_material": "terracotta_tiles/concrete_tiles/metal_colorbond/asphalt/slate/unknown", '
         '"roof_material_confidence": "high/medium/low", '
+        '"pitch_deg": 20, '
         '"storeys": 1, '
+        '"eave_height_m": 3.0, '
         '"condition": "good/fair/poor/unknown", '
         '"other_features": ["list or empty array"], '
         '"notes": "one sentence summary"'
@@ -304,34 +322,47 @@ def detect_roof_features(request):
                 '"solar_hw":false,"solar_hw_confidence":"low",'
                 '"roof_style":"unknown","roof_style_confidence":"low",'
                 '"roof_material":"unknown","roof_material_confidence":"low",'
-                '"storeys":null,"condition":"unknown","other_features":[],'
+                '"pitch_deg":null,"storeys":null,"eave_height_m":null,'
+                '"condition":"unknown","other_features":[],'
                 '"notes":"No imagery available — manual inspection required."}'
             ),
             "demo_mode": True,
             "views_used": [],
         }
 
-    elif has_sv:
-        # Two-image analysis: satellite + street view
+    elif sv_labels:
+        # Multi-image: aerial + up to 4 directional Street Views
+        n_sv = len(sv_labels)
         system = (
-            "You are an expert Australian roof inspector. You will be given TWO images "
-            "of the same property: an aerial satellite view and a street-level view. "
+            f"You are an expert Australian roof inspector. You will be given "
+            f"{1 + n_sv} images of the same property: one aerial satellite view "
+            f"and {n_sv} street-level views from different compass directions. "
             "Respond ONLY with a valid JSON object — no markdown, no extra text."
         )
+        # Build per-image bullet list
+        bullets = ["• IMAGE 1 — AERIAL/SATELLITE (top-down): identify solar PV panels "
+                   "(dark rectangular arrays), solar hot water (flat collector + tank), "
+                   "AC units, skylights, pools, roof footprint shape."]
+        for idx, lbl in enumerate(sv_labels, 2):
+            desc = _SV_DESCRIPTIONS.get(lbl, "street-level view")
+            bullets.append(f"• IMAGE {idx} — STREET VIEW {lbl.split('_')[1].upper()} ({desc}).")
+
         prompt = (
-            "You have two images of the same Australian residential or commercial property:\n\n"
-            "• IMAGE 1 — AERIAL/SATELLITE (top-down): use this to identify solar PV panels "
-            "(dark rectangular arrays), solar hot water systems (flat collectors + tank), "
-            "AC units, skylights, pools, and the roof footprint shape.\n\n"
-            "• IMAGE 2 — STREET VIEW (ground level): use this to identify the roof style "
-            "(gable / hip / flat / skillion / mansard), roof cladding material "
-            "(terracotta tiles / concrete tiles / metal Colorbond / asphalt / slate), "
-            "number of visible storeys, and overall roof condition (good / fair / poor).\n\n"
+            "You have the following images of the same Australian residential property:\n\n"
+            + "\n".join(bullets)
+            + "\n\nUsing ALL images together:\n"
+            "• Solar panels / hot water → aerial (IMAGE 1)\n"
+            "• Roof style, material → street views (judge from multiple angles)\n"
+            "• Pitch in degrees → measure slope steepness from street views "
+            "(flat <5°, low 5–15°, medium 15–25°, steep 25–35°, very steep >35°)\n"
+            "• Storey count, eave height → any street view "
+            "(1-storey ≈ 3 m eave, 2-storey ≈ 5–6 m, 3-storey ≈ 8–9 m)\n"
+            "• Roof condition → street views (moss, cracked tiles, sag, rust)\n\n"
             "Respond with ONLY this JSON (no markdown fences):\n"
             "{" + _BASE_JSON + "}"
         )
-        result = call_claude_vision_multi(system, prompt, images, max_tokens=700)
-        result["views_used"] = ["aerial", "streetview"]
+        result = call_claude_vision_multi(system, prompt, images, max_tokens=800)
+        result["views_used"] = ["aerial"] + sv_labels
 
     else:
         # Satellite only — best-effort from aerial alone
@@ -341,17 +372,17 @@ def detect_roof_features(request):
             "Respond ONLY with a valid JSON object — no markdown, no extra text."
         )
         prompt = (
-            "Examine this top-down satellite image of the property carefully.\n\n"
+            "Examine this top-down satellite image carefully.\n\n"
             "Identify any visible rooftop features (solar panels, solar hot water, "
             "AC units, skylights, pools). Roof style, material and condition are "
             "difficult to determine from aerial only — set those to 'unknown' unless "
-            "clearly visible.\n\n"
+            "clearly visible. Set pitch_deg and eave_height_m to null.\n\n"
             "Respond with ONLY this JSON (no markdown fences):\n"
             "{" + _BASE_JSON + "}"
         )
         img = images[0]
         result = call_claude_vision(
-            system, prompt, img["b64"], media_type=img["media_type"], max_tokens=700
+            system, prompt, img["b64"], media_type=img["media_type"], max_tokens=800
         )
         result["views_used"] = ["aerial"]
 

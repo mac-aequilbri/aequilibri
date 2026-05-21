@@ -3590,9 +3590,15 @@ function rdBuildPlanData(apiData, lat, lng) {
       return rdPointInPolygonXY(cx, cy, drawingBoundaryPct);
     });
   }
-  const solarSections = rdSolarSectionsToDrawing((ridData && ridData.sections) || []);
+  // Solar sections: prefer ridData (LiDAR/Solar analyze endpoint), fall back to
+  // sections baked into the roof drawing response (apiData.solar_sections).
+  const _solarSource = (ridData && ridData.sections && ridData.sections.length)
+    ? ridData.sections
+    : (apiData.solar_sections && apiData.solar_sections.length ? apiData.solar_sections : []);
+  const solarSections = rdSolarSectionsToDrawing(_solarSource);
   const footprintArea = footprint.length >= 3 ? calcArea(footprint) : rdNum(ridData && ridData.ground_area_m2, 0);
-  const authoritativeTotal = rdNum(ridData && ridData.total_area_m2, rdNum(estArea, footprintArea));
+  const authoritativeTotal = rdNum(ridData && ridData.total_area_m2,
+    rdNum(apiData.solar_total_area_m2, rdNum(estArea, footprintArea)));
 
   if (visionSections.length && authoritativeTotal > 0) {
     const visionTotal = visionSections.reduce((s, sec) => s + rdNum(sec.area_m2, 0), 0);
@@ -3640,7 +3646,9 @@ function rdBuildPlanData(apiData, lat, lng) {
     total_area_m2: totalArea,
     avg_pitch_deg: avgPitch,
     confidence: footprint.length >= 3 ? 'high' : (apiData.confidence || 'medium'),
-    notes: apiData.notes || (visionSections.length ? 'Vision-derived roof sections.' : 'Generated from footprint outline and Solar roof sections.'),
+    notes: apiData.notes || (visionSections.length
+      ? (apiData.solar_used ? `Vision sections calibrated with Solar API (${apiData.solar_imagery_date || '?'}).` : 'Vision-derived roof sections.')
+      : (solarSections.length ? `Solar API roof sections (${apiData.solar_imagery_date || (ridData && ridData.imagery_date) || '?'}).` : 'Generated from footprint outline.')),
     ai_outline_used: aiFootprintUsable,
     ai_outline_area_m2: aiFootprintArea,
   };
@@ -5085,6 +5093,7 @@ function rdRenderFeatures({
     roof_style='', roof_style_confidence='',
     roof_material='', roof_material_confidence='',
     storeys=null, condition='',
+    pitch_deg=null, eave_height_m=null,
     views_used=[]
   } = {}) {
   const el = document.getElementById('rdDetectedFeatures');
@@ -5123,9 +5132,9 @@ function rdRenderFeatures({
   // ── Source indicator ──────────────────────────────────────────────────
   let html = '';
   if (!scanning && views_used.length) {
-    const hasSV = views_used.includes('streetview');
-    const srcLabel = hasSV
-      ? '📡 Aerial satellite &nbsp;+&nbsp; 📸 Street View'
+    const svViews = views_used.filter(v => v === 'streetview' || v.startsWith('sv_'));
+    const srcLabel = svViews.length
+      ? `📡 Aerial &nbsp;+&nbsp; 📸 ${svViews.length} Street View${svViews.length > 1 ? 's' : ''}`
       : '📡 Aerial satellite only';
     html += `<div style="font-size:.62rem;color:#1565c0;text-align:center;
                          background:#e3f2fd;border-radius:5px;padding:3px 6px;
@@ -5143,7 +5152,9 @@ function rdRenderFeatures({
   const hasArch = (roof_style && roof_style !== 'unknown')
                || (roof_material && roof_material !== 'unknown')
                || storeys
-               || (condition && condition !== 'unknown');
+               || (condition && condition !== 'unknown')
+               || (pitch_deg != null)
+               || (eave_height_m != null);
 
   if (hasArch) {
     html += `<div style="border-top:1px dashed #ccc;margin:7px 0 6px;
@@ -5165,6 +5176,14 @@ function rdRenderFeatures({
 
     if (storeys && storeys > 0) {
       html += infoRow('🏢', 'Storeys', storeys.toString());
+    }
+
+    if (pitch_deg != null && pitch_deg > 0) {
+      html += infoRow('📐', 'Pitch (visual est.)', `${(+pitch_deg).toFixed(0)}°`);
+    }
+
+    if (eave_height_m != null && eave_height_m > 0) {
+      html += infoRow('📏', 'Eave height (est.)', `${(+eave_height_m).toFixed(1)} m`);
     }
 
     if (condition && condition !== 'unknown') {
@@ -5215,6 +5234,8 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
       roof_material_confidence: d.roof_material_confidence || '',
       storeys:                  d.storeys || null,
       condition:                d.condition || '',
+      pitch_deg:                d.pitch_deg != null ? d.pitch_deg : null,
+      eave_height_m:            d.eave_height_m != null ? d.eave_height_m : null,
       views_used:               d.views_used || [],
       scanning:                 false,
     });

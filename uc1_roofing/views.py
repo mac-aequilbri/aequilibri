@@ -1704,6 +1704,31 @@ def _filter_sections_to_footprint(parsed: dict, footprint_pct: list) -> int:
     return dropped
 
 
+def _apply_solar_to_sections(sections: list, solar_sections: list) -> None:
+    """
+    In-place: for each Claude-drawn section, find the best-matching Solar API
+    section by facing direction and update pitch_est + area_m2 with Solar values.
+    Each solar section can only be consumed once (greedy, largest area first).
+    """
+    if not sections or not solar_sections:
+        return
+    remaining = list(solar_sections)
+    for sec in sections:
+        facing = (sec.get('facing') or '').upper()
+        best = None
+        best_i = -1
+        for i, ss in enumerate(remaining):
+            if ss.get('facing', '').upper() == facing:
+                if best is None or ss['area_m2'] > best['area_m2']:
+                    best = ss
+                    best_i = i
+        if best is not None:
+            sec['pitch_est'] = best['pitch_deg']
+            sec['area_m2'] = round(best['area_m2'], 1)
+            sec['solar_calibrated'] = True
+            remaining.pop(best_i)
+
+
 @csrf_exempt
 def roof_drawing_analyze(request):
     """
@@ -1854,6 +1879,34 @@ def roof_drawing_analyze(request):
             f"Recent saved correction learning:\n{correction_learning.text}\n"
             if correction_learning.text else ""
         )
+
+        # ── Solar API: pre-fetch section geometry for measurement calibration ──
+        solar_data: dict = {}
+        solar_context = ""
+        try:
+            from uc1_roofing.solar_api_service import full_solar_analysis as _solar_full
+            _s = _solar_full(lat, lng)
+            if _s.get("ok") and _s.get("sections"):
+                solar_data = _s
+                solar_secs = _s["sections"]
+                solar_context = (
+                    f"\n\nGoogle Solar API photogrammetry data for this building "
+                    f"(imagery {_s.get('imagery_date', '?')}, "
+                    f"quality {_s.get('imagery_quality', '?')}) "
+                    f"detected {len(solar_secs)} roof section(s):\n"
+                    + "".join(
+                        f"  Section {i}: facing={s['facing']}, pitch={s['pitch_deg']}°, "
+                        f"slope={s['slope_category']}, actual_area={s['area_m2']} m²\n"
+                        for i, s in enumerate(solar_secs[:6], 1)
+                    )
+                    + f"Total roof area from Solar API: {_s.get('total_area_m2', '?')} m². "
+                    "When drawing roof sections, match them to these Solar API segments by "
+                    "facing direction and use the Solar API pitch_deg as ground truth. "
+                    "Your drawn area polygons should together approximate the Solar API total."
+                )
+        except Exception:
+            pass
+
         user_prompt = (
             f"Analyze this tightly cropped satellite image of the selected roof. "
             f"The clicked coordinates are ({lat:.5f}, {lng:.5f}); the image center is "
@@ -1866,6 +1919,7 @@ def roof_drawing_analyze(request):
             f"Use roof_outline as the boundary for sections. Ignore every neighboring roof, even if "
             f"it is bright or close in the crop. Before returning JSON, internally check that the yellow dot is "
             f"inside roof_outline, all section polygons sit inside roof_outline, and no nearby detached roof is included. "
+            f"{solar_context}"
             f"Return the JSON as instructed."
         )
         result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt, vision_b64, vision_media_type)
@@ -1911,6 +1965,10 @@ def roof_drawing_analyze(request):
             else:
                 sec['area_m2'] = 0
 
+        # ── Apply Solar API calibration (override pitch + area with ground truth) ─
+        if solar_data.get("ok") and solar_data.get("sections"):
+            _apply_solar_to_sections(parsed.get('sections', []), solar_data['sections'])
+
         return JsonResponse({
             'ok': True,
             'image_b64': img_b64,
@@ -1947,6 +2005,13 @@ def roof_drawing_analyze(request):
             'demo_mode': result.get('demo_mode', False),
             'correction_learning_applied': bool(correction_learning.text),
             'correction_learning_count': correction_learning.correction_count,
+            # Solar API calibration data
+            'solar_used': bool(solar_data.get('ok')),
+            'solar_sections': solar_data.get('sections', []),
+            'solar_total_area_m2': solar_data.get('total_area_m2'),
+            'solar_dominant_pitch_deg': solar_data.get('dominant_pitch_deg'),
+            'solar_imagery_date': solar_data.get('imagery_date'),
+            'solar_imagery_quality': solar_data.get('imagery_quality'),
         })
 
     except (KeyError, ValueError, json.JSONDecodeError) as e:
