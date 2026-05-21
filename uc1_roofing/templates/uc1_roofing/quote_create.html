@@ -5135,7 +5135,8 @@ function rdRenderFeatures({
     roof_material='', roof_material_confidence='',
     storeys=null, condition='',
     pitch_deg=null, eave_height_m=null,
-    views_used=[]
+    views_used=[],
+    detection_error=null,
   } = {}) {
   const el = document.getElementById('rdDetectedFeatures');
   if (!el) return;
@@ -5185,12 +5186,12 @@ function rdRenderFeatures({
   }
 
   // ── Surface silent Claude API errors so 'Not detected' isn't ambiguous ─
-  if (data.detection_error) {
+  if (detection_error) {
     html += `<div style="font-size:.62rem;color:#7a3d00;background:#fff3cd;
                          border:1px solid #ffc107;border-radius:5px;padding:6px 8px;
                          margin-bottom:7px;line-height:1.35;">
                ⚠️ <strong>Detection API issue</strong> — results below may be
-               unreliable. <span style="opacity:.85;">(${data.detection_error.slice(0, 140)})</span>
+               unreliable. <span style="opacity:.85;">(${String(detection_error).slice(0, 140)})</span>
              </div>`;
   }
 
@@ -5264,6 +5265,22 @@ function rdRenderFeatures({
 
 async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
   if (!lat || !lng) return;
+  // Helper: always clear the "Analysing features…" state so the panel never
+  // gets stuck even when the call fails or errors silently.
+  const renderError = (errorMsg) => {
+    try {
+      rdRenderFeatures({
+        solar_panels: false, solar_panels_confidence: '',
+        solar_hw: false,     solar_hw_confidence: '',
+        scaffolding: scaffoldingRequired,
+        other_features: [], roof_style: '', roof_style_confidence: '',
+        roof_material: '', roof_material_confidence: '',
+        storeys: null, condition: '', pitch_deg: null, eave_height_m: null,
+        views_used: [], scanning: false,
+        detection_error: errorMsg,
+      });
+    } catch(e) { console.warn('rdRenderFeatures threw:', e); }
+  };
   try {
     // Pass the already-cropped roof drawing image when available — it gives Claude
     // a much tighter, higher-detail view of the roof surface for feature detection
@@ -5278,7 +5295,10 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
       body: JSON.stringify(payload),
     });
-    if (!resp.ok) return;
+    if (!resp.ok) {
+      renderError(`HTTP ${resp.status} from /api/detect-features/`);
+      return;
+    }
     const d = await resp.json();
     rdRenderFeatures({
       solar_panels:             d.solar_panels || false,
@@ -5297,9 +5317,11 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
       eave_height_m:            d.eave_height_m != null ? d.eave_height_m : null,
       views_used:               d.views_used || [],
       scanning:                 false,
+      detection_error:          d.detection_error || null,  // surface Claude API errors
     });
   } catch(e) {
     console.warn('Feature detection error:', e);
+    renderError(String(e && e.message ? e.message : e));
   }
 }
 
