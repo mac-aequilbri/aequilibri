@@ -5300,6 +5300,7 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
       return;
     }
     const d = await resp.json();
+    rdLastFeatures = d;   // capture for rdUseResults() auto-fill
     rdRenderFeatures({
       solar_panels:             d.solar_panels || false,
       solar_panels_confidence:  d.solar_panels_confidence || '',
@@ -6588,6 +6589,7 @@ function _planNorthArrow(ctx, cx, cy, size) {
 // AI ROOF DRAWING
 // ══════════════════════════════════════════════════════════════════════════════
 let rdData      = null;   // last API response
+let rdLastFeatures = null;  // last /api/detect-features/ response (used to auto-populate storeys)
 let rdShowSectionLabels = true;  // toggle: show/hide section area chips (S1 N / 83.6 m2 / 21 deg)
 let rdScaleMode = false;  // calibration click mode
 let rdScalePts  = [];     // two calibration points [[x,y],[x,y]]
@@ -7181,6 +7183,44 @@ rdApplyScale = function() {
   rdCancelScale();
 };
 
+// ── Helpers: derive form-dropdown values from AI analysis output ──────
+function _rdPitchTypeFromDegrees(avgDeg) {
+  // Maps an average pitch in degrees to the closest pitch_type choice.
+  // PITCH_CHOICES: flat (0°), low (10°), standard (22°), steep (35°), very_steep (45°).
+  if (avgDeg == null || !isFinite(avgDeg) || avgDeg <= 0) return null;
+  if (avgDeg < 5)  return 'flat';
+  if (avgDeg < 15) return 'low';
+  if (avgDeg < 28) return 'standard';
+  if (avgDeg < 40) return 'steep';
+  return 'very_steep';
+}
+function _rdComplexityFromSectionCount(n) {
+  // Section count → complexity_factor option value.
+  if (!n || n <= 2) return '1.00';   // Simple   (e.g. flat or gable)
+  if (n <= 5)       return '1.10';   // Moderate (typical hip)
+  if (n <= 8)       return '1.20';   // Complex  (L-shaped / multi-wing)
+  return '1.35';                      // Very Complex
+}
+function _rdStoreyFactorFromCount(s) {
+  if (s == null) return null;
+  if (s <= 1) return '1.00';
+  if (s === 2) return '1.10';
+  return '1.20';
+}
+function _rdSetSelect(id, value, label) {
+  if (!value) return;
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Only set if the option exists — avoids creating a phantom "value" that
+  // doesn't match any <option> (which leaves the dropdown displaying blank).
+  const opt = Array.from(el.options).find(o => o.value === String(value));
+  if (!opt) return;
+  el.value = String(value);
+  // Fire change so the preview/totals recalculate.
+  el.dispatchEvent(new Event('change', { bubbles: true }));
+  console.log(`[rdUseResults] set ${id} = ${value} (${label || 'auto'})`);
+}
+
 rdUseResults = function() {
   if (!rdData) return;
   rdSyncPlanToInspector();
@@ -7188,6 +7228,29 @@ rdUseResults = function() {
   if (!total) return;
   setEstimate(Math.round(total));
   detectionMethod = 'AI roof drawing';
+
+  // ── Auto-populate Roof Parameters from AI analysis ──────────────────
+  // Pitch — average pitch_est across all sections (drop zeros).
+  const sections = Array.isArray(rdData.sections) ? rdData.sections : [];
+  const pitches = sections
+    .map(s => rdNum(s.pitch_est, rdNum(s.pitch_deg, 0)))
+    .filter(p => p > 2);
+  const avgPitch = pitches.length
+    ? pitches.reduce((a, b) => a + b, 0) / pitches.length
+    : (rdData.avg_pitch_deg || null);
+  _rdSetSelect('pitchSel', _rdPitchTypeFromDegrees(avgPitch),
+               avgPitch ? `${avgPitch.toFixed(1)}°` : '');
+
+  // Complexity — derived from section count.
+  _rdSetSelect('complexSel', _rdComplexityFromSectionCount(sections.length),
+               `${sections.length} sections`);
+
+  // Storeys — from feature detection (rdLastFeatures.storeys) if available.
+  if (rdLastFeatures && rdLastFeatures.storeys != null) {
+    _rdSetSelect('storeySel', _rdStoreyFactorFromCount(rdLastFeatures.storeys),
+                 `${rdLastFeatures.storeys} storey(s)`);
+  }
+
   rdSaveCorrectionMemory(true);
   closeRoofDrawing();
 };
