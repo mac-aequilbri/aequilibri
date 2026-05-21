@@ -87,8 +87,16 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
                 font-size:.78rem; color:#444; overflow-y:auto; overflow-x:hidden;
                 box-sizing:border-box; }
 #rdCanvasWrap { position:absolute; top:0; right:0; bottom:0; left:360px;
-                background:#111; overflow:auto; box-sizing:border-box; }
-#rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
+                background:#111; overflow:auto; box-sizing:border-box;
+                /* Centre the canvas when it fits, allow scroll when it doesn't.
+                   `safe center` falls back to `start` when the item is larger
+                   than the container, so the top-left of an overflowing
+                   canvas stays reachable via scroll. */
+                display:flex;
+                align-items:safe center;
+                justify-content:safe center; }
+#rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111;
+            flex-shrink:0; /* keep the canvas at its native pixel size */ }
 #rdLoadingOverlay {
   position:absolute; inset:0; z-index:4; display:none; align-items:center; justify-content:center;
   padding:28px; background:#111; color:#fff; text-align:center; pointer-events:none;
