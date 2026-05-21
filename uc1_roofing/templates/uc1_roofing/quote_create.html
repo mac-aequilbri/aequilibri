@@ -2970,6 +2970,7 @@ async function openRoofInspector() {
   document.getElementById('ridCoords').textContent =
     lat ? `${lat.toFixed(5)}, ${lng.toFixed(5)}` : '';
   if (!dlg.open) dlg.showModal();
+  _lockBodyScroll();
 
   if (ridReady && ridData) {
     document.getElementById('ridAddr').textContent = ridData._addr || 'Unknown address';
@@ -2991,6 +2992,7 @@ async function openRoofInspector() {
 
 function closeRoofInspector() {
   document.getElementById('roofInspDialog').close();
+  _unlockBodyScroll();
   _ridDisposeThree();
   _clearSectionLayers();  // remove map overlays when dialog closes
   document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -6604,13 +6606,41 @@ const RD_ZOOM_MAX = 3;
   });
 })();
 
+// ── Body-scroll lock helpers ─────────────────────────────────────────────
+// dialog.showModal() is supposed to inhibit page scrolling per the HTML spec,
+// but browsers (Chrome / Firefox / Safari) all leak the underlying page
+// scrollbar through the dialog when the page content is taller than the
+// viewport.  Lock html+body overflow while either roof dialog is open.
+function _lockBodyScroll() {
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflow = 'hidden';
+}
+function _unlockBodyScroll() {
+  // Only unlock if no other modal-style dialog is still open.
+  const rd  = document.getElementById('roofDrawDialog');
+  const rid = document.getElementById('roofInspDialog');
+  if ((!rd || !rd.open) && (!rid || !rid.open)) {
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+  }
+}
+// Native dialog close (Escape key, programmatic close) — also unlock.
+document.addEventListener('DOMContentLoaded', () => {
+  ['roofDrawDialog', 'roofInspDialog'].forEach(id => {
+    const dlg = document.getElementById(id);
+    if (dlg) dlg.addEventListener('close', _unlockBodyScroll);
+  });
+});
+
 function openRoofDrawing() {
   const dlg = document.getElementById('roofDrawDialog');
   dlg.showModal();
+  _lockBodyScroll();
   if (!rdData) rdRerun();
 }
 function closeRoofDrawing() {
   document.getElementById('roofDrawDialog').close();
+  _unlockBodyScroll();
   document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
@@ -6926,6 +6956,7 @@ function rdSetRoofLoading(active, title='Preparing roof sheet', detail='Reading 
 openRoofDrawing = async function() {
   const dlg = document.getElementById('roofDrawDialog');
   dlg.showModal();
+  _lockBodyScroll();
   const hasFreshData = estCenter &&
     rdDataMatchesPoint(rdData, estCenter[0], estCenter[1]) &&
     rdData && rdData.static_map_version === 'roof-crop-v3';
