@@ -11,4 +11,7 @@ python manage.py collectstatic --no-input
 echo "==> Applying database migrations"
 python manage.py migrate --no-input
 
+echo "==> Loading saved roof corrections"
+python manage.py loaddata fixtures/corrections.json
+
 echo "==> Build complete"
