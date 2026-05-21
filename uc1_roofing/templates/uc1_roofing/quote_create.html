@@ -5290,9 +5290,13 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
       payload.roof_image_b64  = rdData.image_b64;
       payload.roof_media_type = rdData.media_type || 'image/png';
     }
+    // CSRF: endpoint is @csrf_exempt server-side, but include the token when
+    // available (defence in depth + Django middleware compatibility).
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value
+              || (typeof CSRF_TOKEN !== 'undefined' ? CSRF_TOKEN : '');
     const resp = await fetch('/uc1/api/detect-features/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
       body: JSON.stringify(payload),
     });
     if (!resp.ok) {
