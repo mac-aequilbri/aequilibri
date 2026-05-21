@@ -1,0 +1,78 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}UC1 Roofing Estimator — Dashboard{% endblock %}
+{% block sb_dash %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header">
+  <h4 class="mb-0">Roofing Estimator <span class="text-muted fw-normal">/ Dashboard</span></h4>
+  <small class="text-muted">Trade contractors & estimators — quote generation engine</small>
+</div>
+<div class="px-4 pb-4">
+
+  <!-- Metrics -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value">{{ total_q }}</div>
+        <div class="label">Total Quotes</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value" style="color:#27ae60">{{ accepted }}</div>
+        <div class="label">Accepted</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value" style="color:#888">{{ draft }}</div>
+        <div class="label">Draft</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value" style="color:#BCC5C6">{{ rate_cards }}</div>
+        <div class="label">Active Rate Cards</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick action -->
+  <div class="d-flex gap-2 mb-4">
+    <a href="{% url 'uc1:quote_create' %}" class="btn btn-ae">＋ New Quote</a>
+    <a href="{% url 'uc1:roof_inspector' %}" class="btn btn-ae-outline">🔍 Roof Inspector</a>
+    <a href="{% url 'uc1:rate_cards' %}" class="btn btn-ae-outline">Manage Rate Cards</a>
+  </div>
+
+  <!-- Recent quotes -->
+  <div class="card p-0">
+    <div class="d-flex align-items-center px-4 pt-3 pb-2 border-bottom">
+      <h6 class="mb-0 fw-bold">Recent Quotes</h6>
+      <a href="{% url 'uc1:quote_list' %}" class="ms-auto text-muted small">View all →</a>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead>
+          <tr><th>Ref</th><th>Address</th><th>Client</th><th>Material</th><th>Area (adj.)</th><th>Total (inc GST)</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for q in quotes %}
+          <tr>
+            <td><code>{{ q.ref_number }}</code></td>
+            <td class="text-truncate" style="max-width:200px">{{ q.property_address }}</td>
+            <td>{{ q.contact.name|default:"—" }}</td>
+            <td>{{ q.get_material_display }}</td>
+            <td>{{ q.adjusted_area_sqm }} m²</td>
+            <td><strong>${{ q.total_inc_gst|floatformat:2 }}</strong></td>
+            <td><span class="status-badge status-{{ q.status }}">{{ q.get_status_display }}</span></td>
+            <td><a href="{% url 'uc1:quote_detail' q.pk %}" class="btn btn-sm btn-ae-outline">View</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="8" class="text-center text-muted py-4">No quotes yet. <a href="{% url 'uc1:quote_create' %}">Create the first one →</a></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

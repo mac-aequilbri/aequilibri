@@ -1,0 +1,31 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Project Phases — Didi{% endblock %}
+{% block sb_phases %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header"><h4 class="mb-0">Project Phases</h4><small class="text-muted">Dulong Downs construction phases — read-only for Didi</small></div>
+<div class="px-4 pb-4">
+  {% for phase in phases %}
+  <div class="card p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-start">
+      <div>
+        <span class="text-muted small">Phase {{ phase.order }}</span>
+        <h5 class="fw-bold mb-1">{{ phase.name }}</h5>
+        <span class="status-badge status-{% if phase.status == 'complete' %}complete{% elif phase.status == 'in_progress' %}active{% elif phase.status == 'on_hold' %}overdue{% else %}draft{% endif %}">{{ phase.get_status_display }}</span>
+      </div>
+      <div class="text-end">
+        <div class="small text-muted">{{ phase.start_date|default:"TBD" }} → {{ phase.end_date|default:"TBD" }}</div>
+        <div style="font-size:1.8rem; font-weight:700; color:var(--ae-space)">{{ phase.completion_pct }}%</div>
+      </div>
+    </div>
+    <div class="progress mt-3" style="height:12px;">
+      <div class="progress-bar" style="width:{{ phase.completion_pct }}%; background:var(--ae-space)"></div>
+    </div>
+    {% if phase.notes %}<div class="small text-muted mt-2">{{ phase.notes }}</div>{% endif %}
+    {% if phase.budget_estimate %}<div class="small text-muted mt-1">Budget estimate: <strong>${{ phase.budget_estimate|floatformat:2 }}</strong></div>{% endif %}
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-4">No project phases defined.</div>
+  {% endfor %}
+</div>
+{% endblock %}

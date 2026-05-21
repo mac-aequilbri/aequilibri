@@ -1,0 +1,30 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Audit Log — UC3{% endblock %}
+{% block sb_log %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header"><h4 class="mb-0">Execution Audit Log</h4><small class="text-muted">Append-only — 100% of AI tool calls logged</small></div>
+<div class="px-4 pb-4">
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Timestamp</th><th>Tool</th><th>Project</th><th>Authority</th><th>Status</th><th>Payload</th></tr></thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="small text-muted">{{ log.created_at|date:"d M Y H:i" }}</td>
+            <td><code class="small">{{ log.tool_name }}</code></td>
+            <td class="small">{{ log.project.name|default:"—" }}</td>
+            <td><span class="badge {% if log.ai_authority == 'full_write' %}bg-success{% elif log.ai_authority == 'approval_required' %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ log.ai_authority|default:"—" }}</span></td>
+            <td><span class="status-badge status-{% if log.status == 'success' %}active{% else %}overdue{% endif %}">{{ log.status }}</span></td>
+            <td class="small text-muted" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ log.payload }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No log entries.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

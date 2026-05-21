@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block nav_uc2 %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex">
+  <div class="sidebar px-3 py-4" style="width:220px; min-width:220px;">
+    <div class="mb-3"><span class="uc-badge uc2-badge">UC2</span> <small class="fw-bold">Didi</small></div>
+    <nav class="nav flex-column gap-1">
+      <a class="nav-link {% block sb_dash %}{% endblock %}" href="{% url 'uc2:dashboard' %}">📊 Dashboard</a>
+      <a class="nav-link {% block sb_chat %}{% endblock %}" href="{% url 'uc2:chat' %}">💬 Chat with Didi</a>
+      <div class="text-muted small px-2 mt-2 mb-1" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.08em;">Database Tables</div>
+      <a class="nav-link {% block sb_actions %}{% endblock %}" href="{% url 'uc2:action_hub' %}">✅ Action Hub</a>
+      <a class="nav-link {% block sb_budget %}{% endblock %}" href="{% url 'uc2:budget' %}">💰 Budget</a>
+      <a class="nav-link {% block sb_phases %}{% endblock %}" href="{% url 'uc2:phases' %}">🏗 Phases</a>
+      <a class="nav-link {% block sb_decisions %}{% endblock %}" href="{% url 'uc2:decisions' %}">📋 Decisions</a>
+      <a class="nav-link {% block sb_vendors %}{% endblock %}" href="{% url 'uc2:vendors' %}">🏢 Vendors</a>
+      <a class="nav-link {% block sb_procurement %}{% endblock %}" href="{% url 'uc2:procurement' %}">📦 Procurement</a>
+      <div class="text-muted small px-2 mt-2 mb-1" style="font-size:0.7rem; text-transform:uppercase; letter-spacing:.08em;">Intelligence</div>
+      <a class="nav-link {% block sb_rules %}{% endblock %}" href="{% url 'uc2:learning_rules' %}">🧠 Learning Rules</a>
+      <a class="nav-link {% block sb_log %}{% endblock %}" href="{% url 'uc2:change_log' %}">🔍 Change Log</a>
+    </nav>
+  </div>
+  <div class="flex-grow-1">
+    {% block uc2_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

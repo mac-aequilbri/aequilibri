@@ -1,0 +1,594 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roof Inspector — aequilibri</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: -apple-system, 'Segoe UI', Arial, sans-serif; }
+
+/* ── Top bar ── */
+#topbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 400;
+  height: 52px; background: #1a1a2e; color: #fff;
+  display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.logo { font-weight: 700; font-size: 1rem; white-space: nowrap; }
+.logo span { color: #DC9F82; }
+#searchWrap { flex: 1; max-width: 440px; display: flex; background: #2d2d4a; border-radius: 8px; overflow: hidden; }
+#searchBox  { flex: 1; border: none; background: transparent; color: #fff; padding: 8px 12px; font-size: .85rem; outline: none; }
+#searchBox::placeholder { color: #888; }
+#searchBtn  { border: none; background: #DC9F82; color: #fff; padding: 0 12px; cursor: pointer; font-size: .8rem; white-space: nowrap; }
+#searchBtn:hover { background: #c8855a; }
+#backLink   { color: #DC9F82; text-decoration: none; font-size: .78rem; white-space: nowrap; }
+#backLink:hover { color: #fff; }
+
+/* ── Map ── */
+#map { position: fixed; top: 52px; left: 0; right: 0; bottom: 64px; cursor: crosshair; }
+
+/* ── Bottom action bar ── */
+#actionBar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 64px;
+  background: #1a1a2e;
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  padding: 0 20px;
+  box-shadow: 0 -2px 12px rgba(0,0,0,.35);
+}
+#inspectBtn {
+  border: none; border-radius: 8px;
+  background: #DC9F82; color: #fff;
+  padding: 10px 24px; font-size: .92rem; font-weight: 700;
+  cursor: pointer; white-space: nowrap;
+}
+#inspectBtn:hover:not(:disabled) { background: #c8855a; }
+#inspectBtn:disabled { background: #444; color: #888; cursor: default; }
+
+/* ════ <dialog> ════════════════════════════════════════════════════ */
+dialog {
+  border: none; border-radius: 12px; padding: 0;
+  width: min(660px, 96vw); max-height: 92vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+dialog::backdrop { background: rgba(0,0,0,.6); }
+
+#dlgHeader {
+  background: #1a1a2e; color: #fff;
+  padding: 14px 18px; flex-shrink: 0;
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.addr-block { flex: 1; min-width: 0; }
+#dlgAddr   { font-weight: 600; font-size: .9rem; line-height: 1.35; }
+#dlgCoords { font-size: .67rem; color: #9fa; margin-top: 3px; }
+#dlgClose  { background: none; border: none; color: #aaa; font-size: 1.3rem; cursor: pointer; padding: 0 4px; line-height: 1; }
+#dlgClose:hover { color: #fff; }
+
+#dlgBody   { flex: 1; overflow-y: auto; padding: 16px 18px; }
+
+#dlgFooter {
+  flex-shrink: 0; display: none; padding: 10px 18px;
+  background: #f8f9fa; border-top: 1px solid #eee;
+  align-items: center; justify-content: space-between;
+}
+#dlgFooter .sub { font-size: .72rem; color: #999; }
+#ctaLink {
+  display: inline-block; background: #DC9F82; color: #fff;
+  padding: 8px 20px; border-radius: 8px;
+  font-weight: 600; font-size: .88rem; text-decoration: none;
+}
+#ctaLink:hover { background: #c8855a; color: #fff; }
+
+/* Status */
+#panelStatus {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px; border-radius: 8px;
+  background: #f8f9fa; margin-bottom: 12px; font-size: .82rem; color: #555;
+}
+.spin-ring {
+  width: 18px; height: 18px; flex-shrink: 0;
+  border: 2px solid #ddd; border-top-color: #DC9F82;
+  border-radius: 50%; animation: sp .7s linear infinite;
+}
+@keyframes sp { to { transform: rotate(360deg); } }
+
+/* Source badge */
+.src-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 12px;
+  font-size: .68rem; font-weight: 700; margin-bottom: 10px;
+}
+
+/* Metric grids */
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+.metric-card { background: #f8f9fa; border-radius: 8px; padding: 10px; text-align: center; }
+.metric-val  { font-size: 1.1rem; font-weight: 700; color: #1a1a2e; }
+.metric-lbl  { font-size: .6rem; color: #999; text-transform: uppercase; letter-spacing: .05em; margin-top: 2px; }
+
+.solar-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; margin-bottom: 10px; }
+.solar-card { background: #e8f5e9; border-radius: 6px; padding: 8px; text-align: center; }
+.solar-card .metric-val { font-size: 1rem; color: #1b5e20; }
+.solar-card .metric-lbl { font-size: .58rem; color: #555; }
+
+/* Alerts */
+#alertScaff  { display: none; border-radius: 6px; padding: 9px 12px; margin-bottom: 8px; font-size: .8rem; }
+#alertStruct { display: none; background: #fff3cd; color: #856404; border-radius: 6px; padding: 9px 12px; margin-bottom: 8px; font-size: .8rem; }
+
+/* 3D */
+#canvasWrap { border-radius: 8px; overflow: hidden; background: #1a1a2e; margin-bottom: 8px; position: relative; }
+#inspCanvas { width: 100% !important; height: 250px !important; display: block; cursor: grab; touch-action: none; }
+#canvasHint { position: absolute; bottom: 6px; right: 8px; font-size: .65rem; color: rgba(255,255,255,.4); pointer-events: none; }
+
+.legend-row { display: flex; gap: 12px; flex-wrap: wrap; font-size: .72rem; color: #888; margin-bottom: 10px; }
+.swatch     { display: inline-block; width: 11px; height: 11px; border-radius: 2px; margin-right: 3px; vertical-align: middle; }
+#panelNotes { font-size: .7rem; color: #999; line-height: 1.5; }
+
+@media (max-width: 580px) { #backLink { display: none; } }
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ──────────────────────────────────────────────────────── -->
+<div id="topbar">
+  <div class="logo">ae<span>q</span>uilibri</div>
+  <div id="searchWrap">
+    <input id="searchBox" type="text" placeholder="Search an address…" autocomplete="off"/>
+    <button id="searchBtn">Search</button>
+  </div>
+  <a href="{% url 'uc1:dashboard' %}" id="backLink">← Dashboard</a>
+</div>
+
+<!-- ── Map ──────────────────────────────────────────────────────────── -->
+<div id="map"></div>
+
+<!-- ── Bottom action bar ─────────────────────────────────────────── -->
+<div id="actionBar">
+  <button id="inspectBtn" onclick="openInspector()" disabled>📍 Click a roof on the map</button>
+</div>
+
+<!-- ════ Inspector dialog ════════════════════════════════════════════ -->
+<dialog id="inspDialog">
+  <div id="dlgHeader">
+    <div class="addr-block">
+      <div id="dlgAddr">Loading…</div>
+      <div id="dlgCoords"></div>
+    </div>
+    <button id="dlgClose">✕</button>
+  </div>
+
+  <div id="dlgBody">
+    <div id="panelStatus">
+      <div class="spin-ring"></div>
+      <span id="statusText">Analysing roof…</span>
+    </div>
+
+    <div id="panelResults" style="display:none">
+      <span id="sourceBadge" class="src-badge"></span>
+
+      <div class="metric-grid">
+        <div class="metric-card"><div class="metric-val" id="mPerimeter">—</div><div class="metric-lbl">Perimeter</div></div>
+        <div class="metric-card"><div class="metric-val" id="mGuttering">—</div><div class="metric-lbl">Eave / Guttering</div></div>
+        <div class="metric-card"><div class="metric-val" id="mEaveH">—</div><div class="metric-lbl">Eave height</div></div>
+        <div class="metric-card"><div class="metric-val" id="mRidgeH">—</div><div class="metric-lbl">Ridge height</div></div>
+      </div>
+
+      <div id="solarExtra" style="display:none">
+        <div class="solar-grid">
+          <div class="solar-card"><div class="metric-val" id="mSections">—</div><div class="metric-lbl">Sections</div></div>
+          <div class="solar-card"><div class="metric-val" id="mArea">—</div><div class="metric-lbl">Total area</div></div>
+          <div class="solar-card"><div class="metric-val" id="mPitch">—</div><div class="metric-lbl">Dom. pitch</div></div>
+          <div class="solar-card"><div class="metric-val" id="mRidgeLm">—</div><div class="metric-lbl">Ridge lm</div></div>
+          <div class="solar-card"><div class="metric-val" id="mValleyLm">—</div><div class="metric-lbl">Valley lm</div></div>
+          <div class="solar-card"><div class="metric-val" id="mHipLm">—</div><div class="metric-lbl">Hip lm</div></div>
+        </div>
+      </div>
+
+      <div id="alertScaff"></div>
+      <div id="alertStruct"></div>
+
+      <div id="canvasWrap">
+        <canvas id="inspCanvas" touch-action="none"></canvas>
+        <div id="canvasHint">Drag · Scroll to zoom</div>
+      </div>
+      <div class="legend-row">
+        <span><span class="swatch" style="background:#f5f0e8;border:1px solid #ccc"></span>Walls</span>
+        <span><span class="swatch" id="roofSwatch" style="background:#5a6272"></span>Roof</span>
+        <span id="scaffLegend" style="display:none"><span class="swatch" style="background:#ef4444"></span>Scaffolding</span>
+        <span id="coverageLabel" style="margin-left:auto"></span>
+      </div>
+      <div id="panelNotes"></div>
+    </div>
+  </div>
+
+  <div id="dlgFooter">
+    <span class="sub">Opens full quoting workflow with this address pre-filled</span>
+    <a href="{% url 'uc1:quote_create' %}" id="ctaLink">Create Quote →</a>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CSRF = '{{ csrf_token }}';
+
+// ── Map ──────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([-19.2590, 146.8169], 14);
+const satLayer = L.tileLayer(
+  'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { attribution: 'Esri', maxZoom: 19 }
+).addTo(map);
+
+let currentMarker  = null;
+let footprintLayer = null;
+let lastLat = null, lastLng = null;
+let cachedData = null, cachedPolygon = [];
+let analysisReady = false;
+let threeState = { renderer: null, animId: null };
+
+// ── Button flow ───────────────────────────────────────────────────────
+// Step 1: map click → store location, kick off analysis in background
+map.on('click', function(e) {
+  lastLat = e.latlng.lat;
+  lastLng = e.latlng.lng;
+  analysisReady = false;
+  cachedData = null;
+
+  // Move marker
+  if (currentMarker) map.removeLayer(currentMarker);
+  currentMarker = L.circleMarker([lastLat, lastLng], {
+    radius: 7, fillColor: '#DC9F82', fillOpacity: 1, color: '#fff', weight: 2
+  }).addTo(map);
+
+  // Update button state
+  const btn = document.getElementById('inspectBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Analysing…';
+
+  // Pre-fetch in background
+  runAnalysis(lastLat, lastLng);
+});
+
+// Step 2: button click → open dialog
+function openInspector() {
+  const dlg = document.getElementById('inspDialog');
+
+  document.getElementById('dlgCoords').textContent =
+    lastLat ? `${lastLat.toFixed(5)}, ${lastLng.toFixed(5)}` : '';
+
+  if (analysisReady && cachedData) {
+    // Data already in — open straight to results
+    document.getElementById('dlgAddr').textContent = cachedData._addr || 'Unknown address';
+    setStatus('', false);
+    populateDialog(cachedData, cachedPolygon);
+  } else {
+    // Still loading — open with spinner
+    document.getElementById('dlgAddr').textContent = 'Looking up address…';
+    setStatus('Analysing roof…');
+  }
+
+  dlg.showModal();
+}
+
+document.getElementById('dlgClose').addEventListener('click', function() {
+  document.getElementById('inspDialog').close();
+  disposeThree();
+});
+
+// ── Background analysis ────────────────────────────────────────────────
+async function runAnalysis(lat, lng) {
+  // Parallel: geocode + footprint
+  const [addr, fp] = await Promise.all([
+    reverseGeocode(lat, lng),
+    getFootprint(lat, lng),
+  ]);
+
+  let polygon = [];
+  if (fp && fp.geometry) {
+    polygon = fp.geometry;
+    if (footprintLayer) map.removeLayer(footprintLayer);
+    footprintLayer = L.polygon(polygon, {
+      color: '#DC9F82', weight: 2, fillColor: '#DC9F82', fillOpacity: 0.15
+    }).addTo(map);
+  }
+
+  const data = await analyzeRoof(lat, lng, polygon);
+  data._addr = addr;
+  cachedData    = data;
+  cachedPolygon = polygon;
+  analysisReady = true;
+
+  // Update button
+  const btn = document.getElementById('inspectBtn');
+  btn.disabled = false;
+  btn.textContent = '🔍 View Roof Analysis';
+
+  // If dialog is already open, populate it now
+  const dlg = document.getElementById('inspDialog');
+  if (dlg.open) {
+    document.getElementById('dlgAddr').textContent = addr;
+    populateDialog(data, polygon);
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function setStatus(text, show = true) {
+  document.getElementById('panelStatus').style.display  = show ? 'flex' : 'none';
+  document.getElementById('panelResults').style.display = show ? 'none' : 'block';
+  document.getElementById('dlgFooter').style.display    = show ? 'none' : 'flex';
+  if (text) document.getElementById('statusText').textContent = text;
+}
+
+function showResults() {
+  document.getElementById('panelStatus').style.display  = 'none';
+  document.getElementById('panelResults').style.display = 'block';
+  document.getElementById('dlgFooter').style.display    = 'flex';
+}
+
+async function reverseGeocode(lat, lng) {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const d = await r.json();
+    return d.display_name || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  } catch { return `${lat.toFixed(5)}, ${lng.toFixed(5)}`; }
+}
+
+async function getFootprint(lat, lng) {
+  try {
+    const r = await fetch(`/uc1/api/building/?lat=${lat}&lon=${lng}`);
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.found ? d : null;
+  } catch { return null; }
+}
+
+function syntheticBox(lat, lng, d) {
+  return [[lat-d,lng-d],[lat-d,lng+d],[lat+d,lng+d],[lat+d,lng-d]];
+}
+
+async function analyzeRoof(lat, lng, polygon) {
+  try {
+    const r = await fetch('/uc1/api/solar-analyze/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ lat, lng, storeys: 1 }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.ok !== false && d.section_count > 0) return d;
+    }
+  } catch {}
+
+  try {
+    const poly = (polygon && polygon.length >= 3) ? polygon : syntheticBox(lat, lng, 0.0001);
+    const r = await fetch('/uc1/api/lidar-analyze/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ lat, lng, polygon: poly, storeys: 1 }),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      if (d.lidar_coverage && d.lidar_coverage !== 'unavailable') return d;
+    }
+  } catch {}
+
+  return {
+    eave_height_m: 2.7, ridge_height_m: 4.7,
+    perimeter_m: null, guttering_linear_m: null,
+    scaffolding: { required: false, estimated_linear_m: 0, risk_level: 'low' },
+    structure_count: 1, lidar_coverage: 'estimated',
+    data_source: 'storey_fallback',
+    analysis_notes: ['No remote data available — storey estimates only'],
+  };
+}
+
+// ── Populate dialog ────────────────────────────────────────────────────
+const ROOF_COLOR = 0x5a6272;
+function fmt(v, s='m') { return (v!=null && +v>0) ? (+v).toFixed(1)+' '+s : '—'; }
+function fmtM2(v)       { return (v!=null && +v>0) ? (+v).toFixed(0)+' m²' : '—'; }
+
+function populateDialog(data, polygon) {
+  const isSolar = data.data_source === 'google_solar_api';
+  const badge   = document.getElementById('sourceBadge');
+  if (isSolar) {
+    badge.textContent = `☀️ Solar API · ${data.imagery_quality||''} · ${data.imagery_date||''}`;
+    badge.style.background = '#1565c0'; badge.style.color = '#fff';
+  } else {
+    const lbl = { full:'LiDAR ✓', partial:'Partial LiDAR', estimated:'Storey estimate', storey_fallback:'Storey estimate' };
+    badge.textContent = lbl[data.lidar_coverage] || 'Estimated';
+    badge.style.background = {full:'#27ae60',partial:'#e67e22'}[data.lidar_coverage] || '#888';
+    badge.style.color = '#fff';
+  }
+
+  document.getElementById('mPerimeter').textContent = fmt(data.perimeter_m);
+  document.getElementById('mGuttering').textContent = fmt(data.guttering_linear_m || data.eave_lm);
+  document.getElementById('mEaveH').textContent     = fmt(data.eave_height_m);
+  document.getElementById('mRidgeH').textContent    = fmt(data.ridge_height_m);
+
+  const se = document.getElementById('solarExtra');
+  if (isSolar && data.section_count > 0) {
+    se.style.display = 'block';
+    document.getElementById('mSections').textContent  = data.section_count || '—';
+    document.getElementById('mArea').textContent      = fmtM2(data.total_area_m2);
+    document.getElementById('mPitch').textContent     = data.dominant_pitch_deg!=null ? (+data.dominant_pitch_deg).toFixed(0)+'°' : '—';
+    document.getElementById('mRidgeLm').textContent   = fmt(data.ridge_lm);
+    document.getElementById('mValleyLm').textContent  = fmt(data.valley_lm);
+    document.getElementById('mHipLm').textContent     = fmt(data.hip_lm);
+  } else { se.style.display = 'none'; }
+
+  const scaff = data.scaffolding || {};
+  const sEl   = document.getElementById('alertScaff');
+  if (scaff.required) {
+    const pal = {high:'background:#f8d7da;color:#721c24',medium:'background:#fff3cd;color:#856404',low:'background:#d1ecf1;color:#0c5460'};
+    sEl.style.cssText = (pal[scaff.risk_level]||pal.medium)+';border-radius:6px;padding:9px 12px;margin-bottom:8px;font-size:.8rem;';
+    sEl.innerHTML = `🏗️ <strong>Scaffolding required</strong> · Risk: <strong>${scaff.risk_level}</strong><br><span style="font-size:.72rem">${scaff.reason||'Eave > 3 m'}</span>`;
+    sEl.style.display = 'block';
+    document.getElementById('scaffLegend').style.display = 'inline';
+  } else {
+    sEl.style.display = 'none';
+    document.getElementById('scaffLegend').style.display = 'none';
+  }
+
+  const stEl = document.getElementById('alertStruct');
+  stEl.style.display = (data.structure_count||1) > 1 ? 'block' : 'none';
+  if ((data.structure_count||1) > 1)
+    stEl.textContent = `🏠 ${data.structure_count} structures — confirm which is being quoted`;
+
+  document.getElementById('coverageLabel').textContent =
+    isSolar ? `📡 ${data.imagery_date||''}` :
+    data.lidar_coverage==='full' ? '📡 LiDAR ✓' :
+    data.lidar_coverage==='estimated' ? '📡 Estimated' : '';
+
+  const notes = Array.isArray(data.analysis_notes) ? data.analysis_notes : [];
+  document.getElementById('panelNotes').textContent = notes.join(' · ');
+
+  render3D(data, polygon);
+  showResults();
+}
+
+// ── Three.js ──────────────────────────────────────────────────────────
+function disposeThree() {
+  if (threeState.renderer) {
+    cancelAnimationFrame(threeState.animId);
+    threeState.renderer.dispose();
+    threeState.renderer = null;
+  }
+}
+
+function toLocalXZ(coords) {
+  if (!coords || coords.length < 3) return null;
+  const cx = coords.reduce((s,c)=>s+c[0],0)/coords.length;
+  const cy = coords.reduce((s,c)=>s+c[1],0)/coords.length;
+  const cL = Math.cos(cx * Math.PI / 180);
+  return coords.map(c => [(c[1]-cy)*cL*111320, (c[0]-cx)*111320]);
+}
+
+function render3D(data, polygon) {
+  if (typeof THREE === 'undefined') return;
+  disposeThree();
+
+  let pts = toLocalXZ(polygon);
+  if (!pts || pts.length < 3) { const s=7; pts=[[-s,-s],[-s,s],[s,s],[s,-s]]; }
+
+  const eH = Math.max(data.eave_height_m  || 2.7, 1.5);
+  const rH = Math.max(data.ridge_height_m || (eH+2), eH+0.5);
+  const sc = (data.scaffolding||{}).required || false;
+
+  document.getElementById('roofSwatch').style.background = '#'+ROOF_COLOR.toString(16).padStart(6,'0');
+
+  const canvas = document.getElementById('inspCanvas');
+  const W = Math.min(canvas.parentElement.clientWidth||620, 620), H = 250;
+  canvas.width = W; canvas.height = H;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x1a1a2e);
+  scene.fog = new THREE.Fog(0x1a1a2e, 80, 200);
+
+  const maxR = Math.max(...pts.map(p=>Math.hypot(p[0],p[1]))) || 10;
+  const cam  = new THREE.PerspectiveCamera(42, W/H, 0.1, 400);
+  const ren  = new THREE.WebGLRenderer({ canvas, antialias: true });
+  ren.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  ren.setSize(W, H); ren.shadowMap.enabled = true;
+  threeState.renderer = ren;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const sun = new THREE.DirectionalLight(0xfff4d6, 1.1);
+  sun.position.set(40,70,30); sun.castShadow = true; scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0x87ceeb, 0x4a7c59, 0.3));
+
+  const gnd = new THREE.Mesh(new THREE.CircleGeometry(maxR*6,48), new THREE.MeshLambertMaterial({color:0x4a7c59}));
+  gnd.rotation.x = -Math.PI/2; gnd.position.y = -0.02; scene.add(gnd);
+
+  function mk(pos, color) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({color, side:THREE.DoubleSide}));
+    m.castShadow = m.receiveShadow = true; return m;
+  }
+
+  const fs = new THREE.Shape();
+  fs.moveTo(pts[0][0], -pts[0][1]);
+  pts.slice(1).forEach(p => fs.lineTo(p[0], -p[1]));
+  const fg = new THREE.ShapeGeometry(fs); fg.rotateX(-Math.PI/2);
+  scene.add(new THREE.Mesh(fg, new THREE.MeshLambertMaterial({color:0xd4c5a9})));
+
+  const wp = [];
+  for (let i=0; i<pts.length; i++) {
+    const j=(i+1)%pts.length, [x1,n1]=pts[i], z1=-n1, [x2,n2]=pts[j], z2=-n2;
+    wp.push(x1,0,z1, x1,eH,z1, x2,eH,z2, x1,0,z1, x2,eH,z2, x2,0,z2);
+  }
+  scene.add(mk(wp, 0xf5f0e8));
+
+  if (sc) {
+    const sh = Math.min(0.6,eH*0.18), sp=[];
+    for (let i=0; i<pts.length; i++) {
+      const j=(i+1)%pts.length, [x1,n1]=pts[i], z1=-n1, [x2,n2]=pts[j], z2=-n2;
+      sp.push(x1,eH-sh,z1, x1,eH,z1, x2,eH,z2, x1,eH-sh,z1, x2,eH,z2, x2,eH-sh,z2);
+    }
+    scene.add(mk(sp, 0xef4444));
+  }
+
+  const px2 = pts.reduce((s,p)=>s+p[0],0)/pts.length;
+  const pz2 = -(pts.reduce((s,p)=>s+p[1],0)/pts.length);
+  const rp = [];
+  for (let i=0; i<pts.length; i++) {
+    const j=(i+1)%pts.length;
+    rp.push(pts[i][0],eH,-pts[i][1], pts[j][0],eH,-pts[j][1], px2,rH,pz2);
+  }
+  const rm = mk(rp, ROOF_COLOR); scene.add(rm);
+  scene.add(new THREE.LineSegments(new THREE.EdgesGeometry(rm.geometry),
+    new THREE.LineBasicMaterial({color:0x000000,transparent:true,opacity:0.22})));
+
+  let theta=0.6, phi=0.38, radius=maxR*3.2, spin=true;
+  const pY = eH*0.45;
+  function setCam() {
+    cam.position.set(radius*Math.sin(theta)*Math.cos(phi), radius*Math.sin(phi)+pY, radius*Math.cos(theta)*Math.cos(phi));
+    cam.lookAt(0, pY, 0);
+  }
+  setCam();
+
+  let drag=false, mx=0, my=0;
+  canvas.addEventListener('mousedown', e=>{drag=true;spin=false;mx=e.clientX;my=e.clientY;canvas.style.cursor='grabbing';});
+  canvas.addEventListener('mouseup',   ()=>{drag=false;canvas.style.cursor='grab';});
+  canvas.addEventListener('mouseleave',()=>{drag=false;});
+  canvas.addEventListener('mousemove', e=>{if(!drag)return;theta-=(e.clientX-mx)*.007;phi=Math.max(.08,Math.min(1.45,phi-(e.clientY-my)*.005));mx=e.clientX;my=e.clientY;setCam();});
+  canvas.addEventListener('wheel', e=>{spin=false;radius=Math.max(maxR*1.2,Math.min(maxR*8,radius+e.deltaY*.04));setCam();e.preventDefault();},{passive:false});
+  let t0=null;
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){t0={x:e.touches[0].clientX,y:e.touches[0].clientY};spin=false;}},{passive:true});
+  canvas.addEventListener('touchmove', e=>{if(!t0||e.touches.length!==1)return;theta-=(e.touches[0].clientX-t0.x)*.007;phi=Math.max(.08,Math.min(1.45,phi-(e.touches[0].clientY-t0.y)*.005));t0={x:e.touches[0].clientX,y:e.touches[0].clientY};setCam();},{passive:true});
+
+  (function animate(){
+    threeState.animId = requestAnimationFrame(animate);
+    if(spin){theta+=0.005;setCam();}
+    ren.render(scene, cam);
+  })();
+}
+
+// ── Address search ─────────────────────────────────────────────────────
+async function searchAddress(q) {
+  if (!q.trim()) return;
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&countrycodes=au&limit=1`,
+      {headers:{'Accept-Language':'en'}}
+    );
+    const res = await r.json();
+    if (res.length) {
+      map.setView([+res[0].lat, +res[0].lon], 19);
+      // Simulate a click at the searched location
+      map.fire('click', { latlng: L.latLng(+res[0].lat, +res[0].lon) });
+    } else {
+      alert('Address not found. Try "13 McAlister St Oonoonba QLD"');
+    }
+  } catch(e) { console.error(e); }
+}
+document.getElementById('searchBtn').addEventListener('click', ()=> searchAddress(document.getElementById('searchBox').value));
+document.getElementById('searchBox').addEventListener('keydown', e=>{ if(e.key==='Enter') searchAddress(e.target.value); });
+</script>
+</body>
+</html>

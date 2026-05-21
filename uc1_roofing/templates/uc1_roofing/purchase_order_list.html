@@ -1,0 +1,64 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Purchase Orders{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Purchase Orders</h4>
+</div>
+
+{% if pos %}
+<div class="table-responsive">
+  <table class="table table-hover align-middle">
+    <thead class="table-light">
+      <tr>
+        <th>PO Number</th>
+        <th>Vendor</th>
+        <th>Quote</th>
+        <th>Material</th>
+        <th>Status</th>
+        <th class="text-end">Total inc-GST</th>
+        <th>Created</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for po in pos %}
+      <tr>
+        <td><a href="{% url 'uc1:purchase_order_detail' po.pk %}" class="fw-semibold">{{ po.po_number }}</a></td>
+        <td>
+          {{ po.vendor.name }}
+          {% if po.vendor.is_preferred %}<span class="badge bg-success ms-1" style="font-size:10px;">★</span>{% endif %}
+        </td>
+        <td>
+          {% if po.quote %}
+          <a href="{% url 'uc1:quote_detail' po.quote.pk %}" class="text-muted small">{{ po.quote.ref_number }}</a>
+          {% else %}<span class="text-muted small">—</span>{% endif %}
+        </td>
+        <td class="small">{{ po.quote.get_material_display|default:"—" }}</td>
+        <td>
+          <span class="badge
+            {% if po.status == 'confirmed' %}bg-success
+            {% elif po.status == 'sent' %}bg-primary
+            {% elif po.status == 'cancelled' %}bg-danger
+            {% else %}bg-secondary{% endif %}">
+            {{ po.get_status_display }}
+          </span>
+        </td>
+        <td class="text-end fw-semibold">${{ po.total_inc_gst|floatformat:2 }}</td>
+        <td class="text-muted small">{{ po.created_at|date:"d M Y" }}</td>
+        <td>
+          <a href="{% url 'uc1:purchase_order_detail' po.pk %}" class="btn btn-sm btn-outline-secondary py-0">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="text-center py-5 text-muted">
+  <div style="font-size:48px;">📦</div>
+  <p class="mt-2">No purchase orders yet.<br>Open a quote and click <strong>Purchase Materials</strong> to create one.</p>
+  <a href="{% url 'uc1:quote_list' %}" class="btn btn-outline-primary mt-2">Go to Quotes →</a>
+</div>
+{% endif %}
+{% endblock %}

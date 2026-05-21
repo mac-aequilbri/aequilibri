@@ -1,0 +1,37 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Projects — UC3 MSME{% endblock %}
+{% block sb_projects %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div><h4 class="mb-0">Projects</h4><small class="text-muted">{{ tenant.name }}</small></div>
+  <a href="{% url 'uc3:project_create' %}" class="btn btn-ae">＋ New Project</a>
+</div>
+<div class="px-4 pb-4">
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Health</th><th>Start</th><th>End</th><th></th></tr></thead>
+        <tbody>
+          {% for p in projects %}
+          <tr>
+            <td class="fw-bold">{{ p.name }}</td>
+            <td class="text-muted small">{{ p.client }}</td>
+            <td><span class="status-badge status-{% if p.status == 'active' %}active{% elif p.status == 'complete' %}complete{% elif p.status == 'on_hold' %}overdue{% else %}draft{% endif %}">{{ p.get_status_display }}</span></td>
+            <td>
+              <span style="color:{{ p.health_color }}; font-weight:700">{{ p.health_score }}/100</span>
+              <span class="small text-muted">({{ p.health_label }})</span>
+            </td>
+            <td class="small text-muted">{{ p.start_date|default:"TBD" }}</td>
+            <td class="small text-muted">{{ p.end_date|default:"TBD" }}</td>
+            <td><a href="{% url 'uc3:project_detail' p.pk %}" class="btn btn-sm btn-ae-outline">View</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No projects. <a href="{% url 'uc3:project_create' %}">Create one →</a></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

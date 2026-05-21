@@ -1,0 +1,56 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Decisions — Didi{% endblock %}
+{% block sb_decisions %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div><h4 class="mb-0">Decisions</h4><small class="text-muted">Project decision log</small></div>
+  <button class="btn btn-ae" data-bs-toggle="modal" data-bs-target="#addDecisionModal">＋ Record Decision</button>
+</div>
+<div class="px-4 pb-4">
+  {% for d in decisions %}
+  <div class="card p-4 mb-3">
+    <div class="d-flex justify-content-between">
+      <div class="fw-bold">{{ d.description }}</div>
+      <span class="status-badge status-{% if d.status == 'confirmed' %}active{% elif d.status == 'draft' %}draft{% else %}pending{% endif %}">{{ d.get_status_display }}</span>
+    </div>
+    <div class="small text-muted mt-1">Made by: {{ d.made_by }} · {{ d.date|default:"Date TBD" }}</div>
+    {% if d.rationale %}<div class="small mt-2 text-muted"><em>{{ d.rationale }}</em></div>{% endif %}
+  </div>
+  {% empty %}
+  <div class="text-center text-muted py-4">No decisions recorded.</div>
+  {% endfor %}
+</div>
+<div class="modal fade" id="addDecisionModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Record Decision</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-2"><label class="form-label">Decision *</label>
+            <textarea name="description" class="form-control" rows="3" required></textarea></div>
+          <div class="row g-2">
+            <div class="col-md-6"><label class="form-label">Made By *</label>
+              <input type="text" name="made_by" class="form-control" required></div>
+            <div class="col-md-6"><label class="form-label">Date</label>
+              <input type="date" name="date" class="form-control"></div>
+          </div>
+          <div class="mt-2"><label class="form-label">Rationale</label>
+            <textarea name="rationale" class="form-control" rows="2"></textarea></div>
+          <div class="mt-2"><label class="form-label">Status</label>
+            <select name="status" class="form-select">
+              <option value="confirmed">Confirmed</option>
+              <option value="draft">Draft</option>
+            </select></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-ae">Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

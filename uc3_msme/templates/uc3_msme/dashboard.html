@@ -1,0 +1,108 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}MSME Coordinator — Dashboard{% endblock %}
+{% block sb_dash %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-start justify-content-between">
+  <div>
+    <h4 class="mb-0">MSME Project Coordinator <span class="text-muted fw-normal">/ Dashboard</span></h4>
+    <small class="text-muted">Multi-tenant · Tenant: <strong>{{ tenant.name }}</strong></small>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <!-- Tenant switcher -->
+    <div class="dropdown">
+      <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">Switch Tenant</button>
+      <ul class="dropdown-menu">
+        {% for t in all_tenants %}
+        <li><a class="dropdown-item {% if t == tenant %}fw-bold{% endif %}" href="{% url 'uc3:select_tenant' t.id %}">{{ t.name }}</a></li>
+        {% endfor %}
+      </ul>
+    </div>
+    <a href="{% url 'uc3:project_create' %}" class="btn btn-ae btn-sm">＋ New Project</a>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+  <!-- Metrics -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value">{{ projects.count }}</div>
+        <div class="label">Active Projects</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value {% if overdue_actions > 0 %}text-danger{% endif %}">{{ overdue_actions }}</div>
+        <div class="label">Overdue Actions</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value {% if high_risks > 0 %}text-danger{% endif %}">{{ high_risks }}</div>
+        <div class="label">High Risks</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="metric-card">
+        <div class="value">{{ open_risks }}</div>
+        <div class="label">Open Risks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Project cards -->
+  <h6 class="fw-bold mb-3">Projects</h6>
+  <div class="row g-4 mb-4">
+    {% for project in projects %}
+    <div class="col-md-4">
+      <div class="card p-4 h-100">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h6 class="fw-bold mb-0">{{ project.name }}</h6>
+          <span class="status-badge status-{% if project.status == 'active' %}active{% elif project.status == 'complete' %}complete{% elif project.status == 'on_hold' %}overdue{% else %}draft{% endif %}">{{ project.get_status_display }}</span>
+        </div>
+        <div class="small text-muted mb-3">{{ project.client }}</div>
+
+        <!-- Health Score Gauge -->
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div style="width:60px; height:60px; border-radius:50%; border: 4px solid {{ project.health_color }};
+                      display:flex; align-items:center; justify-content:center;
+                      font-size:1rem; font-weight:700; color:{{ project.health_color }}">
+            {{ project.health_score }}
+          </div>
+          <div>
+            <div class="small fw-bold">Health: {{ project.health_label }}</div>
+            <div class="small text-muted">{{ project.actions.filter.count }} actions</div>
+          </div>
+        </div>
+
+        <!-- Phase progress -->
+        {% with phases=project.phases.all %}
+        {% if phases %}
+        {% for phase in phases|slice:":3" %}
+        <div class="mb-1">
+          <div class="d-flex justify-content-between" style="font-size:0.75rem">
+            <span class="text-muted">{{ phase.name|truncatechars:30 }}</span>
+            <span>{{ phase.completion_pct }}%</span>
+          </div>
+          <div class="progress" style="height:4px;">
+            <div class="progress-bar" style="width:{{ phase.completion_pct }}%; background:var(--ae-space)"></div>
+          </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="mt-auto pt-3">
+          <a href="{% url 'uc3:project_detail' project.pk %}" class="btn btn-ae-outline btn-sm w-100">View Project →</a>
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="col-12 text-center text-muted py-4">
+      No projects yet. <a href="{% url 'uc3:project_create' %}">Create the first one →</a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Audit Log — UC1 Roofing{% endblock %}
+{% block sb_log %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header"><h4 class="mb-0">Execution Audit Log</h4><small class="text-muted">Append-only record of all AI tool executions</small></div>
+<div class="px-4 pb-4">
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Timestamp</th><th>Tool</th><th>Status</th><th>Quote</th><th>Duration</th><th>Payload (excerpt)</th></tr></thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="small text-muted">{{ log.created_at|date:"d M Y H:i:s" }}</td>
+            <td><code class="small">{{ log.tool_name }}</code></td>
+            <td><span class="status-badge status-{% if log.status == 'success' %}active{% else %}overdue{% endif %}">{{ log.status }}</span></td>
+            <td>{% if log.quote %}<a href="{% url 'uc1:quote_detail' log.quote.pk %}"><code>{{ log.quote.ref_number }}</code></a>{% else %}—{% endif %}</td>
+            <td class="small">{{ log.duration_ms }}ms</td>
+            <td class="small text-muted" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ log.payload }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No log entries yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

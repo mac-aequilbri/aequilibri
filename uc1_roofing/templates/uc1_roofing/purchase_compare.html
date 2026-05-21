@@ -1,0 +1,427 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Purchase Materials — {{ quote.ref_number }}{% endblock %}
+
+{% block extra_head %}
+<style>
+/* ── Page layout ─────────────────────────────────────────────────────── */
+.pm-layout { display: flex; gap: 24px; align-items: flex-start; padding: 0 32px 48px; }
+.pm-vendors { flex: 1 1 0; min-width: 0; }
+.pm-sidebar { width: 320px; min-width: 320px; position: sticky; top: 20px; }
+
+/* ── Context strip ───────────────────────────────────────────────────── */
+.pm-context {
+  background: var(--ae-cream);
+  border-bottom: 1px solid var(--ae-earth);
+  padding: 16px 32px;
+  display: flex; gap: 32px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 28px;
+}
+.pm-context .ctx-block { display: flex; flex-direction: column; gap: 2px; }
+.pm-context .ctx-label { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: #888; }
+.pm-context .ctx-val   { font-weight: 600; color: #2c2c2c; font-size: .88rem; }
+
+/* ── Vendor cards ─────────────────────────────────────────────────────── */
+.vendor-card {
+  border: 2px solid #e0dcd7;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .1s;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.vendor-card:hover { border-color: var(--ae-space); box-shadow: 0 4px 16px rgba(220,159,130,.2); }
+.vendor-card.selected {
+  border-color: var(--ae-space);
+  box-shadow: 0 0 0 3px rgba(220,159,130,.25), 0 4px 16px rgba(220,159,130,.2);
+}
+.vendor-card.selected .vc-body { background: rgba(220,159,130,.05); }
+
+/* ribbon */
+.vc-ribbon {
+  font-size: 10px; font-weight: 800; letter-spacing: .8px;
+  text-transform: uppercase; text-align: center; padding: 5px 12px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.vc-ribbon.preferred { background: #1a5c38; color: #fff; }
+.vc-ribbon.best-price { background: #155a8a; color: #fff; }
+.vc-ribbon.preferred.best-price { background: linear-gradient(90deg,#1a5c38,#155a8a); }
+
+/* body */
+.vc-body { padding: 16px 18px 12px; }
+.vc-name { font-size: .95rem; font-weight: 700; color: #1a1a1a; margin-bottom: 1px; }
+.vc-loc  { font-size: .75rem; color: #888; }
+
+/* product */
+.vc-product {
+  background: #f7f5f2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  border-left: 3px solid var(--ae-earth);
+}
+.vc-product-name { font-size: .8rem; font-weight: 600; color: #2c2c2c; }
+.vc-product-sku  { font-size: .72rem; color: #888; margin-top: 2px; }
+
+/* pricing row */
+.vc-pricing {
+  display: flex; gap: 0;
+  background: #f7f5f2;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.vc-price-cell {
+  flex: 1; text-align: center; padding: 10px 8px;
+}
+.vc-price-cell + .vc-price-cell { border-left: 1px solid #e0dcd7; }
+.vc-price-amount {
+  font-size: 1.3rem; font-weight: 800;
+  font-family: 'Montserrat', sans-serif; color: #2c2c2c;
+  line-height: 1;
+}
+.vc-price-amount.best { color: #1a5c38; }
+.vc-price-label { font-size: .65rem; color: #888; margin-top: 3px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* savings tag */
+.vc-savings {
+  display: inline-block; font-size: .7rem; font-weight: 700;
+  padding: 2px 8px; border-radius: 20px; margin-bottom: 10px;
+}
+.vc-savings.save { background: #d4edda; color: #155724; }
+.vc-savings.extra { background: #f8d7da; color: #721c24; }
+
+/* footer meta */
+.vc-meta {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 18px 12px;
+  border-top: 1px solid #f0ece8;
+  font-size: .78rem;
+}
+.vc-lead  { background: var(--ae-cream); border: 1px solid var(--ae-earth); border-radius: 20px; padding: 2px 10px; font-weight: 600; color: #555; }
+.vc-phone { color: #888; }
+
+/* notes */
+.vc-notes { padding: 8px 18px 10px; font-size: .75rem; color: #888; background: #fafaf8; border-top: 1px solid #f0ece8; }
+
+/* selected check */
+.vc-check {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid #ccc; display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; flex-shrink: 0; transition: all .15s;
+  background: #fff;
+}
+.vendor-card.selected .vc-check {
+  background: var(--ae-space); border-color: var(--ae-space); color: #fff;
+}
+
+/* ── Sidebar PO form ─────────────────────────────────────────────────── */
+.pm-form-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 2px solid var(--ae-earth);
+  overflow: hidden;
+}
+.pm-form-header {
+  background: #2c2c2c; color: #fff;
+  padding: 14px 20px;
+  font-weight: 700; font-size: .9rem;
+}
+.pm-form-body { padding: 20px; }
+.pm-selected-vendor {
+  background: rgba(220,159,130,.1);
+  border: 1px solid rgba(220,159,130,.4);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  min-height: 56px;
+}
+.pm-selected-vendor .sv-name { font-weight: 700; font-size: .88rem; color: #2c2c2c; }
+.pm-selected-vendor .sv-total { font-size: 1.1rem; font-weight: 800; color: var(--ae-space); }
+.pm-selected-vendor .sv-hint { font-size: .72rem; color: #aaa; font-style: italic; }
+.pm-form-label { font-size: .78rem; font-weight: 600; color: #555; margin-bottom: 4px; display: block; }
+.pm-form-note { font-size: .7rem; color: #aaa; margin-top: 3px; }
+.btn-create-po {
+  background: #1a5c38; color: #fff; border: none;
+  border-radius: 8px; padding: 12px 20px; width: 100%;
+  font-weight: 700; font-size: .95rem; cursor: pointer;
+  transition: background .15s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-create-po:hover { background: #154d2f; }
+.btn-create-po:disabled { background: #aaa; cursor: not-allowed; }
+
+/* ── Existing POs ────────────────────────────────────────────────────── */
+.existing-po-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid #f0ece8; font-size: .82rem;
+}
+.existing-po-row:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
+{% block uc1_content %}
+
+{# ── Page header ──────────────────────────────────────────────────────────── #}
+<div class="page-header d-flex align-items-center gap-3">
+  <a href="{% url 'uc1:quote_detail' quote.pk %}" class="btn btn-sm btn-outline-secondary">← Quote</a>
+  <div>
+    <h5 class="mb-0 fw-bold">Purchase Materials</h5>
+    <div class="text-muted small">Select a vendor and create a purchase order</div>
+  </div>
+  <span class="badge ms-auto" style="background:var(--ae-space);font-size:.78rem;padding:6px 12px;">{{ quote.ref_number }}</span>
+</div>
+
+{# ── Context strip ────────────────────────────────────────────────────────── #}
+<div class="pm-context">
+  <div class="ctx-block">
+    <span class="ctx-label">Material</span>
+    <span class="ctx-val">{{ material_label }}</span>
+  </div>
+  <div class="ctx-block">
+    <span class="ctx-label">Adjusted Area</span>
+    <span class="ctx-val">{{ quote.adjusted_area_sqm }} m²</span>
+  </div>
+  <div class="ctx-block">
+    <span class="ctx-label">Property</span>
+    <span class="ctx-val">{{ quote.property_address|truncatechars:50 }}</span>
+  </div>
+  <div class="ctx-block">
+    <span class="ctx-label">Vendors Found</span>
+    <span class="ctx-val">{{ rows|length }}</span>
+  </div>
+  {% if rows %}
+  <div class="ctx-block ms-auto">
+    <span class="ctx-label">Price Range (total inc-GST)</span>
+    <span class="ctx-val" style="color:#1a5c38;">
+      ${{ price_min|floatformat:0 }} – ${{ price_max|floatformat:0 }}
+    </span>
+  </div>
+  {% endif %}
+</div>
+
+{% if rows %}
+<form method="post" action="{% url 'uc1:purchase_order_create' quote.pk %}" id="poForm">
+{% csrf_token %}
+
+<div class="pm-layout">
+
+  {# ── Left: vendor cards ───────────────────────────────────────────────── #}
+  <div class="pm-vendors">
+    <div class="text-muted small mb-3 fw-semibold" style="text-transform:uppercase;letter-spacing:.06em;">
+      {{ rows|length }} vendor{{ rows|length|pluralize }} — sorted by price
+    </div>
+
+    {% for row in rows %}
+    {% with is_cheapest=forloop.first %}
+    <div class="vendor-card {% if row.vendor.is_preferred %}{% endif %} {% if forloop.counter == 1 and not row.vendor.is_preferred %}{% endif %}"
+         data-vendor-id="{{ row.vendor.id }}"
+         data-est-inc="{{ row.est_inc }}"
+         data-vendor-name="{{ row.vendor.name }}">
+
+      {# ribbon — show preferred and/or best price #}
+      {% if row.vendor.is_preferred or is_cheapest %}
+      <div class="vc-ribbon {% if row.vendor.is_preferred %}preferred{% endif %} {% if is_cheapest %}best-price{% endif %}">
+        {% if row.vendor.is_preferred %}<span>★ Preferred Vendor</span>{% endif %}
+        {% if row.vendor.is_preferred and is_cheapest %}<span style="opacity:.4">·</span>{% endif %}
+        {% if is_cheapest %}<span>✓ Best Price</span>{% endif %}
+      </div>
+      {% endif %}
+
+      <div class="vc-body">
+        <div class="d-flex justify-content-between align-items-start">
+          <div>
+            <div class="vc-name">{{ row.vendor.name }}</div>
+            <div class="vc-loc">{{ row.vendor.suburb }}, {{ row.vendor.state }}</div>
+          </div>
+          <div class="vc-check">✓</div>
+          <input type="radio" name="vendor_id" value="{{ row.vendor.id }}"
+                 id="v{{ row.vendor.id }}" class="vendor-radio d-none"
+                 {% if row.vendor.is_preferred or forloop.first %}checked{% endif %} required>
+        </div>
+
+        <div class="vc-product">
+          <div class="vc-product-name">{{ row.price.description }}</div>
+          {% if row.price.item_code %}<div class="vc-product-sku">SKU: {{ row.price.item_code }}</div>{% endif %}
+        </div>
+
+        <div class="vc-pricing">
+          <div class="vc-price-cell">
+            <div class="vc-price-amount {% if is_cheapest %}best{% endif %}">${{ row.price.unit_price_ex_gst }}</div>
+            <div class="vc-price-label">per {{ row.price.unit }} ex-GST</div>
+          </div>
+          <div class="vc-price-cell">
+            <div class="vc-price-amount {% if is_cheapest %}best{% endif %}">${{ row.est_inc|floatformat:0 }}</div>
+            <div class="vc-price-label">est. total inc-GST</div>
+          </div>
+          <div class="vc-price-cell">
+            <div class="vc-price-amount">${{ row.est_ex|floatformat:0 }}</div>
+            <div class="vc-price-label">est. total ex-GST</div>
+          </div>
+        </div>
+
+        {# savings vs cheapest — value filled by JS #}
+        <div class="vc-savings {% if is_cheapest %}save{% else %}extra{% endif %} vc-savings-tag"
+             data-est="{{ row.est_inc }}">
+          {% if is_cheapest %}✓ Lowest price among {{ rows|length }} vendor{{ rows|length|pluralize }}
+          {% else %}Calculating…{% endif %}
+        </div>
+      </div>
+
+      <div class="vc-meta">
+        <span class="vc-lead">⏱ {{ row.price.lead_days }} day{{ row.price.lead_days|pluralize }} lead</span>
+        {% if row.vendor.contact_phone %}<span class="vc-phone">{{ row.vendor.contact_phone }}</span>{% endif %}
+      </div>
+
+      {% if row.vendor.notes %}
+      <div class="vc-notes">{{ row.vendor.notes|truncatechars:120 }}</div>
+      {% endif %}
+    </div>
+    {% endwith %}
+    {% endfor %}
+
+    {# ── Existing POs ─────────────────────────────────────────────────── #}
+    {% if existing_pos %}
+    <div class="card mt-4" style="border-radius:12px;border:1px solid var(--ae-earth);">
+      <div class="card-header fw-semibold small" style="background:var(--ae-cream);">
+        Previous Purchase Orders for this Quote
+      </div>
+      <div class="card-body py-1 px-3">
+        {% for po in existing_pos %}
+        <div class="existing-po-row">
+          <div>
+            <a href="{% url 'uc1:purchase_order_detail' po.pk %}" class="fw-semibold text-decoration-none" style="color:var(--ae-space);">{{ po.po_number }}</a>
+            <span class="text-muted ms-2 small">{{ po.vendor.name }}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span class="badge {% if po.status == 'confirmed' %}bg-success{% elif po.status == 'sent' %}bg-primary{% elif po.status == 'cancelled' %}bg-danger{% else %}bg-secondary{% endif %}">
+              {{ po.get_status_display }}
+            </span>
+            <span class="text-muted small">{{ po.created_at|date:"d M Y" }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Right: sticky PO form ────────────────────────────────────────────── #}
+  <div class="pm-sidebar">
+    <div class="pm-form-card">
+      <div class="pm-form-header">📦 Create Purchase Order</div>
+      <div class="pm-form-body">
+
+        {# selected vendor summary — updated by JS #}
+        <div class="pm-selected-vendor" id="selectedSummary">
+          <div class="sv-hint">Select a vendor on the left</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="pm-form-label">Delivery Address</label>
+          <input type="text" class="form-control form-control-sm"
+                 value="{{ quote.property_address }}" disabled
+                 style="background:#f7f5f2;border-color:var(--ae-earth);">
+          <div class="pm-form-note">Auto-filled from quote</div>
+        </div>
+
+        <div class="mb-3">
+          <label class="pm-form-label">Requested Delivery Date <span style="font-weight:400;color:#aaa;">(optional)</span></label>
+          <input type="date" name="delivery_date" class="form-control form-control-sm"
+                 style="border-color:var(--ae-earth);">
+        </div>
+
+        <div class="mb-4">
+          <label class="pm-form-label">Notes to Vendor <span style="font-weight:400;color:#aaa;">(optional)</span></label>
+          <textarea name="notes" class="form-control form-control-sm" rows="3"
+                    placeholder="e.g. call before delivery, gate code #1234…"
+                    style="border-color:var(--ae-earth);resize:none;"></textarea>
+        </div>
+
+        <button type="submit" class="btn-create-po" id="createBtn">
+          <span>Create Purchase Order</span>
+          <span>→</span>
+        </button>
+
+        <a href="{% url 'uc1:quote_detail' quote.pk %}"
+           class="d-block text-center text-muted small mt-3 text-decoration-none">
+          ← Cancel, back to quote
+        </a>
+      </div>
+    </div>
+
+    {# price breakdown note #}
+    <div class="mt-3 p-3 rounded small text-muted" style="background:var(--ae-cream);border:1px solid var(--ae-earth);font-size:.74rem;line-height:1.6;">
+      <strong style="color:#2c2c2c;">ℹ️ How estimates are calculated</strong><br>
+      Unit price × {{ quote.adjusted_area_sqm }} m² adjusted area (flat area × pitch factor × waste).
+      GST calculated at 10%. Actual invoice may vary based on final measurements.
+    </div>
+  </div>
+
+</div>
+</form>
+
+{% else %}
+<div class="pm-layout" style="padding-top:0;">
+  <div class="alert alert-warning" style="border-radius:10px;">
+    No vendor prices set up for <strong>{{ material_label }}</strong> yet.
+    <a href="/admin/uc1_roofing/vendormaterialprice/add/" class="alert-link">Add vendor prices →</a>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const rows = [
+  {% for row in rows %}
+  { vendorId: {{ row.vendor.id }}, name: "{{ row.vendor.name|escapejs }}", estInc: {{ row.est_inc }}, estEx: {{ row.est_ex }} }{% if not forloop.last %},{% endif %}
+  {% endfor %}
+];
+
+function updateSidebar(vendorId) {
+  const row = rows.find(r => r.vendorId == vendorId);
+  const el  = document.getElementById('selectedSummary');
+  if (!row) { el.innerHTML = '<div class="sv-hint">Select a vendor on the left</div>'; return; }
+  el.innerHTML = `
+    <div class="sv-name mb-1">${row.name}</div>
+    <div class="d-flex justify-content-between align-items-baseline">
+      <div class="sv-total">$${Math.round(row.estInc).toLocaleString()}</div>
+      <div style="font-size:.72rem;color:#888;">inc-GST</div>
+    </div>
+    <div style="font-size:.72rem;color:#aaa;">ex-GST: $${Math.round(row.estEx).toLocaleString()}</div>
+  `;
+}
+
+// Card click → select radio + highlight
+document.querySelectorAll('.vendor-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const vid   = card.dataset.vendorId;
+    const radio = document.getElementById('v' + vid);
+    if (radio) radio.checked = true;
+    document.querySelectorAll('.vendor-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    updateSidebar(vid);
+  });
+});
+
+// Fill savings tags
+const cheapestEst = rows.length ? rows[0].estInc : 0;
+document.querySelectorAll('.vc-savings-tag').forEach(el => {
+  const est  = parseFloat(el.dataset.est);
+  const diff = Math.round(est - cheapestEst);
+  if (diff > 0) {
+    el.textContent = `+$${diff.toLocaleString()} more than best price`;
+  }
+});
+
+// Init — highlight whichever radio is pre-checked
+const checked = document.querySelector('.vendor-radio:checked');
+if (checked) {
+  const initCard = document.querySelector(`.vendor-card[data-vendor-id="${checked.value}"]`);
+  if (initCard) initCard.classList.add('selected');
+  updateSidebar(checked.value);
+}
+</script>
+{% endblock %}

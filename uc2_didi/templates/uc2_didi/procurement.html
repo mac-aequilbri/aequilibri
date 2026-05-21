@@ -1,0 +1,65 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Procurement — Didi{% endblock %}
+{% block sb_procurement %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div><h4 class="mb-0">Procurement</h4><small class="text-muted">Purchase orders &amp; supplier deliveries</small></div>
+  <button class="btn btn-ae" data-bs-toggle="modal" data-bs-target="#addProcModal">＋ Add Order</button>
+</div>
+<div class="px-4 pb-4">
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Item</th><th>Vendor</th><th>Qty</th><th>Unit Price</th><th>Total</th><th>Status</th><th>Due</th></tr></thead>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td class="fw-bold">{{ item.item }}</td>
+            <td>{{ item.vendor_name }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>${{ item.unit_price }}</td>
+            <td>${{ item.total }}</td>
+            <td><span class="status-badge status-{% if item.status == 'delivered' or item.status == 'paid' %}complete{% elif item.status == 'ordered' %}active{% else %}draft{% endif %}">{{ item.get_status_display }}</span></td>
+            <td class="small text-muted">{{ item.due_date|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No procurement records.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<div class="modal fade" id="addProcModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Procurement Order</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="post">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-2"><label class="form-label">Item *</label><input type="text" name="item" class="form-control" required></div>
+          <div class="mb-2"><label class="form-label">Vendor *</label><input type="text" name="vendor_name" class="form-control" required></div>
+          <div class="row g-2">
+            <div class="col"><label class="form-label">Qty</label><input type="number" name="quantity" class="form-control" step="0.01" value="1"></div>
+            <div class="col"><label class="form-label">Unit Price</label><input type="number" name="unit_price" class="form-control" step="0.01" value="0"></div>
+          </div>
+          <div class="row g-2 mt-1">
+            <div class="col"><label class="form-label">Status</label>
+              <select name="status" class="form-select">
+                <option value="pending">Pending</option><option value="ordered">Ordered</option>
+                <option value="delivered">Delivered</option><option value="invoiced">Invoiced</option><option value="paid">Paid</option>
+              </select></div>
+            <div class="col"><label class="form-label">Due Date</label><input type="date" name="due_date" class="form-control"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-ae">Add Order</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

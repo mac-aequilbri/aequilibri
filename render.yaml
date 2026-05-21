@@ -1,0 +1,53 @@
+##############################################################
+#  Render deployment configuration
+#  https://render.com/docs/blueprint-spec
+##############################################################
+
+services:
+  - type: web
+    name: aequilibri
+    env: python
+    plan: free
+    region: singapore          # closest to Australia
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn aequilibri.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+
+    envVars:
+      - key: DJANGO_DEBUG
+        value: false
+
+      # Auto-generated secure key on first deploy
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+
+      # Allow requests from the Render subdomain and any custom domain
+      # Update this after your first deploy to include your actual hostname
+      - key: DJANGO_ALLOWED_HOSTS
+        value: .onrender.com
+
+      - key: CSRF_TRUSTED_ORIGINS
+        value: https://*.onrender.com
+
+      # Injected automatically from the database below
+      - key: DATABASE_URL
+        fromDatabase:
+          name: aequilibri-db
+          property: connectionString
+
+      # Add these manually in the Render dashboard (Environment tab)
+      # — never put real values in this file
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: GOOGLE_SOLAR_API_KEY
+        sync: false
+      - key: GEOSCAPE_CONSUMER_KEY
+        sync: false
+      - key: GEOSCAPE_CONSUMER_SECRET
+        sync: false
+
+databases:
+  - name: aequilibri-db
+    plan: free
+    region: singapore

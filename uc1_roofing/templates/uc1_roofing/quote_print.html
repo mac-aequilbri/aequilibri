@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ quote.ref_number }} — Roofing Quote</title>
+  <style>
+    @media print {
+      body { margin: 0; padding: 20px; }
+      .no-print { display: none !important; }
+      table { page-break-inside: avoid; }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #1a1a1a;
+      font-size: 12px;
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 30px 36px;
+      background: #fff;
+    }
+
+    /* ── No-print toolbar ───────────────────────────────────────────────── */
+    .no-print {
+      text-align: right;
+      margin-bottom: 18px;
+    }
+    .btn {
+      background: #DC9F82;
+      color: #fff;
+      border: none;
+      padding: 9px 22px;
+      font-size: 13px;
+      cursor: pointer;
+      border-radius: 5px;
+      font-family: Arial, sans-serif;
+    }
+    .btn-grey { background: #777; margin-left: 8px; }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .brand-name {
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: #1a1a1a;
+      line-height: 1;
+    }
+    .brand-name span { color: #DC9F82; }
+    .brand-tag {
+      font-size: 9px;
+      color: #888;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+    .company-details {
+      text-align: right;
+      font-size: 11px;
+      color: #333;
+      line-height: 1.55;
+    }
+    .company-details strong { font-size: 12px; }
+
+    /* ── Quote header strip ─────────────────────────────────────────────── */
+    .quote-strip {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      border: 1px solid #bbb;
+    }
+    .quote-strip td, .quote-strip th {
+      border: 1px solid #bbb;
+      padding: 5px 9px;
+      font-size: 11.5px;
+    }
+    .quote-strip .cell-label {
+      background: #f0f0f0;
+      font-weight: 700;
+      width: 130px;
+      color: #333;
+    }
+    .quote-strip .cell-valid {
+      font-size: 10px;
+      color: #555;
+      font-style: italic;
+      text-align: center;
+    }
+    .quote-strip .cell-ref {
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    /* ── Client info table ──────────────────────────────────────────────── */
+    .client-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+      border: 1px solid #bbb;
+    }
+    .client-table td {
+      border: 1px solid #bbb;
+      padding: 4px 9px;
+      font-size: 11.5px;
+    }
+    .client-table .lbl {
+      background: #f0f0f0;
+      font-weight: 700;
+      width: 65px;
+      color: #333;
+    }
+    .client-table .suburb-lbl {
+      background: #f0f0f0;
+      font-weight: 700;
+      width: 55px;
+      color: #333;
+    }
+
+    /* ── Job description ────────────────────────────────────────────────── */
+    .job-desc {
+      margin: 12px 0 10px;
+    }
+    .job-desc .addr {
+      font-weight: 700;
+      font-size: 13px;
+    }
+    .job-desc .type {
+      font-size: 11.5px;
+      color: #444;
+      margin-top: 2px;
+    }
+
+    /* ── Scope of works table ───────────────────────────────────────────── */
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 0;
+    }
+    .scope-table th {
+      background: #d0d0d0;
+      font-weight: 700;
+      font-size: 11.5px;
+      padding: 6px 9px;
+      border: 1px solid #bbb;
+      text-align: left;
+    }
+    .scope-table td {
+      border: 1px solid #bbb;
+      padding: 5px 9px;
+      font-size: 11.5px;
+      vertical-align: top;
+    }
+    .scope-table td.item-num {
+      width: 38px;
+      text-align: center;
+      font-weight: 700;
+      background: #f8f8f8;
+    }
+    .scope-table tr:nth-child(even) td { background: #fafafa; }
+    .scope-table tr:nth-child(even) td.item-num { background: #f0f0f0; }
+
+    /* ── Job notes + total footer row ───────────────────────────────────── */
+    .notes-total-row {
+      width: 100%;
+      border-collapse: collapse;
+      border: 1px solid #bbb;
+      border-top: none;
+    }
+    .notes-total-row td {
+      border: 1px solid #bbb;
+      padding: 6px 9px;
+      font-size: 11.5px;
+      vertical-align: top;
+    }
+    .notes-total-row .notes-lbl {
+      font-weight: 700;
+      background: #f0f0f0;
+      width: 70px;
+    }
+    .notes-total-row .total-box {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .notes-total-row .total-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      color: #555;
+      text-transform: uppercase;
+    }
+    .notes-total-row .total-val {
+      font-size: 18px;
+      font-weight: 900;
+      color: #1a1a1a;
+    }
+
+    /* ── Pricing breakdown ──────────────────────────────────────────────── */
+    .pricing-block {
+      float: right;
+      margin-top: 10px;
+      margin-bottom: 10px;
+      min-width: 260px;
+    }
+    .pricing-block table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .pricing-block td {
+      padding: 3px 9px;
+      font-size: 12px;
+      border: 1px solid #bbb;
+    }
+    .pricing-block .p-lbl { text-align: left; background: #f0f0f0; font-weight: 600; }
+    .pricing-block .p-val { text-align: right; font-weight: 600; }
+    .pricing-block .grand td {
+      background: #1a1a1a;
+      color: #fff;
+      font-weight: 900;
+      font-size: 14px;
+    }
+    .clear { clear: both; }
+
+    /* ── Terms ──────────────────────────────────────────────────────────── */
+    .terms-block {
+      margin-top: 14px;
+      font-size: 10.5px;
+      color: #333;
+      line-height: 1.5;
+      border-top: 1px solid #bbb;
+      padding-top: 10px;
+    }
+    .terms-block strong { font-size: 11px; }
+
+    /* ── Roof plan section ──────────────────────────────────────────────── */
+    .roof-plan-section {
+      margin-top: 14px;
+      border: 1px solid #bbb;
+    }
+    .roof-plan-header {
+      background: #f0f0f0;
+      font-weight: 700;
+      font-size: 11px;
+      padding: 5px 9px;
+      border-bottom: 1px solid #bbb;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .roof-plan-body {
+      padding: 0;
+      min-height: 220px;
+      display: block;
+    }
+
+    /* ── Signature bar ──────────────────────────────────────────────────── */
+    .sig-bar {
+      margin-top: 14px;
+      border: 1px solid #bbb;
+      padding: 10px 9px;
+      font-size: 11.5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+    .sig-line {
+      border-bottom: 1px solid #555;
+      min-width: 260px;
+      height: 22px;
+      display: inline-block;
+    }
+
+    /* ── Divider ────────────────────────────────────────────────────────── */
+    hr.section-rule { border: none; border-top: 2px solid #DC9F82; margin: 14px 0 10px; }
+  </style>
+</head>
+<body>
+
+  <!-- Print / Close toolbar (hidden on print) -->
+  <div class="no-print">
+    <button class="btn" onclick="window.print()">🖨 Print / Save PDF</button>
+    <button class="btn btn-grey" onclick="window.close()">Close</button>
+  </div>
+
+  <!-- ── Document header ──────────────────────────────────────────────── -->
+  <div class="doc-header">
+    <div>
+      <div class="brand-name"><span>æ</span>quilibri</div>
+      <div class="brand-tag">Roofing Estimator &nbsp;·&nbsp; Commercial &amp; Residential</div>
+    </div>
+    <div class="company-details">
+      <strong>æquilibri Platform Pty Ltd</strong><br>
+      Townsville, QLD, Australia<br>
+      Ph: 1300 000 000 &nbsp;&nbsp; E: hello@aequilibri.com.au<br>
+      ABN: 00 000 000 000 &nbsp;&nbsp; QBCC Licence: 0000000
+    </div>
+  </div>
+
+  <hr class="section-rule">
+
+  <!-- ── Quote header strip ───────────────────────────────────────────── -->
+  <table class="quote-strip">
+    <tr>
+      <td class="cell-label">Quote for</td>
+      <td style="font-weight:600;">{{ quote.get_material_display }} Roof Replacement</td>
+      <td class="cell-valid">QUOTE VALID FOR 90 DAYS</td>
+      <td class="cell-label" style="width:80px;">Quote No</td>
+      <td class="cell-ref">{{ quote.ref_number }}</td>
+    </tr>
+    <tr>
+      <td class="cell-label"></td>
+      <td></td>
+      <td></td>
+      <td class="cell-label">Quote date</td>
+      <td>{{ quote.created_at|date:"j F Y" }}</td>
+    </tr>
+  </table>
+
+  <!-- ── Client info table ────────────────────────────────────────────── -->
+  <table class="client-table">
+    <tr>
+      <td class="lbl">Name</td>
+      <td colspan="3">{{ quote.contact.name|default:"" }}</td>
+    </tr>
+    <tr>
+      <td class="lbl">Address</td>
+      <td>{{ quote.property_address }}</td>
+      <td class="suburb-lbl">Suburb</td>
+      <td style="width:100px;"></td>
+    </tr>
+    <tr>
+      <td class="lbl">Email</td>
+      <td>{{ quote.contact.email|default:"" }}</td>
+      <td class="suburb-lbl">P/Code</td>
+      <td></td>
+    </tr>
+    <tr>
+      <td class="lbl">Ph/Mob</td>
+      <td>{{ quote.contact.phone|default:"" }}</td>
+      <td colspan="2"></td>
+    </tr>
+  </table>
+
+  <!-- ── Job description ──────────────────────────────────────────────── -->
+  <div class="job-desc">
+    <div class="addr">JOB DESCRIPTION: {{ quote.property_address }}</div>
+    <div class="type">
+      {{ quote.get_material_display }} full roof replacement
+      &nbsp;·&nbsp; Roof area: {{ quote.adjusted_area_sqm }} m²
+      (flat {{ quote.flat_area_sqm }} m², {{ quote.get_pitch_type_display }}, incl. {{ quote.waste_factor_pct }}% waste)
+    </div>
+  </div>
+
+  <!-- ── Scope of works ───────────────────────────────────────────────── -->
+  <table class="scope-table">
+    <thead>
+      <tr>
+        <th style="width:38px;">Item</th>
+        <th>Scope of Works</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in quote.items.all %}
+      <tr>
+        <td class="item-num">{{ forloop.counter }}</td>
+        <td>{{ item.description }}</td>
+      </tr>
+      {% empty %}
+      <tr>
+        <td class="item-num">1</td>
+        <td>Remove old roofing material and associate flashings</td>
+      </tr>
+      <tr>
+        <td class="item-num">2</td>
+        <td>Supply and install .48 BMT BlueScope Colorbond AS/NZ 2728 Roof sheeting and flashing to house roof only</td>
+      </tr>
+      <tr>
+        <td class="item-num">3</td>
+        <td>Supply and install Aircell insulation to comply with local building codes AS/NZS4859.1:2002</td>
+      </tr>
+      <tr>
+        <td class="item-num">4</td>
+        <td>Cyclonic upgrades roof structure tie-down upgrades, cyclone rated Roof screws</td>
+      </tr>
+      <tr>
+        <td class="item-num">5</td>
+        <td>Workplace Health &amp; Safety compliance Working at Heights Systems</td>
+      </tr>
+      <tr>
+        <td class="item-num">6</td>
+        <td>Form 21 Final inspection certificate, QBCC Home Warranty Insurance, Ergon Inspection Safety Advice</td>
+      </tr>
+      <tr>
+        <td class="item-num">7</td>
+        <td>Remove and dispose of all building debris on site</td>
+      </tr>
+      <tr>
+        <td class="item-num">8</td>
+        <td>10 Yr workmanship Warranty</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- ── Job notes + total footer ─────────────────────────────────────── -->
+  <table class="notes-total-row">
+    <tr>
+      <td class="notes-lbl">Job Notes</td>
+      <td>
+        {% if quote.notes %}{{ quote.notes }}{% else %}Gutters additional cost $. Downpipes $250.00 each if required.{% endif %}
+      </td>
+      <td class="total-box" style="width:180px;">
+        <div class="total-lbl">Total Tender Price<br>GST included</div>
+        <div class="total-val">${{ quote.total_inc_gst|floatformat:2 }}</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- ── Pricing breakdown (float right) ──────────────────────────────── -->
+  <div class="pricing-block">
+    <table>
+      <tr>
+        <td class="p-lbl">SUBTOTAL</td>
+        <td class="p-val">${{ quote.subtotal_ex_gst|floatformat:2 }}</td>
+      </tr>
+      <tr>
+        <td class="p-lbl">GST (10%)</td>
+        <td class="p-val">${{ quote.gst_total|floatformat:2 }}</td>
+      </tr>
+      <tr class="grand">
+        <td>TOTAL</td>
+        <td style="text-align:right;">${{ quote.total_inc_gst|floatformat:2 }}</td>
+      </tr>
+    </table>
+  </div>
+  <div class="clear"></div>
+
+  <!-- ── Terms and conditions ─────────────────────────────────────────── -->
+  <div class="terms-block">
+    <strong>TERMS AND CONDITIONS:</strong><br>
+    This quotation is given without obligation and is good for 90 days from the issue date.
+    If accepted, the work will be performed subject to the General Conditions.
+    All work carried out in accordance with Australian Standards and NCC requirements.
+    It is the responsibility of the homeowner to declare if Asbestos is present; additional costs may apply.
+    GST is included in the total at 10%.
+    This quote excludes guttering and downpipes unless explicitly stated.
+    <br><br>
+    I, the customer, agree that the roofing work described above is satisfactory and is hereby accepted.
+  </div>
+
+  <!-- ── Roof plan section ────────────────────────────────────────────── -->
+  <div class="roof-plan-section">
+    <div class="roof-plan-header">Roof Plan — Building Footprint</div>
+    <div class="roof-plan-body" id="roofPlanBody" style="padding:8px; min-height:220px; display:block;">
+      <svg id="roofPlanSvg" width="100%" height="220" style="display:block;"></svg>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    var rawPoly = '{{ quote.roof_polygon_json|escapejs }}';
+    var rawSecs = '{{ quote.roof_sections_json|escapejs }}';
+    var polygon  = []; var sections = [];
+    try { polygon  = JSON.parse(rawPoly); } catch(e) {}
+    try { sections = JSON.parse(rawSecs); } catch(e) {}
+
+    var FACING_COLORS = {
+      'N':'#2196F3','NE':'#00BCD4','E':'#4CAF50','SE':'#8BC34A',
+      'S':'#FF9800','SW':'#FF5722','W':'#9C27B0','NW':'#3F51B5'
+    };
+
+    var svg = document.getElementById('roofPlanSvg');
+    var W   = svg.parentElement.clientWidth || 700;
+    var H   = 220;
+    svg.setAttribute('width',  W);
+    svg.setAttribute('height', H);
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+
+    function ns(tag, attrs) {
+      var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      for (var k in attrs) el.setAttribute(k, attrs[k]);
+      return el;
+    }
+    function txt(tag, attrs, label) {
+      var el = ns(tag, attrs); el.textContent = label; return el;
+    }
+
+    /* Project [[lat,lon],...] to SVG pixel space with padding */
+    function project(pts, pad) {
+      if (!pts || pts.length < 3) return null;
+      var minLat= Infinity,maxLat=-Infinity,minLon= Infinity,maxLon=-Infinity;
+      pts.forEach(function(p){
+        if(p[0]<minLat)minLat=p[0]; if(p[0]>maxLat)maxLat=p[0];
+        if(p[1]<minLon)minLon=p[1]; if(p[1]>maxLon)maxLon=p[1];
+      });
+      var dLat=maxLat-minLat||0.0001, dLon=maxLon-minLon||0.0001;
+      var cosLat=Math.cos((minLat+maxLat)/2*Math.PI/180);
+      var dLonM=dLon*cosLat;
+      var scale=Math.min((W-2*pad)/dLonM,(H-2*pad)/dLat);
+      var offX=(W-dLonM*scale)/2, offY=(H-dLat*scale)/2;
+      return {
+        toXY:function(lat,lon){
+          return [offX+(lon-minLon)*cosLat*scale, H-offY-(lat-minLat)*scale];
+        },
+        minLat:minLat,maxLat:maxLat,minLon:minLon,maxLon:maxLon,
+        cosLat:cosLat,scale:scale
+      };
+    }
+
+    /* North arrow + label */
+    function drawCompass(cx, cy, r) {
+      var g = ns('g',{});
+      g.appendChild(ns('circle',{cx:cx,cy:cy,r:r,fill:'#fff',stroke:'#bbb','stroke-width':'0.8'}));
+      g.appendChild(ns('polygon',{
+        points:cx+','+(cy-r+3)+' '+(cx-3.5)+','+(cy+3)+' '+(cx+3.5)+','+(cy+3),
+        fill:'#c0392b'}));
+      g.appendChild(ns('polygon',{
+        points:cx+','+(cy+r-3)+' '+(cx-3)+','+(cy-3)+' '+(cx+3)+','+(cy-3),
+        fill:'#aaa'}));
+      g.appendChild(txt('text',{x:cx,y:cy-r-4,'text-anchor':'middle',
+        'font-size':'9','font-weight':'bold',fill:'#c0392b','font-family':'Arial'},'N'));
+      svg.appendChild(g);
+    }
+
+    /* Fallback when no polygon stored */
+    if (!polygon || polygon.length < 3) {
+      svg.appendChild(txt('text',{x:W/2,y:H/2,'text-anchor':'middle',
+        'font-size':'11',fill:'#bbb','font-family':'Arial','font-style':'italic'},
+        'Roof plan not available — address a property and save a new quote to capture it'));
+      return;
+    }
+
+    var proj = project(polygon, 32);
+    if (!proj) return;
+
+    /* Section bounding boxes (behind footprint) */
+    var validSecs = (sections||[]).filter(function(s){
+      return s.bbox && s.bbox.sw && s.bbox.ne &&
+             (Math.abs(s.bbox.sw.lat)>0.001||Math.abs(s.bbox.sw.lng)>0.001);
+    });
+    validSecs.forEach(function(sec){
+      var sw=sec.bbox.sw, ne=sec.bbox.ne;
+      var xy1=proj.toXY(sw.lat,sw.lng), xy2=proj.toXY(ne.lat,ne.lng);
+      var x=Math.min(xy1[0],xy2[0]), y=Math.min(xy1[1],xy2[1]);
+      var w=Math.abs(xy2[0]-xy1[0]), h=Math.abs(xy2[1]-xy1[1]);
+      if(w<2||h<2) return;
+      var color=FACING_COLORS[sec.facing]||'#90A4AE';
+      svg.appendChild(ns('rect',{x:x,y:y,width:w,height:h,
+        fill:color,'fill-opacity':'0.22',stroke:color,'stroke-width':'0.8','stroke-opacity':'0.55'}));
+      /* centre label */
+      var lx=(xy1[0]+xy2[0])/2, ly=(xy1[1]+xy2[1])/2;
+      svg.appendChild(txt('text',{x:lx,y:ly-4,'text-anchor':'middle',
+        'font-size':'7.5','font-weight':'bold',fill:color,'font-family':'Arial'},sec.facing||''));
+      if(sec.area_m2)
+        svg.appendChild(txt('text',{x:lx,y:ly+6,'text-anchor':'middle',
+          'font-size':'7',fill:color,'font-family':'Arial'},Math.round(sec.area_m2)+' m²'));
+    });
+
+    /* Building footprint outline */
+    var polyPts = polygon.map(function(p){
+      var xy=proj.toXY(p[0],p[1]); return xy[0]+','+xy[1];
+    }).join(' ');
+    svg.appendChild(ns('polygon',{points:polyPts,
+      fill:'#E8F5E9',stroke:'#27ae60','stroke-width':'2.5','stroke-linejoin':'round'}));
+
+    /* Dimension annotation */
+    var R=6378137;
+    var spanLon=Math.round((proj.maxLon-proj.minLon)*proj.cosLat*Math.PI/180*R);
+    var spanLat=Math.round((proj.maxLat-proj.minLat)*Math.PI/180*R);
+    svg.appendChild(txt('text',{x:W/2,y:H-5,'text-anchor':'middle',
+      'font-size':'8.5',fill:'#666','font-family':'Arial'},
+      spanLon+' m (E–W)  ×  '+spanLat+' m (N–S)'));
+
+    /* Compass rose */
+    drawCompass(W-22, 22, 17);
+
+    /* Facing legend */
+    if(validSecs.length>0){
+      var lx=8;
+      validSecs.forEach(function(sec){
+        if(!sec.facing)return;
+        var color=FACING_COLORS[sec.facing]||'#90A4AE';
+        svg.appendChild(ns('rect',{x:lx,y:H-17,width:8,height:8,
+          fill:color,'fill-opacity':'0.75',rx:'1'}));
+        svg.appendChild(txt('text',{x:lx+10,y:H-11,'font-size':'7.5',
+          fill:'#444','font-family':'Arial'},
+          sec.facing+(sec.area_m2?' '+Math.round(sec.area_m2)+'m²':'')));
+        lx+=50;
+      });
+    }
+  })();
+  </script>
+
+  <!-- ── Signature bar ────────────────────────────────────────────────── -->
+  <div class="sig-bar">
+    <div>
+      Print Name &amp; Signature &nbsp;<span class="sig-line"></span>
+    </div>
+    <div>
+      Date &nbsp;<span class="sig-line" style="min-width:120px;"></span>
+    </div>
+  </div>
+
+</body>
+</html>

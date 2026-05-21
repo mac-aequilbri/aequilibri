@@ -1,0 +1,176 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}{{ quote.ref_number }} — Quote Detail{% endblock %}
+{% block sb_quotes %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header d-flex align-items-start justify-content-between">
+  <div>
+    <h4 class="mb-0">{{ quote.ref_number }}</h4>
+    <small class="text-muted">{{ quote.property_address }}</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'uc1:purchase_compare' quote.pk %}" class="btn btn-success">📦 Purchase Materials</a>
+    <a href="{% url 'uc1:quote_print' quote.pk %}" target="_blank" class="btn btn-ae">🖨 Export PDF</a>
+    <a href="{% url 'uc1:quote_list' %}" class="btn btn-outline-secondary">← Back</a>
+  </div>
+</div>
+
+<div class="px-4 pb-4">
+<div class="row g-4">
+
+  <!-- Quote Summary -->
+  <div class="col-md-7">
+    <div class="card p-4 mb-4">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <h6 class="fw-bold mb-0">Quote Summary</h6>
+        <form method="post" class="d-flex gap-2 align-items-center">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_status">
+          <select name="status" class="form-select form-select-sm" style="width:auto">
+            <option value="draft"     {% if quote.status == 'draft' %}selected{% endif %}>Draft</option>
+            <option value="sent"      {% if quote.status == 'sent' %}selected{% endif %}>Sent</option>
+            <option value="accepted"  {% if quote.status == 'accepted' %}selected{% endif %}>Accepted</option>
+            <option value="declined"  {% if quote.status == 'declined' %}selected{% endif %}>Declined</option>
+          </select>
+          <button class="btn btn-sm btn-ae">Update</button>
+        </form>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <div class="text-muted small">Client</div>
+          <div class="fw-bold">{{ quote.contact.name|default:"—" }}</div>
+          {% if quote.contact.company %}<div class="small">{{ quote.contact.company }}</div>{% endif %}
+          {% if quote.contact.email %}<div class="small text-muted">{{ quote.contact.email }}</div>{% endif %}
+        </div>
+        <div class="col-6">
+          <div class="text-muted small">Roof Specs</div>
+          <div class="fw-bold">{{ quote.get_material_display }}</div>
+          <div class="small">{{ quote.get_pitch_type_display }} (×{{ quote.pitch_factor }})</div>
+          <div class="small text-muted">Waste: {{ quote.waste_factor_pct }}%</div>
+        </div>
+      </div>
+
+      <div class="row g-2 mb-3" style="background:var(--ae-cream); border-radius:8px; padding:12px;">
+        <div class="col-4 text-center">
+          <div class="text-muted small">Flat Area</div>
+          <div class="fw-bold">{{ quote.flat_area_sqm }} m²</div>
+        </div>
+        <div class="col-4 text-center">
+          <div class="text-muted small">→ Adjusted</div>
+          <div class="fw-bold" style="color:var(--ae-space)">{{ quote.adjusted_area_sqm }} m²</div>
+        </div>
+        <div class="col-4 text-center">
+          <div class="text-muted small">Status</div>
+          <span class="status-badge status-{{ quote.status }}">{{ quote.get_status_display }}</span>
+        </div>
+      </div>
+
+      {% if quote.notes %}
+      <div class="small text-muted border-top pt-2"><em>{{ quote.notes }}</em></div>
+      {% endif %}
+    </div>
+
+    <!-- Line Items -->
+    <div class="card p-0">
+      <div class="d-flex align-items-center px-4 pt-3 pb-2 border-bottom">
+        <h6 class="mb-0 fw-bold">Line Items</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0">
+          <thead>
+            <tr><th>Description</th><th>Qty</th><th>Unit</th><th class="text-end">Unit Price</th><th class="text-end">Total ex GST</th><th></th></tr>
+          </thead>
+          <tbody>
+            {% for item in quote.items.all %}
+            <tr>
+              <td>{{ item.description }}</td>
+              <td>{{ item.quantity }}</td>
+              <td>{{ item.unit }}</td>
+              <td class="text-end">${{ item.unit_price_ex_gst }}</td>
+              <td class="text-end">${{ item.line_total_ex_gst|floatformat:2 }}</td>
+              <td>
+                <form method="post" style="display:inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="delete_item">
+                  <input type="hidden" name="item_id" value="{{ item.id }}">
+                  <button class="btn btn-sm btn-outline-danger" onclick="return confirm('Remove this item?')">✕</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot style="background:var(--ae-cream)">
+            <tr><td colspan="4" class="text-end text-muted">Subtotal ex GST</td>
+                <td class="text-end fw-bold">${{ quote.subtotal_ex_gst|floatformat:2 }}</td><td></td></tr>
+            <tr><td colspan="4" class="text-end text-muted">GST (10%)</td>
+                <td class="text-end">${{ quote.gst_total|floatformat:2 }}</td><td></td></tr>
+            <tr><td colspan="4" class="text-end fw-bold" style="font-size:1.05rem">Total inc GST</td>
+                <td class="text-end fw-bold" style="font-size:1.2rem; color:var(--ae-space)">${{ quote.total_inc_gst|floatformat:2 }}</td><td></td></tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Item -->
+  <div class="col-md-5">
+    <div class="card p-4">
+      <h6 class="fw-bold mb-3">＋ Add Line Item</h6>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_item">
+        <div class="mb-2">
+          <label class="form-label small">Description *</label>
+          <input type="text" name="description" class="form-control form-control-sm" required>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-4">
+            <label class="form-label small">Qty *</label>
+            <input type="number" name="quantity" class="form-control form-control-sm" step="0.01" required>
+          </div>
+          <div class="col-4">
+            <label class="form-label small">Unit</label>
+            <select name="unit" class="form-select form-select-sm">
+              <option value="m²">m²</option>
+              <option value="lot">lot</option>
+              <option value="lm">lm</option>
+              <option value="each">each</option>
+            </select>
+          </div>
+          <div class="col-4">
+            <label class="form-label small">Price ex GST</label>
+            <input type="number" name="unit_price_ex_gst" class="form-control form-control-sm" step="0.01" required>
+          </div>
+        </div>
+        <button class="btn btn-ae btn-sm w-100">Add Item</button>
+      </form>
+    </div>
+
+    <div class="card p-4 mt-3" style="background:var(--ae-cream)">
+      <div class="small text-muted fw-bold mb-2">QUOTE TOTALS</div>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Subtotal ex GST</span>
+        <strong>${{ quote.subtotal_ex_gst|floatformat:2 }}</strong>
+      </div>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">GST (10%)</span>
+        <strong>${{ quote.gst_total|floatformat:2 }}</strong>
+      </div>
+      <hr class="my-2">
+      <div class="d-flex justify-content-between">
+        <span class="fw-bold">TOTAL inc GST</span>
+        <span style="font-size:1.4rem; font-weight:700; color:var(--ae-space)">${{ quote.total_inc_gst|floatformat:2 }}</span>
+      </div>
+    </div>
+
+    <div class="card p-4 mt-3">
+      <div class="small text-muted fw-bold mb-2">CREATED</div>
+      <div class="small">{{ quote.created_at|date:"d M Y H:i" }}</div>
+      <div class="small text-muted">Updated {{ quote.updated_at|date:"d M Y H:i" }}</div>
+    </div>
+  </div>
+
+</div>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Budget — UC3{% endblock %}
+{% block sb_budget %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header"><h4 class="mb-0">Budget Monitor</h4><small class="text-muted">AI flags variances &gt;10% · Finance Officer writes actuals only</small></div>
+<div class="px-4 pb-4">
+  <form method="get" class="mb-3">
+    <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+      <option value="">All Projects</option>
+      {% for p in projects %}<option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </form>
+
+  {% if flagged %}
+  <div class="alert alert-warning mb-3">
+    <strong>⚠️ AI Budget Flag:</strong> {{ flagged|length }} line(s) have variance &gt;10%.
+    {% for b in flagged %}<br>· <strong>{{ b.description }}</strong>: {{ b.variance_pct }}% ({% if b.variance > 0 %}over{% else %}under{% endif %} by ${{ b.variance|floatformat:0 }}){% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="metric-card"><div class="value">${{ total_est|floatformat:0 }}</div><div class="label">Total Estimated</div></div></div>
+    <div class="col-md-4"><div class="metric-card"><div class="value">${{ total_act|floatformat:0 }}</div><div class="label">Actual to Date</div></div></div>
+    <div class="col-md-4"><div class="metric-card">
+      <div class="value {% if total_act > total_est %}text-danger{% endif %}">${{ total_act|floatformat:0 }}</div>
+      <div class="label">Spent vs Budget</div>
+    </div></div>
+  </div>
+
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead><tr><th>Project</th><th>Description</th><th>Estimated</th><th>Actual</th><th>Variance</th><th>Var %</th></tr></thead>
+        <tbody>
+          {% for b in budgets %}
+          <tr {% if b.variance_pct > 10 or b.variance_pct < -10 %}style="background:#fff3cd"{% endif %}>
+            <td class="small text-muted">{{ b.project.name }}</td>
+            <td class="fw-bold">{{ b.description }}</td>
+            <td>${{ b.estimated|floatformat:2 }}</td>
+            <td>${{ b.actual|floatformat:2 }}</td>
+            <td class="{% if b.variance > 0 %}text-danger{% elif b.variance < 0 %}text-success{% endif %} fw-bold">
+              {% if b.variance > 0 %}+{% endif %}${{ b.variance|floatformat:2 }}
+            </td>
+            <td class="{% if b.variance_pct > 10 %}text-danger fw-bold{% elif b.variance_pct > 0 %}text-warning{% endif %}">
+              {% if b.variance_pct > 0 %}+{% endif %}{{ b.variance_pct }}%
+              {% if b.variance_pct > 10 %} ⚠️{% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No budget data.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="alert mt-3 py-1 px-2" style="font-size:0.75rem; background:var(--ae-water)30; border:1px solid var(--ae-water)">
+    🔒 <strong>AI Write Policy:</strong> AI is BLOCKED from modifying <code>Budget.actual</code> or <code>Budget.estimated</code>. Finance Officer edits these via the Django Admin. AI only flags variances &gt;10% via the chat interface.
+  </div>
+</div>
+{% endblock %}

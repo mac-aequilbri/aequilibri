@@ -1,0 +1,35 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Vendors — Didi{% endblock %}
+{% block sb_vendors %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header"><h4 class="mb-0">Vendors</h4><small class="text-muted">Supplier & subcontractor directory — read-only for Didi</small></div>
+<div class="px-4 pb-4">
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Name</th><th>Category</th><th>Contact</th><th>Email</th><th>Rating</th><th>Active</th></tr></thead>
+        <tbody>
+          {% for v in vendors %}
+          <tr>
+            <td class="fw-bold">{{ v.name }}</td>
+            <td class="small">{{ v.category }}</td>
+            <td class="small">{{ v.contact }}</td>
+            <td class="small">{{ v.email|default:"—" }}</td>
+            <td>
+              <span style="color:var(--ae-space); font-weight:700">{{ v.rating }}</span>/10
+            </td>
+            <td>{% if v.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No vendors.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="alert alert-info mt-3" style="background:var(--ae-water)20; border:1px solid var(--ae-water)">
+    <small>🔒 <strong>AI Write Policy:</strong> Didi can read this table and update <code>Vendor.rating</code> only. All other vendor fields require human confirmation. Invoices involving Lighthouse Noosa must cross-check CASHFLOWS first (LRN-0030).</small>
+  </div>
+</div>
+{% endblock %}

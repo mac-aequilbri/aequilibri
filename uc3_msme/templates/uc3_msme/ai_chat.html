@@ -1,0 +1,131 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}AI Assistant — UC3{% endblock %}
+{% block sb_chat %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header">
+  <h4 class="mb-0">🤖 AI Project Assistant</h4>
+  <small class="text-muted">CRUD policy enforced · Full write: Actions &amp; Risks · Approval needed: Phases, Decisions · Blocked: Budget actuals</small>
+</div>
+
+<div class="px-4 pb-4">
+<div class="row g-4">
+  <div class="col-md-8">
+    <!-- Project selector -->
+    <form method="get" class="mb-3">
+      <div class="d-flex gap-2">
+        <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+          <option value="">Select a project…</option>
+          {% for p in projects %}<option value="{{ p.pk }}" {% if project and project.pk == p.pk %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+        </select>
+        {% if project %}<div class="d-flex align-items-center">
+          <span class="badge" style="background:{{ project.health_color }}">Health: {{ project.health_score }}</span>
+        </div>{% endif %}
+      </div>
+    </form>
+
+    <!-- Chat messages -->
+    <div class="chat-container mb-3" id="chatBox">
+      {% if not messages %}
+      <div class="text-center text-muted py-5">
+        <div style="font-size:2rem">🤖</div>
+        <div class="fw-bold">AI Project Coordinator</div>
+        <div class="small mt-1">Select a project above and start chatting.<br>
+        I can manage action items and risks directly, propose phase updates for your approval, and flag budget variances.</div>
+      </div>
+      {% endif %}
+      {% for msg in messages %}
+        {% if msg.role == 'user' %}
+        <div class="d-flex justify-content-end mb-2">
+          <div class="chat-bubble-user">{{ msg.content }}</div>
+        </div>
+        {% else %}
+        <div class="d-flex justify-content-start mb-2">
+          <div>
+            {% if msg.requires_approval and not msg.approved %}
+            <div class="write-proposal mb-1">
+              <div class="small fw-bold">⚠️ APPROVAL REQUIRED — Phase or Decision change proposed</div>
+              <div class="small text-muted">This action requires explicit human confirmation before the AI can proceed.</div>
+            </div>
+            {% endif %}
+            <div class="chat-bubble-ai">{{ msg.content|linebreaksbr }}</div>
+            <div style="font-size:0.65rem; color:#aaa; padding-left:4px;">{{ msg.created_at|date:"H:i" }}</div>
+          </div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    <!-- Input -->
+    {% if project %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="d-flex gap-2">
+        <input type="text" name="message" id="msgInput" class="form-control"
+               placeholder="Ask about actions, risks, budget, phases…" required>
+        <button class="btn btn-ae px-4">Send</button>
+      </div>
+    </form>
+    <div class="mt-2 d-flex flex-wrap gap-1">
+      <button class="btn btn-sm btn-outline-secondary" onclick="setMsg('What are the overdue action items?')">Overdue actions</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="setMsg('Show me the high risks')">High risks</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="setMsg('What is the budget status?')">Budget status</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="setMsg('Create a new action item for site inspection due next week')">Create action</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="setMsg('Propose updating Phase 3 to 90% complete')">Update phase (needs approval)</button>
+    </div>
+    {% else %}
+    <div class="alert alert-info">Select a project above to start chatting.</div>
+    {% endif %}
+  </div>
+
+  <!-- CRUD Policy sidebar -->
+  <div class="col-md-4">
+    <div class="card p-4">
+      <h6 class="fw-bold mb-3">CRUD Policy Matrix</h6>
+      <div class="mb-2">
+        <div class="small fw-bold" style="color:var(--ae-space)">✅ Full Write Authority (no approval)</div>
+        <ul class="small text-muted ps-3 mb-2">
+          <li>ACTION_ITEMS — create &amp; update</li>
+          <li>RISKS — create &amp; update</li>
+          <li>VENDORS.rating — update only</li>
+          <li>CASHFLOWS.projected — update only</li>
+        </ul>
+      </div>
+      <div class="mb-2">
+        <div class="small fw-bold" style="color:#f39c12">⚠️ Requires Human Approval</div>
+        <ul class="small text-muted ps-3 mb-2">
+          <li>PHASES — status &amp; completion_pct</li>
+          <li>DECISIONS — draft only; human confirms</li>
+        </ul>
+      </div>
+      <div>
+        <div class="small fw-bold text-danger">🔒 AI Blocked</div>
+        <ul class="small text-muted ps-3 mb-0">
+          <li>BUDGET.actual — Finance Officer only</li>
+          <li>PROJECTS — human creates</li>
+          <li>DOCUMENTS — human uploads</li>
+        </ul>
+      </div>
+    </div>
+
+    {% if project %}
+    <div class="card p-4 mt-3">
+      <h6 class="fw-bold mb-2">Quick Stats — {{ project.name }}</h6>
+      <div class="small">Open actions: <strong>{{ project.actions.filter.count }}</strong></div>
+      <div class="small">Open risks: <strong>{{ project.risks.filter.count }}</strong></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.addEventListener('load', () => {
+  const box = document.getElementById('chatBox');
+  if (box) box.scrollTop = box.scrollHeight;
+});
+function setMsg(t) { document.getElementById('msgInput').value = t; }
+</script>
+{% endblock %}

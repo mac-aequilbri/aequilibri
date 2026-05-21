@@ -1,0 +1,31 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Change Log — Didi{% endblock %}
+{% block sb_log %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header"><h4 class="mb-0">Change Log</h4><small class="text-muted">Immutable write audit trail — every confirmed write is recorded here</small></div>
+<div class="px-4 pb-4">
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table table-sm mb-0">
+        <thead><tr><th>Timestamp</th><th>Table</th><th>Field</th><th>Old Value</th><th>New Value</th><th>Changed By</th><th>Confirmed By</th></tr></thead>
+        <tbody>
+          {% for log in logs %}
+          <tr>
+            <td class="small text-muted">{{ log.timestamp|date:"d M Y H:i" }}</td>
+            <td><code class="small">{{ log.table_name }}</code></td>
+            <td><code class="small">{{ log.field }}</code></td>
+            <td><span class="diff-old">{{ log.old_value|default:"—"|truncatechars:40 }}</span></td>
+            <td><span class="diff-new">{{ log.new_value|default:"—"|truncatechars:40 }}</span></td>
+            <td class="small">{{ log.changed_by }}</td>
+            <td class="small">{{ log.confirmed_by|default:"—" }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="7" class="text-center text-muted py-4">No changes logged yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

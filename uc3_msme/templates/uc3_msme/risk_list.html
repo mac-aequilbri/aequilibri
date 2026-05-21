@@ -1,0 +1,138 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}Risk Register — UC3{% endblock %}
+{% block sb_risks %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header d-flex align-items-center justify-content-between">
+  <div><h4 class="mb-0">Risk Register</h4><small class="text-muted">AI has full write authority · 3×3 heat map</small></div>
+  <button class="btn btn-ae" data-bs-toggle="modal" data-bs-target="#addRiskModal">＋ Add Risk</button>
+</div>
+<div class="px-4 pb-4">
+
+  <form method="get" class="mb-3">
+    <select name="project" class="form-select" style="width:auto" onchange="this.form.submit()">
+      <option value="">All Projects</option>
+      {% for p in projects %}<option value="{{ p.pk }}" {% if project_filter == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </form>
+
+  <div class="row g-4 mb-4">
+    <!-- Heat Map -->
+    <div class="col-md-4">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">Risk Heat Map (3×3)</h6>
+        <div style="display:grid; grid-template-columns: 24px 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 24px; gap:4px; height:200px;">
+          <!-- Row 3 (High likelihood) -->
+          <div style="display:flex; align-items:center; justify-content:center; font-size:0.65rem; color:#888; writing-mode:vertical-lr; transform:rotate(180deg)">H</div>
+          <div class="risk-cell risk-medium" style="font-size:0.7rem">{{ heat_map|default:"" }}
+            {% with key="3,1" %}{% for k,v in heat_map.items %}{% if k.0 == 3 and k.1 == 1 %}{{ v }}{% endif %}{% endfor %}{% endwith %}
+          </div>
+          <div class="risk-cell risk-high">
+            {% for k,v in heat_map.items %}{% if k.0 == 3 and k.1 == 2 %}{{ v }}{% endif %}{% endfor %}
+          </div>
+          <div class="risk-cell risk-high">
+            {% for k,v in heat_map.items %}{% if k.0 == 3 and k.1 == 3 %}{{ v }}{% endif %}{% endfor %}
+          </div>
+          <!-- Row 2 -->
+          <div style="display:flex; align-items:center; justify-content:center; font-size:0.65rem; color:#888; writing-mode:vertical-lr; transform:rotate(180deg)">M</div>
+          <div class="risk-cell risk-low">{% for k,v in heat_map.items %}{% if k.0 == 2 and k.1 == 1 %}{{ v }}{% endif %}{% endfor %}</div>
+          <div class="risk-cell risk-medium">{% for k,v in heat_map.items %}{% if k.0 == 2 and k.1 == 2 %}{{ v }}{% endif %}{% endfor %}</div>
+          <div class="risk-cell risk-high">{% for k,v in heat_map.items %}{% if k.0 == 2 and k.1 == 3 %}{{ v }}{% endif %}{% endfor %}</div>
+          <!-- Row 1 -->
+          <div style="display:flex; align-items:center; justify-content:center; font-size:0.65rem; color:#888; writing-mode:vertical-lr; transform:rotate(180deg)">L</div>
+          <div class="risk-cell risk-low">{% for k,v in heat_map.items %}{% if k.0 == 1 and k.1 == 1 %}{{ v }}{% endif %}{% endfor %}</div>
+          <div class="risk-cell risk-low">{% for k,v in heat_map.items %}{% if k.0 == 1 and k.1 == 2 %}{{ v }}{% endif %}{% endfor %}</div>
+          <div class="risk-cell risk-medium">{% for k,v in heat_map.items %}{% if k.0 == 1 and k.1 == 3 %}{{ v }}{% endif %}{% endfor %}</div>
+          <!-- Labels -->
+          <div></div>
+          <div style="text-align:center; font-size:0.65rem; color:#888">Low</div>
+          <div style="text-align:center; font-size:0.65rem; color:#888">Med</div>
+          <div style="text-align:center; font-size:0.65rem; color:#888">High</div>
+        </div>
+        <div style="font-size:0.65rem; text-align:center; color:#888; margin-top:4px">← Impact →</div>
+        <div style="font-size:0.65rem; text-align:center; color:#888">Numbers = risk count per cell</div>
+      </div>
+    </div>
+
+    <!-- Risk Table -->
+    <div class="col-md-8">
+      <div class="card p-0">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Risk</th><th>Project</th><th>L</th><th>I</th><th>Score</th><th>Level</th><th>Status</th></tr></thead>
+            <tbody>
+              {% for r in risks %}
+              <tr>
+                <td>{{ r.description|truncatechars:80 }}</td>
+                <td class="small text-muted">{{ r.project.name }}</td>
+                <td class="small">{{ r.likelihood }}</td>
+                <td class="small">{{ r.impact }}</td>
+                <td class="fw-bold">{{ r.risk_score }}</td>
+                <td><span class="status-badge {% if r.risk_level == 'HIGH' %}status-overdue{% elif r.risk_level == 'MEDIUM' %}status-pending{% else %}status-active{% endif %}">{{ r.risk_level }}</span></td>
+                <td>
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="form_action" value="update_status">
+                    <input type="hidden" name="risk_id" value="{{ r.id }}">
+                    <select name="status" class="form-select form-select-sm" style="width:120px" onchange="this.form.submit()">
+                      <option value="open" {% if r.status == 'open' %}selected{% endif %}>Open</option>
+                      <option value="mitigated" {% if r.status == 'mitigated' %}selected{% endif %}>Mitigated</option>
+                      <option value="closed" {% if r.status == 'closed' %}selected{% endif %}>Closed</option>
+                      <option value="accepted" {% if r.status == 'accepted' %}selected{% endif %}>Accepted</option>
+                    </select>
+                  </form>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="text-center text-muted py-4">No risks registered.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Risk Modal -->
+<div class="modal fade" id="addRiskModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">Add Risk</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="form_action" value="create">
+        <div class="modal-body">
+          <div class="mb-2"><label class="form-label">Project *</label>
+            <select name="project_id" class="form-select" required>
+              {% for p in projects %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}
+            </select></div>
+          <div class="mb-2"><label class="form-label">Risk Description *</label>
+            <textarea name="description" class="form-control" rows="2" required></textarea></div>
+          <div class="row g-2">
+            <div class="col"><label class="form-label">Likelihood (1-5)</label>
+              <select name="likelihood" class="form-select">
+                <option value="1">1 — Rare</option><option value="2" selected>2 — Unlikely</option>
+                <option value="3">3 — Possible</option><option value="4">4 — Likely</option><option value="5">5 — Almost Certain</option>
+              </select></div>
+            <div class="col"><label class="form-label">Impact (1-5)</label>
+              <select name="impact" class="form-select">
+                <option value="1">1 — Negligible</option><option value="2" selected>2 — Minor</option>
+                <option value="3">3 — Moderate</option><option value="4">4 — Major</option><option value="5">5 — Catastrophic</option>
+              </select></div>
+          </div>
+          <div class="mt-2"><label class="form-label">Mitigation Plan</label>
+            <textarea name="mitigation" class="form-control" rows="2"></textarea></div>
+          <div class="mt-2"><label class="form-label">Owner</label>
+            <input type="text" name="owner" class="form-control"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-ae">Add Risk</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

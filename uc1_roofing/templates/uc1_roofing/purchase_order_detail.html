@@ -1,0 +1,159 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}{{ po.po_number }} — Purchase Order{% endblock %}
+
+{% block content %}
+{# ── Header ───────────────────────────────────────────────────────────────── #}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2">
+    {% if po.quote %}
+    <a href="{% url 'uc1:quote_detail' po.quote.pk %}" class="btn btn-sm btn-outline-secondary">← Quote</a>
+    {% else %}
+    <a href="{% url 'uc1:purchase_order_list' %}" class="btn btn-sm btn-outline-secondary">← All POs</a>
+    {% endif %}
+    <h4 class="mb-0">{{ po.po_number }}</h4>
+    <span class="badge
+      {% if po.status == 'confirmed' %}bg-success
+      {% elif po.status == 'sent' %}bg-primary
+      {% elif po.status == 'cancelled' %}bg-danger
+      {% else %}bg-secondary{% endif %}">
+      {{ po.get_status_display }}
+    </span>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'uc1:purchase_order_print' po.pk %}" target="_blank"
+       class="btn btn-sm btn-outline-dark">🖨 Print / PDF</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  {# ── Left: PO details ───────────────────────────────────────────────────── #}
+  <div class="col-lg-8">
+    {# Vendor card #}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold">Vendor</span>
+        {% if po.vendor.is_preferred %}
+        <span class="badge bg-success">★ Preferred</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-sm-6">
+            <div class="fw-bold">{{ po.vendor.name }}</div>
+            <div class="text-muted small">{{ po.vendor.suburb }}, {{ po.vendor.state }}</div>
+            {% if po.vendor.contact_name %}<div class="small mt-1">{{ po.vendor.contact_name }}</div>{% endif %}
+            {% if po.vendor.contact_email %}<div class="small"><a href="mailto:{{ po.vendor.contact_email }}">{{ po.vendor.contact_email }}</a></div>{% endif %}
+            {% if po.vendor.contact_phone %}<div class="small">{{ po.vendor.contact_phone }}</div>{% endif %}
+          </div>
+          <div class="col-sm-6">
+            {% if po.delivery_address %}
+            <div class="small text-muted fw-semibold mb-1">Delivery Address</div>
+            <div class="small">{{ po.delivery_address }}</div>
+            {% endif %}
+            {% if po.requested_delivery_date %}
+            <div class="small mt-2"><span class="text-muted">Requested delivery:</span> {{ po.requested_delivery_date|date:"d M Y" }}</div>
+            {% endif %}
+          </div>
+        </div>
+        {% if po.notes %}
+        <div class="mt-2 p-2 rounded small" style="background:#fffbea;border:1px solid #fde68a;">
+          <span class="text-muted">Notes:</span> {{ po.notes }}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Line items #}
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Order Lines</div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Description</th>
+              <th class="text-muted small">SKU</th>
+              <th class="text-end">Qty</th>
+              <th>Unit</th>
+              <th class="text-end">Unit Price</th>
+              <th class="text-end">Total ex-GST</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in po.po_items.all %}
+            <tr>
+              <td>{{ item.description }}</td>
+              <td class="text-muted small">{{ item.item_code|default:"—" }}</td>
+              <td class="text-end">{{ item.quantity|floatformat:2 }}</td>
+              <td class="text-muted small">{{ item.unit }}</td>
+              <td class="text-end">${{ item.unit_price_ex_gst|floatformat:2 }}</td>
+              <td class="text-end fw-semibold">${{ item.line_total_ex_gst|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <td colspan="5" class="text-end text-muted small">Subtotal ex-GST</td>
+              <td class="text-end">${{ po.subtotal_ex_gst|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <td colspan="5" class="text-end text-muted small">GST (10%)</td>
+              <td class="text-end">${{ po.gst_total|floatformat:2 }}</td>
+            </tr>
+            <tr class="fw-bold">
+              <td colspan="5" class="text-end">Total inc-GST</td>
+              <td class="text-end text-success fs-5">${{ po.total_inc_gst|floatformat:2 }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    {# Linked quote #}
+    {% if po.quote %}
+    <div class="card">
+      <div class="card-header fw-semibold">Linked Quote</div>
+      <div class="card-body small">
+        <a href="{% url 'uc1:quote_detail' po.quote.pk %}" class="fw-semibold">{{ po.quote.ref_number }}</a>
+        — {{ po.quote.property_address|truncatechars:80 }}
+        <span class="badge bg-light text-dark border ms-2">{{ po.quote.get_material_display }}</span>
+        <span class="badge bg-light text-dark border ms-1">{{ po.quote.adjusted_area_sqm }} m²</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Right: Actions ─────────────────────────────────────────────────────── #}
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header fw-semibold">Update Status</div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_status">
+          <select name="status" class="form-select form-select-sm mb-2">
+            {% for val, label in po.status.choices|default:"" %}{% endfor %}
+            <option value="draft"     {% if po.status == "draft"     %}selected{% endif %}>Draft</option>
+            <option value="sent"      {% if po.status == "sent"      %}selected{% endif %}>Sent to Vendor</option>
+            <option value="confirmed" {% if po.status == "confirmed" %}selected{% endif %}>Confirmed</option>
+            <option value="cancelled" {% if po.status == "cancelled" %}selected{% endif %}>Cancelled</option>
+          </select>
+          <button type="submit" class="btn btn-sm btn-primary w-100">Update Status</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header fw-semibold">Summary</div>
+      <div class="card-body">
+        <table class="table table-sm mb-0 small">
+          <tr><td class="text-muted">PO Number</td><td class="fw-semibold">{{ po.po_number }}</td></tr>
+          <tr><td class="text-muted">Created</td><td>{{ po.created_at|date:"d M Y" }}</td></tr>
+          <tr><td class="text-muted">Vendor</td><td>{{ po.vendor.name }}</td></tr>
+          <tr><td class="text-muted">Lines</td><td>{{ po.po_items.count }}</td></tr>
+          <tr><td class="text-muted">Total</td><td class="fw-bold text-success">${{ po.total_inc_gst|floatformat:2 }}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

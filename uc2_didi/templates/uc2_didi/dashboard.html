@@ -1,0 +1,105 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Didi — Dulong Downs Dashboard{% endblock %}
+{% block sb_dash %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header">
+  <h4 class="mb-0">Didi — Dulong Downs <span class="text-muted fw-normal">/ Dashboard</span></h4>
+  <small class="text-muted">Jack Henderson / Aboda Investments · 199 Dulong Road, QLD</small>
+</div>
+<div class="px-4 pb-4">
+
+  <!-- Metrics row -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-2">
+      <div class="metric-card">
+        <div class="value">{{ overall_pct }}%</div>
+        <div class="label">Overall Progress</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="metric-card">
+        <div class="value {% if overdue > 0 %}text-danger{% endif %}">{{ overdue }}</div>
+        <div class="label">Overdue Actions</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="metric-card">
+        <div class="value">{{ open_actions }}</div>
+        <div class="label">Open Actions</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="metric-card">
+        <div class="value">${{ total_estimated|floatformat:0 }}</div>
+        <div class="label">Budget Estimate</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="metric-card">
+        <div class="value">${{ total_actual|floatformat:0 }}</div>
+        <div class="label">Actual to Date</div>
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="metric-card">
+        <div class="value" style="color:var(--ae-fire)">{{ active_rules }}</div>
+        <div class="label">Learning Rules</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick action -->
+  <div class="d-flex gap-2 mb-4">
+    <a href="{% url 'uc2:chat' %}" class="btn btn-ae">💬 Chat with Didi</a>
+    <a href="{% url 'uc2:action_hub' %}" class="btn btn-ae-outline">View Action Hub</a>
+    {% if pending_hyp > 0 %}
+    <a href="{% url 'uc2:learning_rules' %}" class="btn btn-warning">⚠ {{ pending_hyp }} Hypotheses Pending Review</a>
+    {% endif %}
+  </div>
+
+  <div class="row g-4">
+    <!-- Project Phases -->
+    <div class="col-md-7">
+      <div class="card p-4">
+        <h6 class="fw-bold mb-3">Project Phases — Dulong Downs</h6>
+        {% for phase in phases %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="small fw-bold">{{ phase.name }}</span>
+            <span class="small text-muted">{{ phase.completion_pct }}% · <span class="status-badge status-{% if phase.status == 'complete' %}complete{% elif phase.status == 'in_progress' %}active{% else %}draft{% endif %}">{{ phase.get_status_display }}</span></span>
+          </div>
+          <div class="progress" style="height:8px;">
+            <div class="progress-bar" style="width:{{ phase.completion_pct }}%; background:var(--ae-space)"></div>
+          </div>
+        </div>
+        {% empty %}
+        <p class="text-muted">No phases defined.</p>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Recent Changes -->
+    <div class="col-md-5">
+      <div class="card p-4">
+        <div class="d-flex justify-content-between mb-3">
+          <h6 class="fw-bold mb-0">Recent Changes (CHANGE_LOG)</h6>
+          <a href="{% url 'uc2:change_log' %}" class="small text-muted">View all →</a>
+        </div>
+        {% for log in recent_changes %}
+        <div class="border-bottom pb-2 mb-2">
+          <div class="small fw-bold">{{ log.table_name }}.{{ log.field }}</div>
+          <div class="small">
+            <span class="diff-old">{{ log.old_value|default:"(empty)" }}</span>
+            → <span class="diff-new">{{ log.new_value|default:"(empty)" }}</span>
+          </div>
+          <div class="text-muted" style="font-size:0.7rem">{{ log.timestamp|date:"d M Y H:i" }} · {{ log.changed_by }}</div>
+        </div>
+        {% empty %}
+        <p class="text-muted small">No changes logged yet.</p>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

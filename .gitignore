@@ -1,0 +1,33 @@
+# ── Secrets — never commit ───────────────────────────────────
+.env
+
+# ── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+
+# ── Django generated ─────────────────────────────────────────
+db.sqlite3
+staticfiles/
+logs/
+server.pid
+*.log
+
+# ── Render / deployment scratch ──────────────────────────────
+.tmp
+js1g6eyn
+
+# ── Windows ──────────────────────────────────────────────────
+Thumbs.db
+desktop.ini
+*.lnk
+
+# ── macOS ────────────────────────────────────────────────────
+.DS_Store

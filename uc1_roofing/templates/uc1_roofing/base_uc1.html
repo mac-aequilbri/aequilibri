@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block nav_uc1 %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex">
+  <!-- Sidebar -->
+  <div class="sidebar px-3 py-4" style="width:220px; min-width:220px;">
+    <div class="mb-3"><span class="uc-badge uc1-badge">UC1</span> <small class="fw-bold">Roofing</small></div>
+    <nav class="nav flex-column gap-1">
+      <a class="nav-link {% block sb_dash %}{% endblock %}" href="{% url 'uc1:dashboard' %}">📊 Dashboard</a>
+      <a class="nav-link {% block sb_quotes %}{% endblock %}" href="{% url 'uc1:quote_list' %}">📄 Quotes</a>
+      <a class="nav-link {% block sb_new %}{% endblock %}" href="{% url 'uc1:quote_create' %}">＋ New Quote</a>
+      <a class="nav-link {% block sb_rates %}{% endblock %}" href="{% url 'uc1:rate_cards' %}">💲 Rate Cards</a>
+      <a class="nav-link {% block sb_contacts %}{% endblock %}" href="{% url 'uc1:contacts' %}">👤 Contacts</a>
+      <a class="nav-link {% block sb_po %}{% endblock %}" href="{% url 'uc1:purchase_order_list' %}">📦 Purchase Orders</a>
+      <a class="nav-link {% block sb_pricelog %}{% endblock %}" href="{% url 'uc1:price_check_log' %}">📈 Price Monitor</a>
+      <a class="nav-link {% block sb_log %}{% endblock %}" href="{% url 'uc1:exec_log' %}">🔍 Audit Log</a>
+    </nav>
+  </div>
+  <!-- Main -->
+  <div class="flex-grow-1">
+    {% block uc1_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

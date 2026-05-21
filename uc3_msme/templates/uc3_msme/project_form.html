@@ -1,0 +1,32 @@
+{% extends "uc3_msme/base_uc3.html" %}
+{% block title %}New Project — UC3{% endblock %}
+{% block sb_projects %}active{% endblock %}
+
+{% block uc3_content %}
+<div class="page-header"><h4 class="mb-0">New Project</h4></div>
+<div class="px-4 pb-4">
+  <div class="card p-4" style="max-width:600px">
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-3"><label class="form-label">Project Name *</label>
+        <input type="text" name="name" class="form-control" required></div>
+      <div class="mb-3"><label class="form-label">Client</label>
+        <input type="text" name="client" class="form-control"></div>
+      <div class="mb-3"><label class="form-label">Description</label>
+        <textarea name="description" class="form-control" rows="3"></textarea></div>
+      <div class="row g-2 mb-3">
+        <div class="col"><label class="form-label">Start Date</label>
+          <input type="date" name="start_date" class="form-control"></div>
+        <div class="col"><label class="form-label">End Date</label>
+          <input type="date" name="end_date" class="form-control"></div>
+      </div>
+      <div class="mb-3"><label class="form-label">Status</label>
+        <select name="status" class="form-select">
+          <option value="planning">Planning</option>
+          <option value="active">Active</option>
+        </select></div>
+      <button class="btn btn-ae w-100">Create Project</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

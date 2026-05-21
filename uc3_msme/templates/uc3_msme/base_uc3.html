@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block nav_uc3 %}active{% endblock %}
+
+{% block content %}
+<div class="d-flex">
+  <div class="sidebar px-3 py-4" style="width:220px; min-width:220px;">
+    <div class="mb-3"><span class="uc-badge uc3-badge">UC3</span> <small class="fw-bold">MSME</small></div>
+    {% if tenant %}
+    <div class="mb-3 p-2 rounded" style="background:var(--ae-cream); font-size:0.8rem">
+      <div class="text-muted small">Active Tenant</div>
+      <div class="fw-bold">{{ tenant.name }}</div>
+    </div>
+    {% endif %}
+    <nav class="nav flex-column gap-1">
+      <a class="nav-link {% block sb_dash %}{% endblock %}" href="{% url 'uc3:dashboard' %}">📊 Dashboard</a>
+      <a class="nav-link {% block sb_projects %}{% endblock %}" href="{% url 'uc3:project_list' %}">🏗 Projects</a>
+      <a class="nav-link {% block sb_actions %}{% endblock %}" href="{% url 'uc3:action_list' %}">✅ Action Items</a>
+      <a class="nav-link {% block sb_risks %}{% endblock %}" href="{% url 'uc3:risk_list' %}">⚠️ Risk Register</a>
+      <a class="nav-link {% block sb_budget %}{% endblock %}" href="{% url 'uc3:budget' %}">💰 Budget</a>
+      <a class="nav-link {% block sb_chat %}{% endblock %}" href="{% url 'uc3:ai_chat' %}">🤖 AI Assistant</a>
+      <a class="nav-link {% block sb_log %}{% endblock %}" href="{% url 'uc3:exec_log' %}">🔍 Audit Log</a>
+    </nav>
+  </div>
+  <div class="flex-grow-1">
+    {% block uc3_content %}{% endblock %}
+  </div>
+</div>
+{% endblock %}

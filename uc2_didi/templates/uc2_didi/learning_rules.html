@@ -1,0 +1,50 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Learning Rules — Didi{% endblock %}
+{% block sb_rules %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header"><h4 class="mb-0">Learning Rules</h4><small class="text-muted">Validated rules loaded at every Didi session · HYPOTHESES pipeline</small></div>
+<div class="px-4 pb-4">
+
+  {% if pending_hyp %}
+  <div class="card p-4 mb-4" style="border-left: 4px solid #f0c040; background:#fffbe6">
+    <h6 class="fw-bold mb-3">⚠️ Hypotheses Awaiting Human Review ({{ pending_hyp.count }})</h6>
+    {% for hyp in pending_hyp %}
+    <div class="border-bottom pb-2 mb-2">
+      <div class="fw-bold small">{{ hyp.description }}</div>
+      <div class="text-muted" style="font-size:0.7rem">Session {{ hyp.source_session }} · {{ hyp.created_at|date:"d M Y H:i" }}</div>
+      {% if hyp.evidence %}<div class="small text-muted mt-1"><em>{{ hyp.evidence }}</em></div>{% endif %}
+      <form method="post" action="{% url 'uc2:hypothesis_promote' hyp.pk %}" class="mt-2 d-flex gap-2">
+        {% csrf_token %}
+        <button class="btn btn-sm btn-success">✓ Promote to Learning Rule</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="card p-0">
+    <div class="px-4 pt-3 pb-2 border-bottom">
+      <h6 class="fw-bold mb-0">Active Learning Rules ({{ rules.count }})</h6>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead><tr><th>Rule Code</th><th>Description</th><th>Category</th><th>Status</th><th>Override</th></tr></thead>
+        <tbody>
+          {% for rule in rules %}
+          <tr {% if not rule.is_active %}style="opacity:0.5"{% endif %}>
+            <td><code style="color:var(--ae-space)">{{ rule.rule_code }}</code></td>
+            <td>{{ rule.description }}</td>
+            <td class="small text-muted">{{ rule.category }}</td>
+            <td>{% if rule.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
+            <td>{% if rule.cannot_override %}<span class="badge bg-danger">CANNOT-OVERRIDE</span>{% else %}<span class="text-muted small">—</span>{% endif %}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="text-center text-muted py-4">No learning rules yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,62 @@
+{% extends "uc2_didi/base_uc2.html" %}
+{% block title %}Budget — Didi{% endblock %}
+{% block sb_budget %}active{% endblock %}
+
+{% block uc2_content %}
+<div class="page-header"><h4 class="mb-0">Budget</h4><small class="text-muted">Project budget tracking — Finance Officer writes actuals · Didi reads only</small></div>
+<div class="px-4 pb-4">
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="metric-card">
+        <div class="value">${{ total_estimated|floatformat:0 }}</div>
+        <div class="label">Total Estimated</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="metric-card">
+        <div class="value">${{ total_actual|floatformat:0 }}</div>
+        <div class="label">Actual Spent</div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="metric-card">
+        <div class="value {% if total_actual > total_estimated %}text-danger{% endif %}">
+          ${{ total_actual|floatformat:0 }}/${{ total_estimated|floatformat:0 }}
+        </div>
+        <div class="label">Used / Budget</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-0">
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead><tr><th>Phase</th><th>Description</th><th>Estimated</th><th>Actual</th><th>Variance</th><th>Variance %</th></tr></thead>
+        <tbody>
+          {% for b in budgets %}
+          <tr>
+            <td class="fw-bold">{{ b.phase }}</td>
+            <td class="small text-muted">{{ b.description }}</td>
+            <td>${{ b.estimated|floatformat:2 }}</td>
+            <td>${{ b.actual|floatformat:2 }}</td>
+            <td class="{% if b.variance > 0 %}text-danger{% elif b.variance < 0 %}text-success{% endif %} fw-bold">
+              {% if b.variance > 0 %}+{% endif %}${{ b.variance|floatformat:2 }}
+            </td>
+            <td class="{% if b.variance_pct > 10 %}text-danger fw-bold{% elif b.variance_pct > 0 %}text-warning{% endif %}">
+              {% if b.variance_pct > 0 %}+{% endif %}{{ b.variance_pct }}%
+            </td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center text-muted py-4">No budget data.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="alert alert-info mt-3" style="background:var(--ae-water)20; border:1px solid var(--ae-water)">
+    <small>🔒 <strong>AI Write Policy:</strong> Didi can <em>read</em> this table and flag variances &gt;10%. Only the Finance Officer can update <code>Budget.actual</code> values — the guardrail blocks any AI attempt to modify budget actuals.</small>
+  </div>
+</div>
+{% endblock %}

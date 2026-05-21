@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}æquilibri — AI Construction Intelligence Platform{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="text-center mb-5">
+    <h1 class="display-4 fw-bold" style="color:#2c2c2c; letter-spacing:-0.02em;">æquilibri</h1>
+    <p class="lead text-muted">AI Construction Intelligence Platform &nbsp;·&nbsp; POC Demonstration</p>
+    <hr style="border-color: var(--ae-space); width: 60px; border-width: 3px; opacity:1; margin: 24px auto;">
+  </div>
+
+  <div class="row g-4 justify-content-center">
+
+    <!-- UC1 -->
+    <div class="col-md-4">
+      <div class="card h-100 p-4">
+        <div class="mb-3"><span class="uc-badge uc1-badge">UC1</span></div>
+        <h4 class="fw-bold">Roofing Estimator</h4>
+        <p class="text-muted small">For trade contractors &amp; estimators. Enter a property address, select roof pitch and materials, auto-calculate roof area and generate a GST-compliant quote with PDF export.</p>
+        <ul class="small text-muted mb-4">
+          <li>Address → roof area calculation</li>
+          <li>Pitch factor &amp; waste factor engine</li>
+          <li>Managed rate cards per material</li>
+          <li>GST-compliant PDF quote export</li>
+          <li>Quote &amp; contact database</li>
+        </ul>
+        <a href="/uc1/" class="btn btn-ae mt-auto">Open Roofing Estimator →</a>
+      </div>
+    </div>
+
+    <!-- UC2 -->
+    <div class="col-md-4">
+      <div class="card h-100 p-4">
+        <div class="mb-3"><span class="uc-badge uc2-badge">UC2</span></div>
+        <h4 class="fw-bold">Didi — Dulong Downs</h4>
+        <p class="text-muted small">AI assistant for the Dulong Downs residential construction project. Chat naturally with Didi to query and update the 18-table project database — every write requires explicit confirmation.</p>
+        <ul class="small text-muted mb-4">
+          <li>18-table Airtable-equivalent DB</li>
+          <li>Natural language query &amp; write</li>
+          <li>Write-guard confirmation gate</li>
+          <li>Session summary + HYPOTHESES</li>
+          <li>CHANGE_LOG audit trail</li>
+        </ul>
+        <a href="/uc2/" class="btn btn-ae mt-auto">Open Didi Assistant →</a>
+      </div>
+    </div>
+
+    <!-- UC3 -->
+    <div class="col-md-4">
+      <div class="card h-100 p-4">
+        <div class="mb-3"><span class="uc-badge uc3-badge">UC3</span></div>
+        <h4 class="fw-bold">MSME Coordinator</h4>
+        <p class="text-muted small">Multi-tenant project coordination for small-to-medium construction firms. AI manages action items and risks autonomously; proposes changes to phases and decisions for human approval.</p>
+        <ul class="small text-muted mb-4">
+          <li>Multi-tenant project dashboard</li>
+          <li>Risk heat map (3×3 matrix)</li>
+          <li>AI action item management</li>
+          <li>Budget variance monitoring</li>
+          <li>CRUD policy guardrails</li>
+        </ul>
+        <a href="/uc3/" class="btn btn-ae mt-auto">Open MSME Coordinator →</a>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="text-center mt-5 text-muted small">
+    <p>POC Stack: Python Django · SQLite · Claude Sonnet 4.6 · Bootstrap 5</p>
+    <p>Production target: Next.js 15 · Airtable → PostgreSQL 16 · AWS ap-southeast-2</p>
+  </div>
+</div>
+{% endblock %}

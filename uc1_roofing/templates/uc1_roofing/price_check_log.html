@@ -1,0 +1,152 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Price Monitor{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">📈 Vendor Price Monitor</h4>
+  <div class="d-flex gap-2 align-items-center">
+    {% if latest %}
+    <span class="text-muted small">Last run: {{ latest.run_at|date:"d M Y H:i" }}</span>
+    {% endif %}
+    <span class="badge bg-secondary">Scheduled: weekly (Mon 7 am)</span>
+  </div>
+</div>
+
+{# ── How it works ─────────────────────────────────────────────────────────── #}
+<div class="alert alert-light border mb-4" style="font-size:13px;">
+  <strong>How it works:</strong>
+  The <code>check_vendor_prices</code> command fetches each vendor's product page,
+  extracts the current price, and updates the database if the change exceeds 2%.
+  Every run is logged here. Run manually with:
+  <code class="ms-1">python manage.py check_vendor_prices</code> or
+  <code>python manage.py check_vendor_prices --dry-run</code> to preview changes.
+</div>
+
+{# ── Recent price movements ───────────────────────────────────────────────── #}
+{% if recent_changes %}
+<div class="card mb-4">
+  <div class="card-header fw-semibold d-flex justify-content-between">
+    <span>Recent Price Changes</span>
+    <span class="badge bg-warning text-dark">{{ recent_changes|length }} item{{ recent_changes|length|pluralize }}</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Vendor</th><th>Material</th><th>Previous</th><th>Current</th><th>Change</th><th>Updated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vmp in recent_changes %}
+        {% with prev=vmp.previous_price curr=vmp.unit_price_ex_gst %}
+        <tr>
+          <td>{{ vmp.vendor.name }}</td>
+          <td>{{ vmp.get_material_display }}</td>
+          <td class="text-muted">${{ prev|floatformat:2 }}</td>
+          <td class="fw-semibold">${{ curr|floatformat:2 }}</td>
+          <td>
+            {% if curr > prev %}
+              <span class="text-danger fw-bold">▲ higher</span>
+            {% else %}
+              <span class="text-success fw-bold">▼ lower</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ vmp.updated_at|date:"d M Y" }}</td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{# ── Current vendor prices ─────────────────────────────────────────────────── #}
+<div class="card mb-4">
+  <div class="card-header fw-semibold">Current Vendor Prices</div>
+  <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Vendor</th><th>Material</th><th>SKU</th>
+          <th class="text-end">Price ex-GST</th><th>Unit</th>
+          <th>Lead</th><th>Last Verified</th><th>Source</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for vmp in recent_changes %}{% endfor %}{# placeholder — override below #}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ── Run history ──────────────────────────────────────────────────────────── #}
+<div class="card">
+  <div class="card-header fw-semibold">Check Run History</div>
+  {% if logs %}
+  <div class="table-responsive">
+    <table class="table table-sm mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Run at</th><th>Status</th><th>Vendors</th>
+          <th>Updated</th><th>Unchanged</th><th>Errors</th><th>Summary</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="small text-muted">{{ log.run_at|date:"d M Y H:i" }}</td>
+          <td>
+            <span class="badge
+              {% if log.status == 'success' %}bg-success
+              {% elif log.status == 'no_change' %}bg-secondary
+              {% elif log.status == 'partial' %}bg-warning text-dark
+              {% else %}bg-danger{% endif %}">
+              {{ log.get_status_display }}
+            </span>
+          </td>
+          <td class="text-center">{{ log.vendors_checked }}</td>
+          <td class="text-center {% if log.prices_updated %}fw-bold text-success{% endif %}">{{ log.prices_updated }}</td>
+          <td class="text-center text-muted">{{ log.prices_unchanged }}</td>
+          <td class="text-center {% if log.errors %}text-danger fw-bold{% endif %}">{{ log.errors }}</td>
+          <td class="small text-muted" style="max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+              title="{{ log.summary }}">
+            {{ log.summary|truncatechars:80 }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body text-muted small">
+    No price check runs yet.
+    Run <code>python manage.py check_vendor_prices</code> to start.
+  </div>
+  {% endif %}
+</div>
+
+{# ── Override the broken placeholder tbody above ───────────────────────────── #}
+<script>
+// Dynamically fetch and render current vendor prices
+(async () => {
+  const resp = await fetch('{% url "uc1:api_vendor_prices" %}');
+  if (!resp.ok) return;
+  const data = await resp.json();
+  const tbody = document.querySelectorAll('.table tbody')[1];  // 2nd table body
+  if (!tbody) return;
+  tbody.innerHTML = data.prices.map(p => `
+    <tr>
+      <td>${p.vendor}</td>
+      <td>${p.material}</td>
+      <td class="text-muted small">${p.item_code || '—'}</td>
+      <td class="text-end fw-semibold">$${p.price}</td>
+      <td class="text-muted small">${p.unit}</td>
+      <td class="small">${p.lead_days}d</td>
+      <td class="small text-muted">${p.last_verified || '<span class=\'text-warning\'>Not yet</span>'}</td>
+      <td class="small">${p.source_url ? '<a href="'+p.source_url+'" target="_blank">↗</a>' : '—'}</td>
+    </tr>`
+  ).join('');
+})();
+</script>
+{% endblock %}
