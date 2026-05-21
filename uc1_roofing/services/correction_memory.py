@@ -89,17 +89,28 @@ def find_best_memory_match(
         if not payload:
             continue
 
-        score = 0
+        address_score = 0
         candidate_key = normalize_address_key(payload.get("address"))
         if address_key and candidate_key:
             if address_key == candidate_key:
-                score += 1000
+                address_score = 1000
             elif len(address_key) > 10 and (address_key in candidate_key or candidate_key in address_key):
-                score += 850
+                address_score = 850
 
         candidate_lat = to_float(payload.get("lat"))
         candidate_lng = to_float(payload.get("lng"))
         proximity = distance_m(lat, lng, candidate_lat, candidate_lng)
+
+        # ── Neighbour-guard ────────────────────────────────────────────────
+        # If both addresses are known but don't match, only allow a GPS-only
+        # match when the two points are within 10 m of each other (same building,
+        # slight geocode variation). This prevents neighbouring properties
+        # (typically 20–50 m apart) from inheriting each other's corrections.
+        if address_score == 0 and address_key and candidate_key:
+            if proximity is None or proximity > 10:
+                continue
+
+        score = address_score
         if proximity is not None:
             if proximity <= 8:
                 score += 900
