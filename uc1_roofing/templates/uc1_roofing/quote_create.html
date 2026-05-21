@@ -76,13 +76,18 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
 #rdHeader h5 { margin:0; font-size:.95rem; font-weight:700; flex:1; }
 #rdClose { background:none; border:1px solid rgba(255,255,255,.25); color:#ccc; font-size:.78rem; font-weight:600; cursor:pointer; border-radius:6px; padding:4px 10px; }
 #rdClose:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.5); }
-/* #rdBody is the positioning root; #rdWorkArea is stretched to fill it absolutely.
-   This sidesteps all flex/grid height-chain ambiguity caused by the canvas element
-   setting intrinsic pixel dimensions after load. */
+/* #rdBody is the positioning root; #rdSide and #rdCanvasWrap are absolutely
+   positioned inside it so their scroll regions have explicit pixel rectangles
+   that DO NOT depend on grid/flex min-height behaviour (which is unreliable
+   when a canvas child has intrinsic pixel dimensions). */
 #rdBody { flex:1; overflow:hidden; padding:0; min-height:0; position:relative; }
-#rdWorkArea { position:absolute; inset:0; display:grid; grid-template-columns:360px minmax(0,1fr); grid-template-rows:1fr; gap:0; }
-#rdCanvasWrap { position:relative; background:#111; overflow-y:auto; overflow-x:auto;
-                min-height:0; min-width:0; }
+#rdWorkArea { position:absolute; inset:0; }
+#rdSide       { position:absolute; top:0; left:0; bottom:0; width:360px;
+                background:#fbfbfc; padding:12px 14px; border-right:1px solid #eee;
+                font-size:.78rem; color:#444; overflow-y:auto; overflow-x:hidden;
+                box-sizing:border-box; }
+#rdCanvasWrap { position:absolute; top:0; right:0; bottom:0; left:360px;
+                background:#111; overflow:auto; box-sizing:border-box; }
 #rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
 #rdLoadingOverlay {
   position:absolute; inset:0; z-index:4; display:none; align-items:center; justify-content:center;
@@ -99,11 +104,6 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
 }
 .rd-loading-panel strong { display:block; font-size:.92rem; margin-bottom:6px; }
 .rd-loading-panel span { display:block; font-size:.72rem; color:#cfd8dc; line-height:1.45; }
-#rdSide {
-  background:#fbfbfc; padding:12px 14px; border-right:1px solid #eee;
-  font-size:.78rem; color:#444;
-  overflow-y:auto; min-height:0;
-}
 .rd-panel-title {
   font-size:.68rem; font-weight:800; color:#1a1a2e;
   text-transform:uppercase; letter-spacing:.06em; margin:2px 0 8px;
@@ -171,9 +171,11 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
                 font-size:.78rem; }
 @media (max-width: 900px) {
   #rdBody { overflow-y:auto; }
-  #rdWorkArea { position:static; height:auto; grid-template-columns:1fr; grid-template-rows:auto; }
-  #rdSide { border-right:none; border-bottom:1px solid #e5e5e5; overflow-y:visible; min-height:unset; }
-  #rdCanvasWrap { border-bottom:1px solid #e5e5e5; overflow-y:visible; overflow-x:visible; }
+  #rdWorkArea { position:static; height:auto; }
+  #rdSide       { position:static; width:auto; border-right:none;
+                  border-bottom:1px solid #e5e5e5; overflow-y:visible; }
+  #rdCanvasWrap { position:static; left:auto;
+                  border-bottom:1px solid #e5e5e5; overflow:visible; }
   .rd-meta-grid { grid-template-columns:repeat(3,1fr); }
 }
 
