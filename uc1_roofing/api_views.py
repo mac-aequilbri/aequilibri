@@ -271,14 +271,16 @@ def detect_roof_features(request):
         except Exception:
             sv_available = False
 
-    # ── 3. Fetch 4-direction Street Views (N / E / S / W) ─────────────────
-    # Each heading = camera points that direction → reveals the opposite facade.
-    # pitch=12 gives a slight upward angle to show roof edges clearly.
+    # ── 3. Fetch 2-direction Street Views (N + S) ─────────────────────────
+    # Demo-mode latency optimization: we previously fetched 4 directional
+    # Street Views (N/E/S/W). Each image roughly doubles Claude's processing
+    # time, so 5 images on Opus could take 30–60s. Cut to 2 directions
+    # (N and S) which together usually cover the front and back facades and
+    # let us see most of the roof at a slight upward angle. Still gives
+    # enough info for roof_style / material / condition / storeys detection.
     _SV_HEADINGS = [
         (0,   "NORTH"),   # camera→N: reveals south-facing facade + south roof slope
-        (90,  "EAST"),    # camera→E: reveals west-facing facade + west roof slope
         (180, "SOUTH"),   # camera→S: reveals north-facing (street) facade + north slope
-        (270, "WEST"),    # camera→W: reveals east-facing facade + east roof slope
     ]
     if sv_available and google_key:
         for heading, direction in _SV_HEADINGS:
@@ -289,7 +291,7 @@ def detect_roof_features(request):
             )
             try:
                 req = urllib.request.Request(sv_url, headers={"User-Agent": "aequilibri/1.0"})
-                with urllib.request.urlopen(req, timeout=10) as resp:
+                with urllib.request.urlopen(req, timeout=8) as resp:
                     images.append({
                         "b64": base64.b64encode(resp.read()).decode(),
                         "media_type": "image/jpeg",
@@ -409,8 +411,12 @@ def detect_roof_features(request):
             "Respond with ONLY this JSON (no markdown fences):\n"
             "{" + _BASE_JSON + "}"
         )
-        result = call_claude_vision_multi(system, prompt, images, max_tokens=800,
-                                          model="claude-opus-4-7")
+        # Feature detection: Sonnet 4.6 is ~3-4x faster than Opus 4.7 with
+        # multi-image input (5 images here: aerial + 4 Street Views). The
+        # aggressive BIAS RULE prompt above is strong enough that Sonnet still
+        # catches obvious solar panels reliably.
+        result = call_claude_vision_multi(system, prompt, images, max_tokens=600,
+                                          model="claude-sonnet-4-6")
         result["views_used"] = ["aerial"] + sv_labels
 
     else:
