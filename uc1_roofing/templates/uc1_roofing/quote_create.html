@@ -81,7 +81,7 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
    setting intrinsic pixel dimensions after load. */
 #rdBody { flex:1; overflow:hidden; padding:0; min-height:0; position:relative; }
 #rdWorkArea { position:absolute; inset:0; display:grid; grid-template-columns:360px minmax(0,1fr); grid-template-rows:1fr; gap:0; }
-#rdCanvasWrap { position:relative; background:#111; overflow-y:auto; overflow-x:hidden; grid-column:2; }
+#rdCanvasWrap { position:relative; background:#111; overflow-y:auto; overflow-x:hidden; }
 #rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
 #rdLoadingOverlay {
   position:absolute; inset:0; z-index:4; display:none; align-items:center; justify-content:center;
@@ -101,7 +101,7 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
 #rdSide {
   background:#fbfbfc; padding:12px 14px; border-right:1px solid #eee;
   font-size:.78rem; color:#444;
-  overflow-y:auto; min-height:0; grid-column:1;
+  overflow-y:auto; min-height:0;
 }
 .rd-panel-title {
   font-size:.68rem; font-weight:800; color:#1a1a2e;
@@ -170,9 +170,9 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
                 font-size:.78rem; }
 @media (max-width: 900px) {
   #rdBody { overflow-y:auto; }
-  #rdWorkArea { position:static; height:auto; grid-template-columns:1fr; grid-template-rows:auto auto; }
-  #rdCanvasWrap { grid-column:1; border-bottom:1px solid #e5e5e5; overflow-y:visible; overflow-x:visible; }
-  #rdSide { grid-column:1; border-right:none; border-top:1px solid #e5e5e5; overflow-y:visible; min-height:unset; }
+  #rdWorkArea { position:static; height:auto; grid-template-columns:1fr; grid-template-rows:auto; }
+  #rdSide { border-right:none; border-bottom:1px solid #e5e5e5; overflow-y:visible; min-height:unset; }
+  #rdCanvasWrap { border-bottom:1px solid #e5e5e5; overflow-y:visible; overflow-x:visible; }
   .rd-meta-grid { grid-template-columns:repeat(3,1fr); }
 }
 
@@ -992,18 +992,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
 
   <div id="rdBody">
     <div id="rdWorkArea">
-      <!-- Satellite drawing sheet -->
-      <div id="rdCanvasWrap">
-        <canvas id="rdCanvas"></canvas>
-        <div id="rdLoadingOverlay" aria-live="polite">
-          <div class="rd-loading-panel">
-            <div class="rd-loading-spinner"></div>
-            <strong id="rdLoadingTitle">Preparing roof sheet</strong>
-            <span id="rdLoadingDetail">Clearing the previous address and reading fresh roof edges.</span>
-          </div>
-        </div>
-      </div>
-
+      <!-- ── Sidebar (col 1 / left) ── -->
       <aside id="rdSide">
         <div class="rd-panel-title">Drawing Summary</div>
         <div class="rd-meta-grid">
@@ -1082,6 +1071,29 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <div style="color:#999;font-size:.72rem;">Run AI Drawing to detect features.</div>
         </div>
 
+        <!-- Section table (inside sidebar so it scrolls with it) -->
+        <div class="rd-panel-title">📐 Detected Roof Sections</div>
+        <table id="rdTable">
+          <thead>
+            <tr>
+              <th>#</th><th>Section</th><th>Facing</th><th>Pitch</th>
+              <th>Area m²</th><th>Edges / Notes</th>
+            </tr>
+          </thead>
+          <tbody id="rdTbody">
+            <tr><td colspan="6" style="color:#aaa;text-align:center;padding:14px;">Run AI Drawing to detect sections</td></tr>
+          </tbody>
+          <tfoot id="rdTfoot" style="display:none">
+            <tr>
+              <td colspan="3">TOTAL</td>
+              <td id="rdTotPitch">—</td>
+              <td id="rdTotArea">—</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+        <div style="font-size:.68rem;color:#aaa;margin-top:6px;margin-bottom:10px;" id="rdNotes"></div>
+
         <div class="rd-panel-title">Address</div>
         <div id="rdSheetAddr" style="line-height:1.45;color:#333;margin-bottom:12px;">--</div>
 
@@ -1090,33 +1102,18 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         </div>
         <button type="button" class="btn btn-sm btn-outline-secondary w-100 mt-2" onclick="rdPrintSheet()">Print Sheet</button>
       </aside>
-    </div>
 
-    <!-- Section table -->
-    <div style="padding:12px 16px 10px;">
-      <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#1a1a2e;margin-bottom:6px;">
-        📐 Detected Roof Sections
+      <!-- ── Satellite drawing canvas (col 2 / right) ── -->
+      <div id="rdCanvasWrap">
+        <canvas id="rdCanvas"></canvas>
+        <div id="rdLoadingOverlay" aria-live="polite">
+          <div class="rd-loading-panel">
+            <div class="rd-loading-spinner"></div>
+            <strong id="rdLoadingTitle">Preparing roof sheet</strong>
+            <span id="rdLoadingDetail">Clearing the previous address and reading fresh roof edges.</span>
+          </div>
+        </div>
       </div>
-      <table id="rdTable">
-        <thead>
-          <tr>
-            <th>#</th><th>Section</th><th>Facing</th><th>Pitch</th>
-            <th>Area m²</th><th>Edges / Notes</th>
-          </tr>
-        </thead>
-        <tbody id="rdTbody">
-          <tr><td colspan="6" style="color:#aaa;text-align:center;padding:14px;">Run AI Drawing to detect sections</td></tr>
-        </tbody>
-        <tfoot id="rdTfoot" style="display:none">
-          <tr>
-            <td colspan="3">TOTAL</td>
-            <td id="rdTotPitch">—</td>
-            <td id="rdTotArea">—</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-      <div style="font-size:.68rem;color:#aaa;margin-top:6px;" id="rdNotes"></div>
     </div>
   </div>
 
