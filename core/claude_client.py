@@ -33,7 +33,7 @@ def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
-            model="claude-opus-4-6",   # Opus required — roof polygon extraction is complex
+            model="claude-opus-4-7",   # Opus required — roof polygon extraction is complex
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{
@@ -52,7 +52,7 @@ def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
 
 def call_claude_vision_multi(system_prompt: str, user_text: str, images: list,
                               max_tokens: int = 1024,
-                              model: str = "claude-sonnet-4-6") -> dict:
+                              model: str = "claude-opus-4-7") -> dict:
     """
     Call Claude with multiple base64 images + a text prompt.
 
@@ -127,7 +127,7 @@ def call_claude(system_prompt: str, user_message: str, tools: list = None,
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         params = {
-            "model": "claude-sonnet-4-6",
+            "model": "claude-opus-4-7",
             "max_tokens": max_tokens,
             "system": system_prompt,
             "messages": [{"role": "user", "content": user_message}],

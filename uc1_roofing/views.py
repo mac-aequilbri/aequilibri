@@ -2190,7 +2190,7 @@ def roof_drawing_analyze(request):
             )
             p1_result = call_claude_vision_multi(
                 ROOF_OUTLINE_SYSTEM, p1_user, p1_images,
-                max_tokens=512, model="claude-sonnet-4-6",
+                max_tokens=512, model="claude-opus-4-7",
             )
             try:
                 p1_raw = re.sub(r'(?s)^```(?:json)?\s*|\s*```$', '',

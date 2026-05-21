@@ -405,7 +405,7 @@ def detect_roof_features(request):
             "{" + _BASE_JSON + "}"
         )
         result = call_claude_vision_multi(system, prompt, images, max_tokens=800,
-                                          model="claude-opus-4-6")
+                                          model="claude-opus-4-7")
         result["views_used"] = ["aerial"] + sv_labels
 
     else:

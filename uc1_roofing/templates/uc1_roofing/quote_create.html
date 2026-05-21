@@ -81,7 +81,8 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
    setting intrinsic pixel dimensions after load. */
 #rdBody { flex:1; overflow:hidden; padding:0; min-height:0; position:relative; }
 #rdWorkArea { position:absolute; inset:0; display:grid; grid-template-columns:360px minmax(0,1fr); grid-template-rows:1fr; gap:0; }
-#rdCanvasWrap { position:relative; background:#111; overflow-y:auto; overflow-x:hidden; }
+#rdCanvasWrap { position:relative; background:#111; overflow-y:auto; overflow-x:auto;
+                min-height:0; min-width:0; }
 #rdCanvas { display:block; max-width:none; cursor:crosshair; background:#111; }
 #rdLoadingOverlay {
   position:absolute; inset:0; z-index:4; display:none; align-items:center; justify-content:center;
