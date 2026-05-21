@@ -1264,10 +1264,18 @@ def solar_analyze(request):
 
 # ─── AJAX: AI Roof Drawing — satellite screenshot → Claude Vision ─────────────
 
-ROOF_VISION_SYSTEM = """You are an expert roofing estimator analyzing a top-down satellite image of a residential property in Queensland, Australia.
+ROOF_VISION_SYSTEM = """You are an expert roofing estimator analyzing a top-down satellite image of a property in Queensland, Australia.
 
 Your task is to draw the complete roof outline and identify every distinct roof section
-(slope/facet) visible on the MAIN selected building only.
+(slope/facet) visible on the SINGLE selected building only — the one containing the yellow dot.
+
+═══ SINGLE-ROOF RULE (most important) ═══
+The image may show multiple buildings, sheds, or structures.
+You MUST draw roof_outline and sections for ONLY the one building where the yellow dot sits.
+Do NOT include any other structure, even if it is adjacent, larger, or brighter.
+The roof_outline must be tight — within 1-2 metres of the actual roof edge.
+If you are unsure which building has the yellow dot, draw the smallest reasonable outline
+around the dot and mark confidence as "low".
 
 Rules:
 - North is UP in the image (standard map orientation)
@@ -1278,8 +1286,9 @@ Rules:
   selected roof when the image clearly shows more roof outside the guide.
 - Do not include adjacent roofs, neighboring dwellings, carports, sheds, trees, pools, or roads.
 - facing: the compass direction the slope DRAINS toward (N/NE/E/SE/S/SW/W/NW)
-- pitch_est: estimated pitch in degrees (typical QLD: 15–30°; flat: <5°)
-- Ignore garages, sheds, carports unless they are clearly part of the main dwelling roof
+- pitch_est: estimated pitch in degrees (typical QLD: 15–30°; flat/metal shed: <5°; corrugated iron: 5–15°)
+- Draw the minimum number of sections that accurately represent visible distinct facets.
+  Do not over-segment — a simple gable roof should have 2 sections, a hip roof 4.
 - If you cannot clearly see the roof sections, still return your best estimate
 
 Respond with ONLY valid JSON, no explanation, no markdown fences. Format:
@@ -1880,7 +1889,11 @@ def roof_drawing_analyze(request):
             if correction_learning.text else ""
         )
 
-        # ── Solar API: pre-fetch section geometry for measurement calibration ──
+        # ── Solar API: fetch dominant pitch + total area for calibration only ──
+        # IMPORTANT: Do NOT feed individual Solar API sections to Claude.
+        # The Solar API covers ALL structures at the location (entire farm/complex),
+        # so listing its sections causes Claude to draw every building, not just the
+        # clicked one.  Only the dominant pitch and total area are safe calibration hints.
         solar_data: dict = {}
         solar_context = ""
         try:
@@ -1888,21 +1901,19 @@ def roof_drawing_analyze(request):
             _s = _solar_full(lat, lng)
             if _s.get("ok") and _s.get("sections"):
                 solar_data = _s
-                solar_secs = _s["sections"]
+                dominant_pitch = _s.get("dominant_pitch_deg")
+                total_area = _s.get("total_area_m2")
+                imagery_date = _s.get("imagery_date", "?")
                 solar_context = (
-                    f"\n\nGoogle Solar API photogrammetry data for this building "
-                    f"(imagery {_s.get('imagery_date', '?')}, "
-                    f"quality {_s.get('imagery_quality', '?')}) "
-                    f"detected {len(solar_secs)} roof section(s):\n"
-                    + "".join(
-                        f"  Section {i}: facing={s['facing']}, pitch={s['pitch_deg']}°, "
-                        f"slope={s['slope_category']}, actual_area={s['area_m2']} m²\n"
-                        for i, s in enumerate(solar_secs[:6], 1)
-                    )
-                    + f"Total roof area from Solar API: {_s.get('total_area_m2', '?')} m². "
-                    "When drawing roof sections, match them to these Solar API segments by "
-                    "facing direction and use the Solar API pitch_deg as ground truth. "
-                    "Your drawn area polygons should together approximate the Solar API total."
+                    f"\n\nCalibration reference (Google Solar API, imagery {imagery_date}): "
+                    f"the dominant roof pitch at this location is approximately "
+                    f"{dominant_pitch}°"
+                    + (f" and the clicked building's total roof area is approximately {total_area} m²"
+                       if total_area else "")
+                    + ". Use the pitch when assigning pitch_est values. "
+                    "Do NOT use this to decide how many sections to draw — "
+                    "draw only the sections you can visually observe on the single roof "
+                    "containing the yellow dot."
                 )
         except Exception:
             pass
@@ -1915,10 +1926,13 @@ def roof_drawing_analyze(request):
             f"{guide_prompt}"
             f"{correction_learning_text}"
             f"The yellow dot marks the user's click on the selected roof. "
-            f"Return roof_outline as a polygon around the complete connected visible roof containing the yellow dot. "
-            f"Use roof_outline as the boundary for sections. Ignore every neighboring roof, even if "
-            f"it is bright or close in the crop. Before returning JSON, internally check that the yellow dot is "
-            f"inside roof_outline, all section polygons sit inside roof_outline, and no nearby detached roof is included. "
+            f"The yellow dot marks the SINGLE roof to analyse. Return roof_outline tightly around "
+            f"only that one connected structure. If multiple buildings are visible, "
+            f"draw ONLY the building where the yellow dot sits — exclude every other structure. "
+            f"Use roof_outline as the boundary for all sections. "
+            f"Before returning JSON, internally verify: (1) the yellow dot is inside roof_outline, "
+            f"(2) all section polygons sit inside roof_outline, (3) no other building is included, "
+            f"(4) the section count is the minimum needed to describe the visible facets. "
             f"{solar_context}"
             f"Return the JSON as instructed."
         )
@@ -1964,10 +1978,6 @@ def roof_drawing_analyze(request):
                 sec['area_m2'] = round(area_px2 * meters_per_px ** 2 * slope_factor, 1)
             else:
                 sec['area_m2'] = 0
-
-        # ── Apply Solar API calibration (override pitch + area with ground truth) ─
-        if solar_data.get("ok") and solar_data.get("sections"):
-            _apply_solar_to_sections(parsed.get('sections', []), solar_data['sections'])
 
         return JsonResponse({
             'ok': True,
