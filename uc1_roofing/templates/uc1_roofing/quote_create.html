@@ -5075,12 +5075,19 @@ function rdQualityMetrics(data=rdData) {
 
 // ── Detected Features helpers ─────────────────────────────────────────────────
 
-function rdRenderFeatures({ solar_panels=false, solar_hw=false, scaffolding=false,
-                             solar_panels_confidence='', solar_hw_confidence='',
-                             other_features=[], scanning=false } = {}) {
+function rdRenderFeatures({
+    solar_panels=false, solar_hw=false, scaffolding=false,
+    solar_panels_confidence='', solar_hw_confidence='',
+    other_features=[], scanning=false,
+    roof_style='', roof_style_confidence='',
+    roof_material='', roof_material_confidence='',
+    storeys=null, condition='',
+    views_used=[]
+  } = {}) {
   const el = document.getElementById('rdDetectedFeatures');
   if (!el) return;
 
+  // Presence badge (green tick or grey dash)
   const badge = (detected, conf) => {
     if (detected) {
       const c = conf === 'high' ? '#1b5e20' : conf === 'medium' ? '#e65100' : '#2e7d32';
@@ -5089,6 +5096,7 @@ function rdRenderFeatures({ solar_panels=false, solar_hw=false, scaffolding=fals
     return `<span style="font-size:.68rem;color:#9e9e9e">— Not detected</span>`;
   };
 
+  // Boolean feature row (green when present, grey when absent)
   const row = (icon, label, detected, conf='') => `
     <div style="display:flex;align-items:center;justify-content:space-between;
                 padding:5px 8px;border-radius:6px;margin-bottom:4px;
@@ -5098,20 +5106,83 @@ function rdRenderFeatures({ solar_panels=false, solar_hw=false, scaffolding=fals
       ${badge(detected, conf)}
     </div>`;
 
-  let html = row('☀️', 'Solar panels',    solar_panels, solar_panels_confidence)
-           + row('🌡️', 'Solar hot water', solar_hw,      solar_hw_confidence)
-           + row('🏗️', 'Scaffolding',     scaffolding,   scaffolding ? 'high' : '');
+  // Info row for architectural attributes
+  const infoRow = (icon, label, value, conf='', valueColour='#333') => `
+    <div style="display:flex;align-items:center;justify-content:space-between;
+                padding:5px 8px;border-radius:6px;margin-bottom:4px;
+                background:#f0f4ff;border:1px solid #c5cae9">
+      <span style="font-size:.78rem;">${icon} ${label}</span>
+      <span style="font-size:.68rem;font-weight:700;color:${valueColour}">
+        ${value}${conf && conf !== 'low' ? ' <span style="font-weight:400;color:#888">('+conf+')</span>' : ''}
+      </span>
+    </div>`;
 
+  // ── Source indicator ──────────────────────────────────────────────────
+  let html = '';
+  if (!scanning && views_used.length) {
+    const hasSV = views_used.includes('streetview');
+    const srcLabel = hasSV
+      ? '📡 Aerial satellite &nbsp;+&nbsp; 📸 Street View'
+      : '📡 Aerial satellite only';
+    html += `<div style="font-size:.62rem;color:#1565c0;text-align:center;
+                         background:#e3f2fd;border-radius:5px;padding:3px 6px;
+                         margin-bottom:7px;border:1px solid #90caf9;">
+               ${srcLabel}
+             </div>`;
+  }
+
+  // ── Presence checks ───────────────────────────────────────────────────
+  html += row('☀️', 'Solar panels',    solar_panels, solar_panels_confidence);
+  html += row('🌡️', 'Solar hot water', solar_hw,     solar_hw_confidence);
+  html += row('🏗️', 'Scaffolding',     scaffolding,  scaffolding ? 'high' : '');
+
+  // ── Architectural info (from street view) ─────────────────────────────
+  const hasArch = (roof_style && roof_style !== 'unknown')
+               || (roof_material && roof_material !== 'unknown')
+               || storeys
+               || (condition && condition !== 'unknown');
+
+  if (hasArch) {
+    html += `<div style="border-top:1px dashed #ccc;margin:7px 0 6px;
+                          font-size:.62rem;color:#888;text-align:center;">
+               🏠 Roof Architecture
+             </div>`;
+
+    if (roof_style && roof_style !== 'unknown') {
+      const styleLabel = roof_style.replace(/_/g, ' ')
+                                   .replace(/\b\w/g, c => c.toUpperCase());
+      html += infoRow('📐', 'Style', styleLabel, roof_style_confidence);
+    }
+
+    if (roof_material && roof_material !== 'unknown') {
+      const matLabel = roof_material.replace(/_/g, ' ')
+                                    .replace(/\b\w/g, c => c.toUpperCase());
+      html += infoRow('🏠', 'Material', matLabel, roof_material_confidence);
+    }
+
+    if (storeys && storeys > 0) {
+      html += infoRow('🏢', 'Storeys', storeys.toString());
+    }
+
+    if (condition && condition !== 'unknown') {
+      const condColour = condition === 'good' ? '#1b5e20'
+                       : condition === 'poor' ? '#b71c1c' : '#e65100';
+      const condLabel = condition.charAt(0).toUpperCase() + condition.slice(1);
+      html += infoRow('🔎', 'Condition', condLabel, '', condColour);
+    }
+  }
+
+  // ── Other features noted ──────────────────────────────────────────────
   if (other_features && other_features.length) {
     html += `<div style="font-size:.68rem;color:#555;margin-top:5px;padding:4px 8px;
                          background:#fff8e1;border-radius:5px;border:1px solid #ffe082;">
-               🔎 Also noted: ${other_features.join(', ')}
+               🔎 Also noted: ${other_features.map(f => f.replace(/_/g,' ')).join(', ')}
              </div>`;
   }
 
   if (scanning) {
     html += `<div style="font-size:.65rem;color:#1565c0;margin-top:5px;text-align:center;">
-               ⏳ Scanning roof image with AI…
+               ⏳ Scanning aerial + street view…
              </div>`;
   }
 
@@ -5129,13 +5200,20 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
     if (!resp.ok) return;
     const d = await resp.json();
     rdRenderFeatures({
-      solar_panels:            d.solar_panels || false,
-      solar_panels_confidence: d.solar_panels_confidence || '',
-      solar_hw:                d.solar_hw || false,
-      solar_hw_confidence:     d.solar_hw_confidence || '',
-      scaffolding:             scaffoldingRequired,
-      other_features:          d.other_features || [],
-      scanning:                false,
+      solar_panels:             d.solar_panels || false,
+      solar_panels_confidence:  d.solar_panels_confidence || '',
+      solar_hw:                 d.solar_hw || false,
+      solar_hw_confidence:      d.solar_hw_confidence || '',
+      scaffolding:              scaffoldingRequired,
+      other_features:           d.other_features || [],
+      roof_style:               d.roof_style || '',
+      roof_style_confidence:    d.roof_style_confidence || '',
+      roof_material:            d.roof_material || '',
+      roof_material_confidence: d.roof_material_confidence || '',
+      storeys:                  d.storeys || null,
+      condition:                d.condition || '',
+      views_used:               d.views_used || [],
+      scanning:                 false,
     });
   } catch(e) {
     console.warn('Feature detection error:', e);

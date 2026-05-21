@@ -197,71 +197,167 @@ def _persist_lidar_analysis(quote_id, result: dict) -> None:
 @csrf_exempt
 def detect_roof_features(request):
     """
-    Fetch a satellite image of the roof via Google Static Maps API and
-    send it to Claude Vision to detect solar panels, solar hot water,
-    and other rooftop features.
+    Fetch a satellite image + Google Street View image and send both to
+    Claude Vision for a richer rooftop analysis.
+
     POST { lat, lng }
-    Returns { solar_panels, solar_hw, other_features, notes, demo_mode }
+
+    Returns {
+        solar_panels, solar_panels_confidence,
+        solar_hw, solar_hw_confidence,
+        roof_style, roof_style_confidence,
+        roof_material, roof_material_confidence,
+        storeys, condition,
+        other_features, notes,
+        views_used,   # e.g. ["aerial", "streetview"]
+        demo_mode
+    }
     """
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
 
     try:
         body = json.loads(request.body)
-        lat  = float(body["lat"])
-        lng  = float(body["lng"])
+        lat = float(body["lat"])
+        lng = float(body["lng"])
     except (KeyError, ValueError, json.JSONDecodeError) as exc:
         return JsonResponse({"error": str(exc)}, status=400)
 
-    # ── 1. Fetch satellite image from Google Static Maps ──────────────────
-    api_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
-    img_b64  = None
-    if api_key:
-        static_url = (
+    google_key = getattr(settings, "GOOGLE_MAPS_API_KEY", "")
+    images = []  # list of {"b64": str, "media_type": str, "label": str}
+
+    # ── 1. Satellite aerial image (zoom-20 top-down) ──────────────────────
+    if google_key:
+        satellite_url = (
             f"https://maps.googleapis.com/maps/api/staticmap"
             f"?center={lat},{lng}&zoom=20&size=640x640"
-            f"&maptype=satellite&key={api_key}"
+            f"&maptype=satellite&key={google_key}"
         )
         try:
-            req = urllib.request.Request(static_url, headers={"User-Agent": "aequilibri/1.0"})
+            req = urllib.request.Request(satellite_url, headers={"User-Agent": "aequilibri/1.0"})
             with urllib.request.urlopen(req, timeout=10) as resp:
-                img_b64 = base64.b64encode(resp.read()).decode()
+                images.append({
+                    "b64": base64.b64encode(resp.read()).decode(),
+                    "media_type": "image/png",
+                    "label": "aerial",
+                })
         except Exception:
-            img_b64 = None
+            pass
 
-    # ── 2. Call Claude Vision ─────────────────────────────────────────────
-    from core.claude_client import call_claude_vision, call_claude
+    # ── 2. Street View — check availability then fetch ────────────────────
+    sv_available = False
+    if google_key:
+        meta_url = (
+            f"https://maps.googleapis.com/maps/api/streetview/metadata"
+            f"?location={lat},{lng}&radius=100&source=outdoor&key={google_key}"
+        )
+        try:
+            req = urllib.request.Request(meta_url, headers={"User-Agent": "aequilibri/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                meta = json.loads(resp.read())
+                sv_available = meta.get("status") == "OK"
+        except Exception:
+            sv_available = False
 
-    if img_b64:
+    if sv_available and google_key:
+        sv_url = (
+            f"https://maps.googleapis.com/maps/api/streetview"
+            f"?size=640x480&location={lat},{lng}"
+            f"&fov=90&pitch=10&source=outdoor&key={google_key}"
+        )
+        try:
+            req = urllib.request.Request(sv_url, headers={"User-Agent": "aequilibri/1.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                images.append({
+                    "b64": base64.b64encode(resp.read()).decode(),
+                    "media_type": "image/jpeg",
+                    "label": "streetview",
+                })
+        except Exception:
+            sv_available = False
+
+    # ── 3. Build prompt and call Claude Vision ────────────────────────────
+    from core.claude_client import call_claude_vision, call_claude_vision_multi
+
+    has_aerial = any(i["label"] == "aerial" for i in images)
+    has_sv     = any(i["label"] == "streetview" for i in images)
+
+    _BASE_JSON = (
+        '"solar_panels": true/false, '
+        '"solar_panels_confidence": "high/medium/low", '
+        '"solar_hw": true/false, '
+        '"solar_hw_confidence": "high/medium/low", '
+        '"roof_style": "gable/hip/flat/skillion/mansard/unknown", '
+        '"roof_style_confidence": "high/medium/low", '
+        '"roof_material": "terracotta_tiles/concrete_tiles/metal_colorbond/asphalt/slate/unknown", '
+        '"roof_material_confidence": "high/medium/low", '
+        '"storeys": 1, '
+        '"condition": "good/fair/poor/unknown", '
+        '"other_features": ["list or empty array"], '
+        '"notes": "one sentence summary"'
+    )
+
+    if not images:
+        result = {
+            "content": (
+                '{"solar_panels":false,"solar_panels_confidence":"low",'
+                '"solar_hw":false,"solar_hw_confidence":"low",'
+                '"roof_style":"unknown","roof_style_confidence":"low",'
+                '"roof_material":"unknown","roof_material_confidence":"low",'
+                '"storeys":null,"condition":"unknown","other_features":[],'
+                '"notes":"No imagery available — manual inspection required."}'
+            ),
+            "demo_mode": True,
+            "views_used": [],
+        }
+
+    elif has_sv:
+        # Two-image analysis: satellite + street view
         system = (
-            "You are an expert roof inspector analysing an aerial satellite photograph "
-            "of an Australian residential or commercial property. "
-            "Your task is to visually identify features present on the roof. "
+            "You are an expert Australian roof inspector. You will be given TWO images "
+            "of the same property: an aerial satellite view and a street-level view. "
             "Respond ONLY with a valid JSON object — no markdown, no extra text."
         )
         prompt = (
-            "Examine this satellite rooftop image carefully. Identify if the following "
-            "are visibly present:\n"
-            "1. Solar PV panels (dark rectangular panels in arrays)\n"
-            "2. Solar hot water system (flat plate collectors or evacuated tube collectors, "
-            "often with a cylindrical tank)\n"
-            "3. Any other notable rooftop features (e.g. skylights, roof vents, "
-            "air conditioning units, antennas, heritage features)\n\n"
-            "Respond with ONLY this JSON:\n"
-            '{"solar_panels": true/false, "solar_panels_confidence": "high/medium/low", '
-            '"solar_hw": true/false, "solar_hw_confidence": "high/medium/low", '
-            '"other_features": ["list of strings or empty array"], '
-            '"notes": "one sentence summary"}'
+            "You have two images of the same Australian residential or commercial property:\n\n"
+            "• IMAGE 1 — AERIAL/SATELLITE (top-down): use this to identify solar PV panels "
+            "(dark rectangular arrays), solar hot water systems (flat collectors + tank), "
+            "AC units, skylights, pools, and the roof footprint shape.\n\n"
+            "• IMAGE 2 — STREET VIEW (ground level): use this to identify the roof style "
+            "(gable / hip / flat / skillion / mansard), roof cladding material "
+            "(terracotta tiles / concrete tiles / metal Colorbond / asphalt / slate), "
+            "number of visible storeys, and overall roof condition (good / fair / poor).\n\n"
+            "Respond with ONLY this JSON (no markdown fences):\n"
+            "{" + _BASE_JSON + "}"
         )
-        result = call_claude_vision(system, prompt, img_b64, media_type="image/png", max_tokens=512)
-    else:
-        # No image available — fall back to text-only Claude with a note
-        result = {"content": '{"solar_panels":false,"solar_panels_confidence":"low","solar_hw":false,"solar_hw_confidence":"low","other_features":[],"notes":"Satellite image unavailable — manual inspection required."}', "demo_mode": True}
+        result = call_claude_vision_multi(system, prompt, images, max_tokens=700)
+        result["views_used"] = ["aerial", "streetview"]
 
-    # ── 3. Parse and return ───────────────────────────────────────────────
+    else:
+        # Satellite only — best-effort from aerial alone
+        system = (
+            "You are an expert roof inspector analysing an aerial satellite photograph "
+            "of an Australian residential or commercial property. "
+            "Respond ONLY with a valid JSON object — no markdown, no extra text."
+        )
+        prompt = (
+            "Examine this top-down satellite image of the property carefully.\n\n"
+            "Identify any visible rooftop features (solar panels, solar hot water, "
+            "AC units, skylights, pools). Roof style, material and condition are "
+            "difficult to determine from aerial only — set those to 'unknown' unless "
+            "clearly visible.\n\n"
+            "Respond with ONLY this JSON (no markdown fences):\n"
+            "{" + _BASE_JSON + "}"
+        )
+        img = images[0]
+        result = call_claude_vision(
+            system, prompt, img["b64"], media_type=img["media_type"], max_tokens=700
+        )
+        result["views_used"] = ["aerial"]
+
+    # ── 4. Parse JSON response ────────────────────────────────────────────
     try:
         raw = result["content"].strip()
-        # Strip any accidental markdown fences
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -273,10 +369,17 @@ def detect_roof_features(request):
             "solar_panels_confidence": "low",
             "solar_hw": False,
             "solar_hw_confidence": "low",
+            "roof_style": "unknown",
+            "roof_style_confidence": "low",
+            "roof_material": "unknown",
+            "roof_material_confidence": "low",
+            "storeys": None,
+            "condition": "unknown",
             "other_features": [],
             "notes": "Could not parse AI response.",
         }
 
-    data["demo_mode"] = result.get("demo_mode", False)
+    data["demo_mode"]  = result.get("demo_mode", False)
+    data["views_used"] = result.get("views_used", [])
     return JsonResponse(data)
 

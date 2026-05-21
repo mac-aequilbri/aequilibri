@@ -20,6 +20,9 @@ logs/
 server.pid
 *.log
 
+# ── Local test / debug scripts ───────────────────────────────
+test_detect.py
+
 # ── Render / deployment scratch ──────────────────────────────
 .tmp
 js1g6eyn

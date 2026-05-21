@@ -4,24 +4,36 @@ If ANTHROPIC_API_KEY is set, calls real Claude Sonnet 4.6.
 Otherwise returns a demo/simulated response.
 """
 import json
+import os
 from datetime import datetime
 from django.conf import settings
+
+
+def _get_api_key() -> str:
+    """Return the Anthropic API key, checking both Django settings and os.environ.
+
+    settings.py reads the key at import time via os.environ.get().  If the system
+    environment already had ANTHROPIC_API_KEY set as an empty string before
+    load_dotenv ran (common on Windows dev machines), settings ends up empty.
+    Checking os.environ here as a fallback ensures the .env value always wins.
+    """
+    return getattr(settings, 'ANTHROPIC_API_KEY', '') or os.environ.get('ANTHROPIC_API_KEY', '')
 
 
 def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
                        media_type: str = 'image/png', max_tokens: int = 2048) -> dict:
     """
-    Call Claude with a base64 image + text prompt.
+    Call Claude with a single base64 image + text prompt.
     Returns { "content": str, "demo_mode": bool }
     """
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
+    api_key = _get_api_key()
     if not api_key:
         return {"content": '{"sections":[],"notes":"Demo mode — no API key","confidence":"low"}', "demo_mode": True}
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{
@@ -38,13 +50,75 @@ def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
         return {"content": f'{{"sections":[],"notes":"Claude error: {e}","confidence":"low"}}', "demo_mode": False}
 
 
+def call_claude_vision_multi(system_prompt: str, user_text: str, images: list,
+                              max_tokens: int = 1024) -> dict:
+    """
+    Call Claude with multiple base64 images + a text prompt.
+
+    images: list of dicts with keys:
+        "b64"        — base64-encoded image data
+        "media_type" — e.g. "image/png" or "image/jpeg"
+        "label"      — descriptive label (not sent to Claude, used locally)
+
+    Returns { "content": str, "demo_mode": bool }
+    """
+    api_key = _get_api_key()
+    if not api_key:
+        return {
+            "content": (
+                '{"solar_panels":false,"solar_panels_confidence":"low",'
+                '"solar_hw":false,"solar_hw_confidence":"low",'
+                '"roof_style":"unknown","roof_style_confidence":"low",'
+                '"roof_material":"unknown","roof_material_confidence":"low",'
+                '"storeys":null,"condition":"unknown","other_features":[],'
+                '"notes":"Demo mode — no API key"}'
+            ),
+            "demo_mode": True,
+        }
+    try:
+        import anthropic
+        content = []
+        for img in images:
+            content.append({
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": img.get("media_type", "image/jpeg"),
+                    "data": img["b64"],
+                },
+            })
+        content.append({"type": "text", "text": user_text})
+
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": content}],
+        )
+        text = "\n".join(b.text for b in response.content if b.type == "text")
+        return {"content": text, "demo_mode": False}
+    except Exception as e:
+        return {
+            "content": (
+                f'{{"solar_panels":false,"solar_panels_confidence":"low",'
+                f'"solar_hw":false,"solar_hw_confidence":"low",'
+                f'"roof_style":"unknown","roof_style_confidence":"low",'
+                f'"roof_material":"unknown","roof_material_confidence":"low",'
+                f'"storeys":null,"condition":"unknown","other_features":[],'
+                f'"notes":"Claude error: {e}"}}'
+            ),
+            "demo_mode": False,
+        }
+
+
 def call_claude(system_prompt: str, user_message: str, tools: list = None,
                 max_tokens: int = 1024) -> dict:
     """
     Call Claude and return a dict:
       { "content": str, "tool_uses": list, "demo_mode": bool }
     """
-    api_key = getattr(settings, 'ANTHROPIC_API_KEY', '')
+    api_key = _get_api_key()
     if not api_key:
         return _demo_response(system_prompt, user_message, tools)
 
