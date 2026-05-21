@@ -149,7 +149,7 @@ dialog#roofDrawDialog::backdrop { background:rgba(0,0,0,.6); }
 #rdZoomReadout { font-size:.66rem; color:#777; text-align:center; margin-top:6px; }
 .rd-pitch-input { width:62px; padding:3px 5px; border:1px solid #cfd4dc; border-radius:4px; font-size:.76rem; }
 #rdStatus { padding:10px 16px; font-size:.8rem; color:#555; background:#f8f9fa;
-            border-bottom:1px solid #eee; display:flex; align-items:center; gap:8px; }
+            border-bottom:1px solid #eee; display:none; align-items:center; gap:8px; }
 #rdTable  { width:100%; border-collapse:collapse; font-size:.78rem; }
 #rdTable thead th { background:#1a1a2e; color:#fff; padding:6px 10px;
                     text-align:left; font-size:.7rem; font-weight:600; }
@@ -6811,9 +6811,13 @@ function rdSetRoofLoading(active, title='Preparing roof sheet', detail='Reading 
   const overlay = document.getElementById('rdLoadingOverlay');
   const titleEl = document.getElementById('rdLoadingTitle');
   const detailEl = document.getElementById('rdLoadingDetail');
+  const statusBar = document.getElementById('rdStatus');
   if (titleEl) titleEl.textContent = title;
   if (detailEl) detailEl.textContent = detail;
   if (overlay) overlay.classList.toggle('active', !!active);
+  // Hide the white status strip while the dark loading overlay is visible —
+  // showing both creates an awkward white gap between the header and canvas.
+  if (statusBar) statusBar.style.display = active ? 'none' : 'flex';
   if (active && clearCanvas) {
     rdClearCanvasForLoading();
     rdResetDrawingSummary();
