@@ -4403,24 +4403,24 @@ function rdClampZoom(value) {
 }
 
 function rdCanvasDisplaySize(data, wrap) {
-  // Compute a canvas size that, at zoom 1.0, FITS the entire roof image
-  // inside the wrap's viewport on BOTH axes (object-fit:contain style).
-  // At higher zoom levels the canvas grows past the viewport on whichever
-  // axis(es) overflow, so #rdCanvasWrap (overflow:auto) gets a real
-  // scrollbar on each overflowing axis.  This is bulletproof — no more
-  // "the image is cut off and I can't scroll".
+  // At zoom 1.0 the canvas fits ENTIRELY inside the wrap (object-fit:contain)
+  // with a 4px safety margin so rounding can never produce micro-overflow.
+  // At zoom > 1.0 the canvas grows past the wrap on whichever axis(es)
+  // overflow, producing real scrollbars via #rdCanvasWrap { overflow:auto }.
   const sourceW = Math.max(1, rdNum(data && data.width, 640));
   const sourceH = Math.max(1, rdNum(data && data.height, 400));
   const rect = wrap && wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : null;
-  const visibleW = Math.max(320, Math.ceil((rect && rect.width)  || (wrap ? wrap.clientWidth  : 0) || 760));
-  const visibleH = Math.max(240, Math.ceil((rect && rect.height) || (wrap ? wrap.clientHeight : 0) || 500));
-  // Fit-to-viewport scale (preserve aspect ratio, contain inside the wrap).
+  // Use Math.floor + 4px safety to guarantee no off-by-one overflow.
+  const rawW = (rect && rect.width)  || (wrap ? wrap.clientWidth  : 0) || 760;
+  const rawH = (rect && rect.height) || (wrap ? wrap.clientHeight : 0) || 500;
+  const visibleW = Math.max(80, Math.floor(rawW) - 4);
+  const visibleH = Math.max(80, Math.floor(rawH) - 4);
   const fitScale = Math.min(visibleW / sourceW, visibleH / sourceH);
   const zoom = rdClampZoom(rdViewZoom);
   const scale = fitScale * zoom;
   return {
-    width:  Math.max(320, Math.round(sourceW * scale)),
-    height: Math.max(240, Math.round(sourceH * scale)),
+    width:  Math.max(1, Math.floor(sourceW * scale)),
+    height: Math.max(1, Math.floor(sourceH * scale)),
     scale,
   };
 }
@@ -6578,6 +6578,22 @@ let rdNudgeStarted = false;
 let rdSavedCorrectionCache = new Map();
 const RD_ZOOM_MIN = 0.5;
 const RD_ZOOM_MAX = 3;
+
+// Re-fit the roof canvas to the new viewport when the window resizes.
+// Throttled to one redraw per animation frame to avoid layout thrash.
+(function rdInstallResizeHandler() {
+  let raf = 0;
+  window.addEventListener('resize', () => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      const dlg = document.getElementById('roofDrawDialog');
+      if (dlg && dlg.open && rdData && typeof rdDrawCanvas === 'function') {
+        rdDrawCanvas(rdData);
+      }
+    });
+  });
+})();
 
 function openRoofDrawing() {
   const dlg = document.getElementById('roofDrawDialog');
