@@ -1270,17 +1270,16 @@ ROOF_VISION_SYSTEM = """You are an expert roofing estimator analyzing a top-down
 Your task is to draw the complete roof outline and identify every distinct roof section
 (slope/facet) visible on the SINGLE selected building only — the one containing the yellow dot.
 
-═══ OUTLINE TIGHTNESS — CRITICAL ═══
-Every vertex of roof_outline MUST lie on PHYSICAL ROOF MATERIAL (tile, metal sheet, membrane,
-solar panels installed on the roof). If a vertex would land on grass, dirt, driveway, road,
-trees, shadow, pool, neighbour's roof, or empty ground, MOVE IT INWARD until it touches
-the actual roof edge.
+═══ OUTLINE POLICY ═══
+If the user prompt says the green polygon is LOCKED, copy it verbatim into roof_outline
+(or leave roof_outline empty — it will be ignored). DO NOT redraw the outline; it comes
+from an authoritative building-footprint dataset and is already correct. Spend ALL your
+analytical effort on identifying the SECTIONS inside that locked polygon.
 
-Before returning JSON, test every vertex: "Is this pixel ROOF or NOT-ROOF?" If NOT-ROOF,
-shrink the polygon. A roof outline that includes ANY non-roof area is WRONG.
-
-Prefer too-tight over too-loose. A 1-metre underestimate on outline area is far better
-than a 5-metre overestimate that drags grass into the polygon.
+If the prompt says NO external footprint is provided, then trace a tight outline yourself:
+every vertex must lie on PHYSICAL ROOF MATERIAL (tile, metal sheet, membrane). If a vertex
+would land on grass, dirt, road, trees, shadow, pool, or neighbour's roof, move it INWARD
+until it touches actual roof edge. Prefer too-tight over too-loose.
 
 ═══ SINGLE-ROOF RULE ═══
 The image may show multiple buildings, sheds, or structures.
@@ -2094,21 +2093,28 @@ def roof_drawing_analyze(request):
         vision_b64, vision_media_type = _annotate_image_for_roof_vision(img_bytes, footprint_px, click_px)
 
         # ── Call Claude Vision ───────────────────────────────────────────────
+        # NEW POLICY (per user request, 2026-05-22): when a Geoscape/Microsoft
+        # footprint is available, it is treated as 99% accurate and locked in
+        # as the final roof_outline.  Claude is told NOT to redraw the outline
+        # — its only job is to identify sections WITHIN that fixed polygon.
+        # Only when no footprint exists at all do we let Claude trace one.
+        outline_is_locked = bool(footprint_pct)
         guide_source = map_view.get('footprint_source') or ''
-        if footprint_pct and guide_source == 'selected_outline':
+        if outline_is_locked:
             guide_prompt = (
-                f"The current map roof guide is shown in green and has this "
-                f"percentage-coordinate polygon: {json.dumps(footprint_pct)}. Use it to locate and crop the target roof, "
-                f"but do not copy it as the final outline if visible roof edges disagree. "
-            )
-        elif footprint_pct:
-            guide_prompt = (
-                f"The approximate Microsoft footprint is outlined in green and has this "
-                f"percentage-coordinate polygon: {json.dumps(footprint_pct)}. Use it only as a hint. "
+                f"The roof_outline is ALREADY PROVIDED and LOCKED — it is the green "
+                f"polygon shown on the image with this percentage-coordinate footprint: "
+                f"{json.dumps(footprint_pct)}. "
+                f"This outline comes from an authoritative building-footprint dataset and is "
+                f"~99% accurate. DO NOT redraw it, DO NOT propose a different roof_outline. "
+                f"Your ONLY job is to identify roof sections (slopes/facets) that lie ENTIRELY "
+                f"INSIDE this green polygon. Every section vertex must be inside or on the "
+                f"green polygon's edge. "
             )
         else:
             guide_prompt = (
-                "No external footprint guide is provided. Use only the yellow clicked point and image evidence. "
+                "No external footprint guide is provided. Trace a tight roof_outline "
+                "using only the yellow clicked point and image evidence. "
             )
         correction_learning = roof_correction_learning_prompt(limit=8)
         correction_learning_text = (
@@ -2157,25 +2163,45 @@ def roof_drawing_analyze(request):
                 if sp:
                     suburb_hint = f'\n{sp.prompt_text}'
 
-        user_prompt = (
-            f"Analyze this tightly cropped satellite image of the selected roof. "
-            f"The clicked coordinates are ({lat:.5f}, {lng:.5f}); the image center is "
-            f"({map_center_lat:.5f}, {map_center_lng:.5f}) at zoom {zoom}. "
-            f"Image size: {width}x{height} pixels. "
-            f"{guide_prompt}"
-            f"{correction_learning_text}"
-            f"The yellow dot marks the user's click on the selected roof. "
-            f"The yellow dot marks the SINGLE roof to analyse. Return roof_outline tightly around "
-            f"only that one connected structure. If multiple buildings are visible, "
-            f"draw ONLY the building where the yellow dot sits — exclude every other structure. "
-            f"Use roof_outline as the boundary for all sections. "
-            f"Before returning JSON, internally verify: (1) the yellow dot is inside roof_outline, "
-            f"(2) all section polygons sit inside roof_outline, (3) no other building is included, "
-            f"(4) every section boundary aligns with a visible ridge line, hip ridge, or valley line — "
-            f"if no such line exists, the two surfaces are ONE section not two. "
-            f"{solar_context}{suburb_hint}"
-            f"Return the JSON as instructed."
-        )
+        if outline_is_locked:
+            user_prompt = (
+                f"Analyse this satellite image of the selected roof. "
+                f"Clicked coordinates: ({lat:.5f}, {lng:.5f}). Image: {width}x{height} pixels. "
+                f"{guide_prompt}"
+                f"{correction_learning_text}"
+                f"The roof_outline IS the green polygon — you do not need to compute it. "
+                f"Your job: detect every roof section (slope/facet) inside that polygon using "
+                f"the ridge-line method. Each section must lie entirely inside the green polygon. "
+                f"Before returning JSON, verify: "
+                f"(1) every section polygon vertex is inside the green polygon, "
+                f"(2) every section boundary aligns with a visible ridge line, hip ridge, or valley line — "
+                f"if no such line exists, the two surfaces are ONE section not two, "
+                f"(3) no section overlaps another. "
+                f"You may still set 'roof_outline' in the JSON to the green polygon (or leave it empty); "
+                f"it will be IGNORED — the locked green polygon will be used as the final outline. "
+                f"{solar_context}{suburb_hint}"
+                f"Return JSON as instructed."
+            )
+        else:
+            user_prompt = (
+                f"Analyze this tightly cropped satellite image of the selected roof. "
+                f"The clicked coordinates are ({lat:.5f}, {lng:.5f}); the image center is "
+                f"({map_center_lat:.5f}, {map_center_lng:.5f}) at zoom {zoom}. "
+                f"Image size: {width}x{height} pixels. "
+                f"{guide_prompt}"
+                f"{correction_learning_text}"
+                f"The yellow dot marks the user's click on the selected roof. "
+                f"The yellow dot marks the SINGLE roof to analyse. Return roof_outline tightly around "
+                f"only that one connected structure. If multiple buildings are visible, "
+                f"draw ONLY the building where the yellow dot sits — exclude every other structure. "
+                f"Use roof_outline as the boundary for all sections. "
+                f"Before returning JSON, internally verify: (1) the yellow dot is inside roof_outline, "
+                f"(2) all section polygons sit inside roof_outline, (3) no other building is included, "
+                f"(4) every section boundary aligns with a visible ridge line, hip ridge, or valley line — "
+                f"if no such line exists, the two surfaces are ONE section not two. "
+                f"{solar_context}{suburb_hint}"
+                f"Return the JSON as instructed."
+            )
 
         # ── Single-pass Claude call (Opus 4.7) ───────────────────────────────
         # Earlier multi-pass / multi-zoom code was REMOVED because the pass-2
@@ -2196,11 +2222,20 @@ def roof_drawing_analyze(request):
             parsed = {"sections": [], "roof_type": "unknown", "confidence": "low",
                       "notes": "Could not parse Claude response"}
 
-        ai_outline_pct = _clean_pct_polygon(parsed.get('roof_outline') or [])
+        # ── LOCK the green outline as final when a footprint exists ─────────
+        # Per user policy 2026-05-22: the Geoscape/Microsoft footprint is
+        # ~99% accurate, so it takes precedence over any roof_outline Claude
+        # might have returned.  Only fall back to Claude's outline when no
+        # external footprint is available at all.
+        if outline_is_locked:
+            parsed['roof_outline'] = footprint_pct
+            ai_outline_pct = footprint_pct
+            outline_source = guide_source or 'geoscape_footprint'
+        else:
+            ai_outline_pct = _clean_pct_polygon(parsed.get('roof_outline') or [])
+            outline_source = 'ai_claude'
         ai_footprint = _pct_polygon_to_geo(ai_outline_pct, map_view, width, height)
-        # Use AI outline as filter boundary when available; if not, use building
-        # footprint but only if it has a reasonable number of vertices (3+).
-        # Never use a boundary that's smaller than a plausible roof polygon.
+        # Filter sections to the chosen boundary (locked footprint or AI outline).
         section_boundary_pct = ai_outline_pct if len(ai_outline_pct) >= 3 else footprint_pct
         dropped_sections = _filter_sections_to_footprint(parsed, section_boundary_pct)
 
@@ -2250,6 +2285,8 @@ def roof_drawing_analyze(request):
             'footprint_pct': footprint_pct,
             'ai_footprint': ai_footprint,
             'ai_outline_pct': ai_outline_pct,
+            'outline_source': outline_source,
+            'outline_locked': outline_is_locked,
             'footprint_source': map_view.get('footprint_source', ''),
             'crop_box_px': map_view.get('crop_box_px', []),
             'cropped': bool(map_view.get('cropped', False)),

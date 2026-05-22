@@ -3877,9 +3877,11 @@ async function rdRerun() {
     document.getElementById('rdNotes').textContent = rdData.notes || '';
     document.getElementById('rdUseBtn').disabled = rdData.total_area_m2 <= 0;
 
-    const source = (apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback';
+    const outlineLabel = apiData.outline_locked
+      ? 'Geoscape locked outline + AI sections'
+      : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback');
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    rdSetStatus(`Roof drawing generated from ${source}${learningSuffix}.`, false);
+    rdSetStatus(`Roof drawing generated from ${outlineLabel}${learningSuffix}.`, false);
   } catch(e) {
     rdSetStatus('Network error: ' + e.message, false);
   }
@@ -7093,9 +7095,11 @@ rdRerun = async function(force=false) {
     document.getElementById('rdUseBtn').disabled = rdData.total_area_m2 <= 0;
     rdSetRoofLoading(false);
 
-    const source = (apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback';
+    const outlineLabel = apiData.outline_locked
+      ? 'Geoscape locked outline + AI sections'
+      : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback');
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : `Roof drawing generated from ${source}${learningSuffix}.`, false);
+    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : `Roof drawing generated from ${outlineLabel}${learningSuffix}.`, false);
   } catch(e) {
     rdSetRoofLoading(false);
     rdSetStatus('Network error: ' + e.message, false);
