@@ -136,7 +136,19 @@ def quote_create(request):
             pc_notes = ''
             pc_roof_type = 'hip'           # pre-declare in case try block throws before assignment
             try:
-                base_area = _safe_float(quote.adjusted_area_sqm, 0)
+                # ── ROOF AREA FOR PORT CITY PRICING ─────────────────────────
+                # Port City's worksheets use the measured roof-slope area
+                # DIRECTLY (no pitch/waste markup) — their $/m² already
+                # bakes in contingency. Our `flat_area_sqm` field captures
+                # the user-entered roof area as measured (typically from the
+                # AI Roof Drawing, which already returns slope-corrected
+                # area).  Using `adjusted_area_sqm` here would double-count
+                # the pitch factor AND apply a waste markup that Port City
+                # does NOT use, inflating the quote by ~20%.
+                base_area = _safe_float(quote.flat_area_sqm, 0)
+                if base_area <= 0:
+                    # If user only filled the adjusted area, back it out
+                    base_area = _safe_float(quote.adjusted_area_sqm, 0)
 
                 # Complexity factor → Port City roof type.  Use string keys so
                 # IEEE-754 representation of 1.20 / 1.35 cannot break lookup.
