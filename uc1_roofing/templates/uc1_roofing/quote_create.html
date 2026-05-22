@@ -2239,8 +2239,12 @@ function updatePreview() {
   const roofRate  = PC_ROOF_RATE[cxKey]  || 130;
   const roofLabel = PC_ROOF_LABEL[cxKey] || 'Hip';
 
-  // Eave length (safety rail / gutter quantity) — observed ratio ≈ 0.25 × area
-  const eaveLm = Math.round(flat * 0.25);
+  // Eave length — prefer the AI-measured value from the hidden form field
+  // (populated by populateLidarResults() / rdUseResults()).  Only fall back
+  // to the 0.25×area heuristic when no AI measurement is available.
+  const aiEave = parseFloat(document.getElementById('eaveLm')?.value || 0) || 0;
+  const eaveLm = aiEave > 0 ? Math.round(aiEave) : Math.round(flat * 0.25);
+  const eaveSource = aiEave > 0 ? 'AI-measured' : 'estimated (0.25 × area)';
 
   // Travel zone from address
   const addr = document.getElementById('propAddrHidden')?.value
@@ -2248,26 +2252,56 @@ function updatePreview() {
   const tz = _pcTravelZone(addr);
   const travelRate = PC_TRAVEL_RATES[tz.key] || 0;
 
-  // Build line items
-  const items = [];
-  items.push({d:`${roofLabel} Roof Replacement`, q:flat, u:'m²',  r:roofRate});
-  items.push({d:'Edge Protection (safety rail)', q:eaveLm, u:'lm', r:PC_EDGE_PER_LM});
-  items.push({d:'Fuse Pull',                     q:1,    u:'ea',  r:PC_FUSE_PULL});
-  if (tz.days > 0)
-    items.push({d:`Travel — ${tz.key.replace('_','/')}`, q:tz.days, u:'day', r:travelRate});
+  // Pull other backend toggles from hidden form fields so the preview
+  // matches whatever the saved quote will compute.
+  const optAsbestos = document.getElementById('optAsbestos')?.value === '1';
+  const optSolarRR  = document.getElementById('optSolarRR')?.value === '1';
+  const optSolarHW  = document.getElementById('optSolarHw')?.value === '1';
+  const solarCount  = parseInt(document.getElementById('solarPanelCount')?.value || 0, 10) || 0;
+  const isHighset   = st >= 1.10;
 
-  const internal = items.reduce((s,it) => s + it.q * it.r, 0);
+  // Build line items — same order as backend build_port_city_quote()
+  const items = [];
+  items.push({d:'Fuse Pull (Ergon disconnect/reconnect)',
+              q:1, u:'ea', r:PC_FUSE_PULL});
+  items.push({d:'Edge Protection — safety rail',
+              q:eaveLm, u:'lm', r:PC_EDGE_PER_LM,
+              note:eaveSource});
+  items.push({d:`Colorbond Roof Replacement — ${roofLabel}`,
+              q:flat, u:'m²', r:roofRate});
+
+  // Asbestos premium
+  if (optAsbestos) {
+    items.push({d:'Asbestos Removal — Starting At',  q:1, u:'lot', r:252});
+    if (isHighset)
+      items.push({d:'Asbestos — Highset Allowance', q:1, u:'lot', r:1485});
+  }
+  // Solar items
+  if (optSolarRR && solarCount > 0) {
+    items.push({d:'Solar Panel — Remove & Replace', q:solarCount, u:'ea', r:126});
+    if (isHighset)
+      items.push({d:'Solar — Highset Allowance',    q:1, u:'lot', r:250});
+  }
+  if (optSolarHW)
+    items.push({d:'Solar Hot Water — Remove & Replace', q:1, u:'lot', r:1800});
+
+  // Travel — by zone (auto-detected from suburb/postcode)
+  if (tz.days > 0)
+    items.push({d:`Travel — ${tz.key.replace('_','/').replace(/^./, c=>c.toUpperCase())}`,
+                q:tz.days, u:'day', r:travelRate});
+
+  const internal = items.reduce((s,it) => s + (it.q || 0) * (it.r || 0), 0);
   const quoted   = internal * (1 + PC_MARKUP);
 
   // Gutter sub-quote (only if toggle on)
   let gutterSub = 0;
   if (options.gutter) {
-    const gLm = eaveLm;                // assume eave length for gutters
+    const gLm = eaveLm;                // gutters run along the eave
     const dpCount = Math.max(2, Math.round(gLm / 10));
     gutterSub = gLm * PC_GUTTER_PER_LM + dpCount * PC_DOWNPIPE_90;
-    items.push({d:'──── Gutter sub-quote ────', q:'', u:'', r:NaN, head:true});
-    items.push({d:`Guttering 150mm quad`, q:gLm, u:'lm', r:PC_GUTTER_PER_LM});
-    items.push({d:`Downpipes 90mm`,       q:dpCount, u:'ea', r:PC_DOWNPIPE_90});
+    items.push({d:'──── Gutter sub-quote (separate) ────', q:'', u:'', r:NaN, head:true});
+    items.push({d:'Guttering — 150mm quad', q:gLm, u:'lm', r:PC_GUTTER_PER_LM});
+    items.push({d:'Downpipes — 90mm PVC',   q:dpCount, u:'ea', r:PC_DOWNPIPE_90});
   }
 
   const subtotalEx = quoted + gutterSub;
@@ -2285,8 +2319,10 @@ function updatePreview() {
   const lines = items.map(it => {
     if (it.head) return `<div style="color:#999;margin-top:4px">${it.d}</div>`;
     const amt = it.q * it.r;
+    const noteSuffix = it.note
+      ? ` <span style="color:#aaa">[${it.note}]</span>` : '';
     return `<div class="d-flex justify-content-between">
-              <span>${it.d}</span>
+              <span>${it.d}${noteSuffix}</span>
               <span>${it.q} ${it.u} × $${it.r} = <b>${fmt(amt)}</b></span>
             </div>`;
   }).join('');
