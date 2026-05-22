@@ -318,6 +318,19 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   <input type="hidden" name="eave_lm"        id="eaveLm"        value="0">
   <input type="hidden" name="perimeter_m"    id="perimeterM"    value="0">
   <input type="hidden" name="ridge_lm"       id="ridgeLm"       value="0">
+  <!-- Port City pricing-engine inputs (populated by AI + scope toggles below) -->
+  <input type="hidden" name="opt_asbestos"   id="optAsbestos"   value="0">
+  <input type="hidden" name="opt_decromastic" id="optDecromastic" value="0">
+  <input type="hidden" name="opt_fuse_pull"  id="optFusePull"   value="1">
+  <input type="hidden" name="opt_bins"       id="optBins"       value="0">
+  <input type="hidden" name="opt_solar_rr"   id="optSolarRR"    value="0">
+  <input type="hidden" name="opt_solar_hw"   id="optSolarHw"    value="0">
+  <input type="hidden" name="solar_panel_count"    id="solarPanelCount"    value="0">
+  <input type="hidden" name="downpipe_count_90mm"  id="downpipeCount90mm"  value="0">
+  <input type="hidden" name="gutter_travel_days"   id="gutterTravelDays"   value="0">
+  <input type="hidden" name="address_suburb"       id="addressSuburb"      value="">
+  <input type="hidden" name="address_postcode"     id="addressPostcode"    value="">
+  <input type="hidden" name="markup_pct"           id="markupPct"          value="0.10">
 
   <div class="wizard-bar">
     <div class="wz-step active" id="wz1"><div class="wz-num">1</div><span>Roof Area Detection</span></div>
@@ -5322,6 +5335,16 @@ async function rdDetectFeaturesVision(lat, lng, scaffoldingRequired) {
     }
     const d = await resp.json();
     rdLastFeatures = d;   // capture for rdUseResults() auto-fill
+
+    // Port City pricing hooks — push detection results into hidden form fields
+    const _setHid = (id, v) => { const el = document.getElementById(id);
+                                  if (el) el.value = String(v); };
+    if (d.solar_panels) {
+      _setHid('optSolarRR',  '1');
+      _setHid('solarPanelCount', d.solar_panel_count || 8);  // default 8 if count unknown
+    }
+    if (d.solar_hw) _setHid('optSolarHw', '1');
+
     rdRenderFeatures({
       solar_panels:             d.solar_panels || false,
       solar_panels_confidence:  d.solar_panels_confidence || '',

@@ -28,6 +28,7 @@ from .forms import QuoteForm, ContactForm, RateCardForm
 from .geoscape_service import GeoscapeError, lookup_geoscape_building
 from .services.correction_memory import (roof_correction_learning_prompt,
                                           extract_suburb, suburb_section_pattern)
+from .pricing_port_city import build_port_city_quote, detect_travel_zone
 from .services.paid_api_cache import SHORT_TTL_SECONDS, get_cached, set_cached
 
 
@@ -100,153 +101,77 @@ def quote_create(request):
             quote.roof_sections_json = request.POST.get('roof_sections_json', '')
             quote.save()
 
-            # Build line items from rate card + submitted factors
-            from decimal import Decimal as D
-            material   = quote.material
-            pitch_type = quote.pitch_type
-            base_area  = float(quote.adjusted_area_sqm)  # flat × pitch × waste
+            # ──────────────────────────────────────────────────────────────
+            # Build line items using the Port City pricing engine.
+            # Matches the 5 reference Estimating Calculation worksheets:
+            # Condron Pl AYR, Toomulla, West End, Oonoonba, Mt Louisa.
+            # ──────────────────────────────────────────────────────────────
+            base_area = float(quote.adjusted_area_sqm)  # flat × pitch × waste
 
-            # Complexity & storey factors submitted by the form JS
+            # Complexity factor → Port City roof type
             cx = float(request.POST.get('complexity_factor', '1.10'))
             st = float(request.POST.get('storey_factor',     '1.10'))
-            eff_area = round(base_area * cx * st, 2)  # effective area for labour pricing
+            roof_type_map = {1.00: 'gable', 1.10: 'hip', 1.20: 'ultra', 1.35: 'ultra'}
+            pc_roof_type = roof_type_map.get(cx, 'hip')
 
-            # Toggle options
-            def on(key): return request.POST.get(key, '0') == '1'
+            # Toggle helpers
+            def on(key):  return request.POST.get(key, '0') == '1'
+            def flt(key, default=0.0):
+                try: return float(request.POST.get(key, default) or default)
+                except (TypeError, ValueError): return default
+
+            eave_lm   = flt('eave_lm')   or round((base_area ** 0.5) * 4 * 0.6, 1)
+            solar_panel_count = int(flt('solar_panel_count', 0))
+
+            pc_quote = build_port_city_quote(
+                roof_type        = pc_roof_type,
+                roof_area_m2     = base_area,
+                eave_lm          = eave_lm,
+                # Storey ≥ 2 → highset surcharges
+                is_highset       = st >= 1.10,
+                # Removal type — detected from form toggles
+                is_asbestos      = on('opt_asbestos'),
+                is_decromastic   = on('opt_decromastic'),
+                # Solar — count from feature detection
+                solar_panels_rr  = solar_panel_count if on('opt_solar_rr') else 0,
+                solar_hw_rr      = on('opt_solar_hw'),
+                # Site logistics — fuse pull on by default, bins opt-in
+                include_fuse_pull= on('opt_fuse_pull') or True,
+                include_bins     = on('opt_bins'),
+                # Travel — auto-detect from address suburb/postcode
+                address          = quote.property_address or '',
+                suburb           = request.POST.get('address_suburb', '') or '',
+                postcode         = request.POST.get('address_postcode', '') or '',
+                # Gutters (optional)
+                include_gutters  = on('opt_gutter'),
+                gutter_lm        = eave_lm if on('opt_gutter') else 0,
+                downpipe_90mm    = int(flt('downpipe_count_90mm', 0)) if on('opt_gutter')
+                                   else 0,
+                gutter_travel_days = flt('gutter_travel_days', 0),
+                # Markup
+                markup_pct       = flt('markup_pct', 0.10),
+            )
 
             sort = 1
-            try:
-                rc = RateCard.objects.get(material=material, pitch_type=pitch_type, is_active=True)
-                cx_label = {1.00:'Simple',1.10:'Moderate',1.20:'Complex',1.35:'Very Complex'}.get(cx,'')
-                st_label = {1.00:'Single storey',1.10:'Double storey',1.20:'3+ storeys'}.get(st,'')
-                desc = f"{rc.description}"
-                if cx_label or st_label:
-                    desc += f" — {cx_label}, {st_label}" if cx_label and st_label else f" — {cx_label or st_label}"
-                QuoteItem.objects.create(
-                    quote=quote, description=desc,
-                    quantity=eff_area, unit='m²',
-                    unit_price_ex_gst=rc.rate_ex_gst, sort_order=sort,
-                )
-                sort += 1
-            except RateCard.DoesNotExist:
-                pass
-
-            if eff_area > 0:
-                # Removal & disposal
-                if on('opt_remove'):
-                    removal_rate = round(8.50 * st, 2)  # storey surcharge on labour
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description='Removal & disposal of existing roofing material',
-                        quantity=eff_area, unit='m²',
-                        unit_price_ex_gst=removal_rate, sort_order=sort,
-                    )
-                    sort += 1
-
-                # Sarking / underlay
-                SARKING_RATE = {'colorbond': 8.00, 'zincalume': 7.00, 'terracotta': 9.00,
-                                'concrete': 9.00, 'slate': 10.00, 'asphalt': 7.00, 'membrane': 0}
-                if on('opt_sarking') and SARKING_RATE.get(material, 0) > 0:
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description='Sarking / reflective foil underlay',
-                        quantity=eff_area, unit='m²',
-                        unit_price_ex_gst=SARKING_RATE.get(material, 8.00), sort_order=sort,
-                    )
-                    sort += 1
-
-                # Wall & valley flashings (allow %)
-                FLASHING_PCT = {'colorbond': 0.04, 'zincalume': 0.035, 'terracotta': 0.05,
-                                'concrete': 0.05, 'slate': 0.055, 'asphalt': 0.04, 'membrane': 0.06}
-                if on('opt_flashings'):
-                    flash_allow = round(eff_area * 50 * FLASHING_PCT.get(material, 0.04), 2)
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description='Wall & valley flashings — allowance',
-                        quantity=1, unit='lot',
-                        unit_price_ex_gst=flash_allow, sort_order=sort,
-                    )
-                    sort += 1
-
-                # Scaffolding — always included
+            for item in pc_quote.items + pc_quote.gutter_items:
                 QuoteItem.objects.create(
                     quote=quote,
-                    description='Scaffolding & safety — site access package',
-                    quantity=1, unit='lot',
-                    unit_price_ex_gst=1200.00, sort_order=sort,
+                    description=item.description,
+                    quantity=item.quantity, unit=item.unit,
+                    unit_price_ex_gst=round(item.rate * (1 + pc_quote.markup_pct), 2),
+                    sort_order=sort,
                 )
                 sort += 1
 
-                # ── Linear-metre accessory pricing (Guttering / Ridge / Fascia)
-                # Eave / perimeter / ridge measurements come from the AI analysis
-                # via hidden form fields populated by populateLidarResults().
-                # Falls back to area-based estimates when measurements are missing.
-                def _flt(key, default=0.0):
-                    try: return float(request.POST.get(key, default) or default)
-                    except (TypeError, ValueError): return default
-                eave_lm     = _flt('eave_lm')
-                perimeter_m = _flt('perimeter_m')
-                ridge_lm    = _flt('ridge_lm')
-                # Fallback estimates from flat area when measurements are missing.
-                if eave_lm <= 0:
-                    eave_lm = round((base_area ** 0.5) * 4 * 0.6, 1)  # ~60% of perim
-                if ridge_lm <= 0:
-                    ridge_lm = round((base_area ** 0.5) * 0.6, 1)    # ~60% of one side
-
-                # Helper: pick the active GutteringRate by item_type, or fall back to default
-                def _gutter_rate(item_type, default_rate):
-                    try:
-                        rate_obj = GutteringRate.objects.filter(
-                            item_type=item_type, is_active=True
-                        ).first()
-                        return float(rate_obj.rate_ex_gst), rate_obj.description
-                    except Exception:
-                        pass
-                    return float(default_rate), ''
-
-                # Guttering — 150 mm quad along eave length
-                if on('opt_gutter') and eave_lm > 0:
-                    rate, desc_extra = _gutter_rate('gutter', 38.00)
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description=(f'Guttering — 150 mm quad'
-                                     + (f' ({desc_extra})' if desc_extra else '')),
-                        quantity=eave_lm, unit='lm',
-                        unit_price_ex_gst=rate, sort_order=sort,
-                    )
-                    sort += 1
-                    # Downpipes — 1 per ~10 lm of gutter, $85 each
-                    dp_count = max(2, round(eave_lm / 10))
-                    dp_rate, _ = _gutter_rate('downpipe', 85.00)
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description='Downpipes — 90 mm round',
-                        quantity=dp_count, unit='ea',
-                        unit_price_ex_gst=dp_rate, sort_order=sort,
-                    )
-                    sort += 1
-
-                # Ridge capping — typical 0.6 × √area linear metres of ridge
-                if on('opt_ridge') and ridge_lm > 0:
-                    rate, _ = _gutter_rate('ridge_cap', 32.00)
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description='Ridge capping — Colorbond, mechanically fixed',
-                        quantity=ridge_lm, unit='lm',
-                        unit_price_ex_gst=rate, sort_order=sort,
-                    )
-                    sort += 1
-
-                # Fascia boards — along eave length when toggle is on
-                if on('opt_fascia') and eave_lm > 0:
-                    rate, _ = _gutter_rate('fascia', 28.00)
-                    QuoteItem.objects.create(
-                        quote=quote,
-                        description='Fascia boards — Colorbond fascia, fixed to rafters',
-                        quantity=eave_lm, unit='lm',
-                        unit_price_ex_gst=rate, sort_order=sort,
-                    )
-                    sort += 1
+            # Stash the pricing breakdown on the Quote.notes for transparency
+            quote.notes = (
+                f"Port City pricing: internal ${pc_quote.internal_subtotal:.2f} × "
+                f"{(1 + pc_quote.markup_pct):.2f} markup = ${pc_quote.quoted_ex_gst:.2f} "
+                f"+ gutters ${pc_quote.gutter_subtotal:.2f} = "
+                f"${pc_quote.grand_total_ex_gst:.2f} ex GST. "
+                f"Total inc GST: ${pc_quote.total_inc_gst:.2f}."
+            )
+            quote.save(update_fields=['notes'])
 
             # Log execution
             ExecutionLog.objects.create(
