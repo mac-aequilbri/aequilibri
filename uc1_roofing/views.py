@@ -184,10 +184,24 @@ def quote_create(request):
                 except (TypeError, ValueError): cx_key = '1.10'
                 pc_roof_type = roof_type_map.get(cx_key, 'hip')
 
+                # Eave length — prefer measured value from AI Roof Drawing
+                # (#eaveLm hidden field).  Fallback uses 0.25 × roof area —
+                # the observed ratio across all 5 Port City reference work-
+                # books (Condron 0.21, Toomulla 0.29, West End 0.29, Oonoonba
+                # 0.25, Mt Louisa 0.27 → avg 0.26).  MUST match the JS
+                # fallback in updatePreview() or the indicative-vs-saved
+                # numbers diverge.
                 eave_lm = _safe_float(request.POST.get('eave_lm'), 0) \
-                          or round((base_area ** 0.5) * 4 * 0.6, 1)
+                          or round(base_area * 0.25, 1)
                 solar_panel_count = int(_safe_float(
                     request.POST.get('solar_panel_count'), 0))
+
+                # Downpipe count fallback — same heuristic as the JS preview
+                # (~1 downpipe per 10 lm of gutter, minimum 2).
+                _dp_explicit = int(_safe_float(
+                    request.POST.get('downpipe_count_90mm'), 0))
+                _dp_count = (_dp_explicit if _dp_explicit > 0
+                             else max(2, round(eave_lm / 10)))
 
                 pc_quote = build_port_city_quote(
                     roof_type        = pc_roof_type,
@@ -205,9 +219,7 @@ def quote_create(request):
                     postcode         = request.POST.get('address_postcode', '') or '',
                     include_gutters  = on('opt_gutter'),
                     gutter_lm        = eave_lm if on('opt_gutter') else 0,
-                    downpipe_90mm    = int(_safe_float(
-                        request.POST.get('downpipe_count_90mm'), 0)
-                    ) if on('opt_gutter') else 0,
+                    downpipe_90mm    = _dp_count if on('opt_gutter') else 0,
                     gutter_travel_days = _safe_float(
                         request.POST.get('gutter_travel_days'), 0),
                     markup_pct       = _safe_float(
