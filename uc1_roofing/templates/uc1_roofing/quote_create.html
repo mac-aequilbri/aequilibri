@@ -582,9 +582,13 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             <label class="form-label">Storeys</label>
             <select id="storeySel" name="storey_factor" class="form-select" onchange="updatePreview();refreshFallback3D()">
               <option value="1.00">Single storey</option>
-              <option value="1.10" selected>Double storey (triggers highset allowances)</option>
-              <option value="1.20">3+ storeys (triggers highset allowances)</option>
+              <option value="1.10" selected>Double storey</option>
+              <option value="1.20">3+ storeys</option>
             </select>
+            <small id="highsetStatus" class="d-block mt-1"
+                   style="font-size:.7rem;line-height:1.4;color:#888;">
+              Single-storey selected → no highset allowance applies.
+            </small>
           </div>
         </div>
         <!-- Pitch — informational only.  Port City prices off the slope-area
@@ -2483,6 +2487,30 @@ function updatePreview() {
   $set('p_gst_amt',    fmt(gst));
   $set('p_total',      fmt(totalInc));
   $set('p_gst_line',   `Subtotal ${fmt(subtotalEx)} + GST ${fmt(gst)}`);
+
+  // Highset status indicator next to the Storeys dropdown — shows the user
+  // EXACTLY which dollar amount the storeys selection is adding right now,
+  // so they understand why changing 'Single → Double' may not move the
+  // total at all (only matters when asbestos / solar is also toggled on).
+  const highsetEl = document.getElementById('highsetStatus');
+  if (highsetEl) {
+    if (!isHighset) {
+      highsetEl.textContent = 'Single-storey selected → no highset allowance applies.';
+      highsetEl.style.color = '#888';
+    } else {
+      const triggers = [];
+      let highsetTotal = 0;
+      if (optAsbestos) { triggers.push('Asbestos +$1,485'); highsetTotal += 1485; }
+      if (optSolarRR && solarCount > 0) { triggers.push('Solar +$250'); highsetTotal += 250; }
+      if (triggers.length === 0) {
+        highsetEl.innerHTML = '⚠️ Highset selected — but <strong>no asbestos or solar toggled</strong>, so storeys is not adding any cost yet.';
+        highsetEl.style.color = '#856404';
+      } else {
+        highsetEl.innerHTML = `🏠 Highset allowance active: <strong>+${fmt(highsetTotal)}</strong> (${triggers.join(', ')})`;
+        highsetEl.style.color = '#1b5e20';
+      }
+    }
+  }
 }
 
 // ── PDF ────────────────────────────────────────────────────────────────────
