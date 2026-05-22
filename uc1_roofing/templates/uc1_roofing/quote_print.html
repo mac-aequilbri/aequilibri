@@ -323,19 +323,19 @@
   <table class="client-table">
     <tr>
       <td class="lbl">Name</td>
-      <td colspan="3">{{ quote.contact.name|default:"" }}</td>
+      <td colspan="3">{{ quote.display_name }}</td>
     </tr>
     <tr>
       <td class="lbl">Address</td>
       <td>{{ quote.property_address }}</td>
       <td class="suburb-lbl">Suburb</td>
-      <td style="width:100px;"></td>
+      <td style="width:120px;">{{ quote.address_suburb }}</td>
     </tr>
     <tr>
       <td class="lbl">Email</td>
       <td>{{ quote.contact.email|default:"" }}</td>
       <td class="suburb-lbl">P/Code</td>
-      <td></td>
+      <td>{{ quote.address_postcode }}</td>
     </tr>
     <tr>
       <td class="lbl">Ph/Mob</td>
@@ -410,7 +410,7 @@
     <tr>
       <td class="notes-lbl">Job Notes</td>
       <td>
-        {% if quote.customer_notes %}{{ quote.customer_notes|linebreaksbr }}{% else %}Gutters additional cost $. Downpipes $250.00 each if required.{% endif %}
+        {% if quote.customer_notes %}{{ quote.customer_notes|linebreaksbr }}{% endif %}
       </td>
       <td class="total-box" style="width:180px;">
         <div class="total-lbl">Total Tender Price<br>GST included</div>

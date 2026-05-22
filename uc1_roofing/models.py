@@ -140,6 +140,65 @@ class Quote(models.Model):
             return text.split(self._INTERNAL_NOTES_MARKER, 1)[1].strip()
         return ''
 
+    # ── Address parsing helpers used by the print template ─────────────────
+    @property
+    def address_suburb(self):
+        """Suburb extracted from ``property_address``.
+
+        Australian formats handled:
+          "11 Ahern St, Ayr QLD 4807"     → "Ayr"
+          "11 Ahern St, Ayr QLD 4807, AU" → "Ayr"
+          "5 Richardson St Douglas QLD"   → "Douglas"
+        """
+        import re as _re
+        text = str(self.property_address or '').strip()
+        if not text:
+            return ''
+        # Strip trailing country
+        text = _re.sub(r',\s*(Australia|AU)\s*$', '', text, flags=_re.IGNORECASE)
+        # Split by comma
+        parts = [p.strip() for p in text.split(',') if p.strip()]
+        if len(parts) >= 2:
+            suburb_part = parts[1]
+            # Strip state + postcode from end
+            suburb_part = _re.sub(
+                r'\s+(QLD|NSW|VIC|SA|WA|TAS|ACT|NT)(\s+\d{4})?\s*$',
+                '', suburb_part, flags=_re.IGNORECASE,
+            ).strip()
+            return suburb_part
+        # No comma — try to extract suburb from "addr suburb STATE pcode"
+        m = _re.search(
+            r'\b([A-Z][A-Za-z\s]+?)\s+(QLD|NSW|VIC|SA|WA|TAS|ACT|NT)\b',
+            text,
+        )
+        return (m.group(1).strip() if m else '')
+
+    @property
+    def address_postcode(self):
+        """4-digit postcode from ``property_address`` if present."""
+        import re as _re
+        m = _re.search(r'\b(\d{4})\b', str(self.property_address or ''))
+        return m.group(1) if m else ''
+
+    @property
+    def display_name(self):
+        """Customer name for the printed quote.  When the form was submitted
+        with an address-as-name (common when the user clicks an address and
+        the JS auto-populates), strip that and return a placeholder so the
+        printed quote does NOT show the address twice."""
+        name = (self.contact.name if self.contact_id and self.contact else '') or ''
+        name = name.strip()
+        if not name:
+            return ''
+        # Detect "address-as-name" — name starts with a number then street word
+        import re as _re
+        if _re.match(r'^\d+[\s/]', name):
+            return ''  # looks like an address, not a name
+        # Detect name == property_address
+        if self.property_address and name in self.property_address:
+            return ''
+        return name
+
     def save(self, *args, **kwargs):
         if not self.ref_number:
             from datetime import date

@@ -543,7 +543,11 @@ def build_job_notes(
     Format mirrors Port City's standard job-notes text on every quote.
     """
     notes: list[str] = []
-    if not include_gutters:
+    if include_gutters:
+        # Gutters included in main quote — call this out explicitly so the
+        # customer doesn't see a contradictory "Gutters additional cost..." line.
+        notes.append('Includes new Colorbond gutters and downpipes as itemised above.')
+    else:
         # Standard line on every Port City quote when gutters are NOT included
         notes.append('Gutters additional cost — see itemised sub-quote. '
                      'Downpipes $250.00 each if required.')
