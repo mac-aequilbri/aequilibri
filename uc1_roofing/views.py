@@ -2098,7 +2098,32 @@ def roof_drawing_analyze(request):
         # as the final roof_outline.  Claude is told NOT to redraw the outline
         # — its only job is to identify sections WITHIN that fixed polygon.
         # Only when no footprint exists at all do we let Claude trace one.
+        #
+        # SANITY CHECK: if the footprint clearly does NOT contain the user's
+        # click point, the footprint is from a wrong/adjacent building (data
+        # quality issue with Geoscape/Microsoft).  In that case unlock the
+        # outline and let Claude trace it — better than showing a polygon
+        # floating over grass.
         outline_is_locked = bool(footprint_pct)
+        outline_unlock_reason = ''
+        if outline_is_locked and click_px and len(footprint_px) >= 3:
+            click_pct = (click_px[0] / width * 100, click_px[1] / height * 100)
+            contains_click = _point_in_poly_xy(click_pct[0], click_pct[1], footprint_pct)
+            if not contains_click:
+                # Click is outside the locked outline — likely wrong footprint.
+                # Compute a rough distance from click to polygon centroid in metres.
+                cx_pct = sum(p[0] for p in footprint_pct) / len(footprint_pct)
+                cy_pct = sum(p[1] for p in footprint_pct) / len(footprint_pct)
+                dx_px = (click_pct[0] - cx_pct) / 100 * width
+                dy_px = (click_pct[1] - cy_pct) / 100 * height
+                dist_px = (dx_px ** 2 + dy_px ** 2) ** 0.5
+                dist_m  = dist_px * float(map_view.get('meters_per_px') or 0.1)
+                if dist_m > 6:    # >6 m off → definitely wrong building
+                    outline_is_locked = False
+                    outline_unlock_reason = (
+                        f'click point is {dist_m:.0f} m outside the footprint — '
+                        f'likely wrong building; letting AI trace the outline'
+                    )
         guide_source = map_view.get('footprint_source') or ''
         if outline_is_locked:
             guide_prompt = (
@@ -2287,6 +2312,7 @@ def roof_drawing_analyze(request):
             'ai_outline_pct': ai_outline_pct,
             'outline_source': outline_source,
             'outline_locked': outline_is_locked,
+            'outline_unlock_reason': outline_unlock_reason,
             'footprint_source': map_view.get('footprint_source', ''),
             'crop_box_px': map_view.get('crop_box_px', []),
             'cropped': bool(map_view.get('cropped', False)),

@@ -3879,7 +3879,9 @@ async function rdRerun() {
 
     const outlineLabel = apiData.outline_locked
       ? 'Geoscape locked outline + AI sections'
-      : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback');
+      : (apiData.outline_unlock_reason
+          ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
+          : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
     rdSetStatus(`Roof drawing generated from ${outlineLabel}${learningSuffix}.`, false);
   } catch(e) {
@@ -7097,7 +7099,9 @@ rdRerun = async function(force=false) {
 
     const outlineLabel = apiData.outline_locked
       ? 'Geoscape locked outline + AI sections'
-      : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback');
+      : (apiData.outline_unlock_reason
+          ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
+          : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
     rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : `Roof drawing generated from ${outlineLabel}${learningSuffix}.`, false);
   } catch(e) {
