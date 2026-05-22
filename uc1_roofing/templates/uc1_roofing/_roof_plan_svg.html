@@ -1,9 +1,10 @@
-{# Reusable roof-outline SVG render — used by quote_print.html and quote_detail.html.
-   Requires `quote` in context (with roof_polygon_json + roof_sections_json).
-   Optional context vars:
-     plan_svg_id     — DOM id for the <svg> element (default 'roofPlanSvg')
-     plan_height     — pixel height (default 220)
-#}
+{% comment %}
+Reusable roof-outline SVG render — used by quote_print.html and quote_detail.html.
+Requires `quote` in context (with roof_polygon_json + roof_sections_json).
+Optional context vars:
+  plan_svg_id     — DOM id for the <svg> element (default 'roofPlanSvg')
+  plan_height     — pixel height (default 220)
+{% endcomment %}
 <svg id="{{ plan_svg_id|default:'roofPlanSvg' }}"
      width="100%" height="{{ plan_height|default:220 }}"
      style="display:block;background:#fafafa;border-radius:6px;"></svg>
