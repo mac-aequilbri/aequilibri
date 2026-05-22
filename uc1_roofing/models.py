@@ -118,6 +118,28 @@ class Quote(models.Model):
     def total_inc_gst(self):
         return round(self.subtotal_ex_gst + self.gst_total, 2)
 
+    # ── Notes are split into customer-visible job notes and an internal
+    # pricing breakdown by the marker "═══ Internal".  customer_notes is
+    # what appears on the printed PDF; internal_notes_text is shown only on
+    # the admin/detail page.
+    _INTERNAL_NOTES_MARKER = '═══ Internal pricing breakdown'
+
+    @property
+    def customer_notes(self):
+        """Public job-notes shown on the printed quote (no pricing breakdown)."""
+        text = self.notes or ''
+        if self._INTERNAL_NOTES_MARKER in text:
+            text = text.split(self._INTERNAL_NOTES_MARKER, 1)[0]
+        return text.strip()
+
+    @property
+    def internal_notes_text(self):
+        """Internal pricing breakdown (Port City line-by-line). Detail page only."""
+        text = self.notes or ''
+        if self._INTERNAL_NOTES_MARKER in text:
+            return text.split(self._INTERNAL_NOTES_MARKER, 1)[1].strip()
+        return ''
+
     def save(self, *args, **kwargs):
         if not self.ref_number:
             from datetime import date

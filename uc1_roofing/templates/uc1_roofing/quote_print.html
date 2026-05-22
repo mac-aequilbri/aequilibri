@@ -410,7 +410,7 @@
     <tr>
       <td class="notes-lbl">Job Notes</td>
       <td>
-        {% if quote.notes %}{{ quote.notes }}{% else %}Gutters additional cost $. Downpipes $250.00 each if required.{% endif %}
+        {% if quote.customer_notes %}{{ quote.customer_notes|linebreaksbr }}{% else %}Gutters additional cost $. Downpipes $250.00 each if required.{% endif %}
       </td>
       <td class="total-box" style="width:180px;">
         <div class="total-lbl">Total Tender Price<br>GST included</div>

@@ -421,3 +421,135 @@ def build_port_city_quote(
                   gutter_travel_days, 'day', daily_rate, gutter=True)
 
     return q
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Customer-facing Scope of Works (Port City quote PDF format)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Standard 8-item scope as written on every Port City quote PDF.
+STANDARD_SCOPE_OF_WORKS = [
+    'Remove old roofing iron and associate flashings',
+    'Supply and install .48 BMT BlueScope colorbond AS/NZ 2728 Roof sheeting and flashing',
+    'Supply and install Aircell insulation to comply with local building codes AS/NZS4859.1:2002',
+    None,  # Slot 4 — populated dynamically based on extras (see below)
+    'Cyclonic upgrades roof structure tie-down upgrades, cyclone rated Roof screws',
+    'Workplace Health & Safety compliance Working at Heights Systems',
+    'Form 21 Final inspection certificate, QBCC Home Warranty Insurance, Ergon Inspection Safety Advice',
+    'Remove and Dispose of all building debris on site',
+    '10 Yr workmanship Warranty',
+]
+
+
+def build_scope_of_works(
+    *,
+    is_asbestos:     bool = False,
+    is_decromastic:  bool = False,
+    solar_panels_rr: int  = 0,
+    solar_panels_remove: int = 0,
+    solar_hw_rr:     bool = False,
+    solar_hw_remove: bool = False,
+    skylight_count:  int  = 0,
+    bullnose_m2:     float = 0,
+    include_gutters: bool = False,
+) -> list[str]:
+    """Build the customer-facing Scope of Works list for a Port City quote PDF.
+
+    Mirrors the structure of the real Port City quote letters (see Lynham,
+    Bullard, Hilleard, Ward etc.). Returns a list of plain-text scope items —
+    no prices, no quantities. The full quote total is shown separately on the
+    PDF; individual scope lines are descriptive only.
+    """
+    scope: list[str] = []
+
+    # Item 1 — Removal of old roofing.  Asbestos / Decromastic variants get
+    # explicit wording because they trigger different scope and pricing.
+    if is_asbestos:
+        scope.append(
+            'Remove old Asbestos sheeting and associated flashings — '
+            'Note Additional costs: Existing insulation batts $25.00 per m². '
+            'Blow-in insulation $60.00 per m² if deemed contaminated.'
+        )
+    elif is_decromastic:
+        scope.append(
+            'Remove old Decromastic roof tiles and associated flashings '
+            '(Note: It is the responsibility of the homeowner to declare if '
+            'asbestos is present in the tiles — additional costs may apply)'
+        )
+    else:
+        scope.append(STANDARD_SCOPE_OF_WORKS[0])
+
+    # Items 2 & 3 — sheeting + insulation (always the same wording)
+    scope.append(STANDARD_SCOPE_OF_WORKS[1])
+    scope.append(STANDARD_SCOPE_OF_WORKS[2])
+
+    # Item 4 — variable extras (bullnose, skylight, gutter inclusion).
+    # Multiple extras get concatenated onto one line per Port City convention.
+    extras: list[str] = []
+    if bullnose_m2 > 0:
+        extras.append('Supply & install new bullnose verandah sheeting')
+    if skylight_count > 0:
+        extras.append(
+            f'Supply & install {skylight_count} new Skylight Dome'
+            + ('s' if skylight_count > 1 else '')
+        )
+    if include_gutters:
+        extras.append(
+            'Remove existing guttering and install new Colorbond Gutters '
+            '(White PVC downpipes additional costs $250.00 each)'
+        )
+    if extras:
+        scope.append('. '.join(extras) + '.')
+    # If none, omit slot 4 entirely (some PDFs say "Remove and install N/A")
+
+    # Items 5–9 — standard tail
+    scope.extend(STANDARD_SCOPE_OF_WORKS[4:])
+
+    # Solar / Solar HW are appended AFTER item 4 in Port City quotes
+    # (Hilleard, Bullard, Lovelady). Insert just before "Cyclonic upgrades".
+    insert_at = len(scope) - 5  # before item 5 (cyclonic) which is at index -5
+    if solar_panels_rr > 0:
+        scope.insert(insert_at, (
+            f'Remove & Reinstate {solar_panels_rr} Solar Panel'
+            + ('s' if solar_panels_rr > 1 else '')
+            + ' — System to be tested before removal '
+            '(any faults found will be additional works required by Owner)'
+        ))
+        insert_at += 1
+    if solar_panels_remove > 0:
+        scope.insert(insert_at, (
+            f'Remove {solar_panels_remove} Solar Panel'
+            + ('s' if solar_panels_remove > 1 else '')
+            + ' — system not to be reinstated'
+        ))
+        insert_at += 1
+    if solar_hw_rr:
+        scope.insert(insert_at, 'Remove & Reinstate Solar Hot Water System')
+        insert_at += 1
+    elif solar_hw_remove:
+        scope.insert(insert_at, 'Remove Solar Hot Water System (not to be reinstated)')
+
+    return scope
+
+
+def build_job_notes(
+    *,
+    is_asbestos:    bool = False,
+    include_gutters: bool = False,
+    gutter_sub_total_inc_gst: float = 0,
+) -> str:
+    """Build the 'Job Notes' line that appears below the Scope of Works.
+
+    Format mirrors Port City's standard job-notes text on every quote.
+    """
+    notes: list[str] = []
+    if not include_gutters:
+        # Standard line on every Port City quote when gutters are NOT included
+        notes.append('Gutters additional cost — see itemised sub-quote. '
+                     'Downpipes $250.00 each if required.')
+    if is_asbestos:
+        notes.append(
+            'Existing insulation batts $25.00 per m². '
+            'Blow-in insulation $60.00 per m² if deemed contaminated.'
+        )
+    return ' '.join(notes)

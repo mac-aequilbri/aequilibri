@@ -28,7 +28,8 @@ from .forms import QuoteForm, ContactForm, RateCardForm
 from .geoscape_service import GeoscapeError, lookup_geoscape_building
 from .services.correction_memory import (roof_correction_learning_prompt,
                                           extract_suburb, suburb_section_pattern)
-from .pricing_port_city import build_port_city_quote, detect_travel_zone
+from .pricing_port_city import (build_port_city_quote, detect_travel_zone,
+                                build_scope_of_works, build_job_notes)
 from .services.paid_api_cache import SHORT_TTL_SECONDS, get_cached, set_cached
 
 
@@ -177,25 +178,77 @@ def quote_create(request):
                         request.POST.get('markup_pct'), 0.10),
                 )
 
-                markup = _safe_decimal(1 + pc_quote.markup_pct, '1.10')
-                for item in pc_quote.items + pc_quote.gutter_items:
+                # ── Customer-facing scope of works (Port City PDF format) ──
+                # The QuoteItem rows are the CUSTOMER-FACING lines that show on
+                # the printed quote — they mirror Port City's standard 9-line
+                # scope list with the whole price loaded onto line 1 and the
+                # remaining lines descriptive-only (qty 1, price $0).  This
+                # matches how every Port City PDF reads.  The detailed Port
+                # City pricing breakdown is stashed in Quote.notes for
+                # internal audit (visible on the quote_detail page).
+                scope_lines = build_scope_of_works(
+                    is_asbestos     = on('opt_asbestos'),
+                    is_decromastic  = on('opt_decromastic'),
+                    solar_panels_rr = solar_panel_count if on('opt_solar_rr') else 0,
+                    solar_hw_rr     = on('opt_solar_hw'),
+                    skylight_count  = int(_safe_float(
+                        request.POST.get('skylight_count'), 0)),
+                    bullnose_m2     = _safe_float(
+                        request.POST.get('bullnose_m2'), 0),
+                    include_gutters = on('opt_gutter'),
+                )
+                # Whole price (ex GST, ex Gutters) loaded onto line 1.
+                # Gutters are kept SEPARATE so the customer can see "Job Notes:
+                # gutters additional cost $X" when not included, OR see them
+                # itemised when included.
+                roof_price_inc_gutter = pc_quote.grand_total_ex_gst \
+                    if on('opt_gutter') else pc_quote.quoted_ex_gst
+                for idx, desc in enumerate(scope_lines, start=1):
                     QuoteItem.objects.create(
                         quote=quote,
-                        description=str(item.description)[:300],
-                        quantity=_safe_decimal(item.quantity),
-                        unit=str(item.unit)[:20],
-                        unit_price_ex_gst=round(_safe_decimal(item.rate) * markup, 2),
-                        sort_order=sort,
+                        description=str(desc)[:300],
+                        quantity=_safe_decimal(1),
+                        unit='lot',
+                        unit_price_ex_gst=(
+                            _safe_decimal(roof_price_inc_gutter) if idx == 1
+                            else _safe_decimal(0)
+                        ),
+                        sort_order=idx,
                     )
-                    sort += 1
+
+                # ── Internal Port City pricing breakdown (notes) ───────────
+                # Prefixed with the model's _INTERNAL_NOTES_MARKER so the
+                # print template's `customer_notes` property strips it out.
+                breakdown_lines = ['═══ Internal pricing breakdown ═══']
+                for it in pc_quote.items:
+                    breakdown_lines.append(
+                        f"  - {it.description}: {it.quantity} {it.unit} × ${it.rate:.2f} = ${it.amount:.2f}"
+                    )
+                if pc_quote.gutter_items:
+                    breakdown_lines.append('Gutter sub-quote:')
+                    for it in pc_quote.gutter_items:
+                        breakdown_lines.append(
+                            f"  - {it.description}: {it.quantity} {it.unit} × ${it.rate:.2f} = ${it.amount:.2f}"
+                        )
+                breakdown_lines.append(
+                    f"Internal subtotal ${pc_quote.internal_subtotal:.2f} "
+                    f"× {(1 + pc_quote.markup_pct):.2f} markup "
+                    f"= ${pc_quote.quoted_ex_gst:.2f} ex GST. "
+                    f"+ Gutter sub-quote ${pc_quote.gutter_subtotal:.2f}. "
+                    f"Total inc GST: ${pc_quote.total_inc_gst:.2f}."
+                )
+
+                # Job notes line (shown on the printed quote)
+                job_notes = build_job_notes(
+                    is_asbestos=on('opt_asbestos'),
+                    include_gutters=on('opt_gutter'),
+                    gutter_sub_total_inc_gst=round(
+                        pc_quote.gutter_subtotal * 1.10, 2),
+                )
 
                 pc_notes = (
-                    f"Port City pricing: internal ${pc_quote.internal_subtotal:.2f} "
-                    f"× {(1 + pc_quote.markup_pct):.2f} markup "
-                    f"= ${pc_quote.quoted_ex_gst:.2f} "
-                    f"+ gutters ${pc_quote.gutter_subtotal:.2f} "
-                    f"= ${pc_quote.grand_total_ex_gst:.2f} ex GST. "
-                    f"Total inc GST: ${pc_quote.total_inc_gst:.2f}."
+                    (job_notes + '\n\n' if job_notes else '')
+                    + '\n'.join(breakdown_lines)
                 )
             except Exception as _pc_err:
                 # Capture full traceback to Render logs without crashing the

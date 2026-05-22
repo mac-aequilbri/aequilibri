@@ -66,8 +66,21 @@
         </div>
       </div>
 
-      {% if quote.notes %}
-      <div class="small text-muted border-top pt-2"><em>{{ quote.notes }}</em></div>
+      {% if quote.customer_notes %}
+      <div class="small border-top pt-2 mt-2">
+        <strong>Job notes (printed on quote):</strong>
+        <div class="text-muted"><em>{{ quote.customer_notes|linebreaksbr }}</em></div>
+      </div>
+      {% endif %}
+      {% if quote.internal_notes_text %}
+      <details class="small mt-2 border-top pt-2">
+        <summary style="cursor:pointer;color:#1565c0;font-weight:600;">
+          🔧 Internal pricing breakdown (Port City) — click to expand
+        </summary>
+        <pre style="font-size:.72rem;color:#444;background:#f8f9fa;
+                    padding:8px;border-radius:4px;white-space:pre-wrap;
+                    margin-top:6px;">{{ quote.internal_notes_text }}</pre>
+      </details>
       {% endif %}
     </div>
 
