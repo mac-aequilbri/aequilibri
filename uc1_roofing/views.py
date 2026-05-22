@@ -123,6 +123,34 @@ def quote_create(request):
             # Capture roof geometry for PDF plan diagram
             quote.roof_polygon_json  = request.POST.get('roof_polygon_json',  '')
             quote.roof_sections_json = request.POST.get('roof_sections_json', '')
+
+            # ── Persist roof specifications captured by AI/LiDAR ─────────
+            # These hidden form fields are populated by populateLidarResults()
+            # and rdUseResults() when the AI Roof Drawing / Solar API runs.
+            # Defaults to 0/'' when no measurement is available.
+            def _spec_f(key, default=0):
+                try:
+                    val = request.POST.get(key, default)
+                    return float(val) if val not in (None, '') else default
+                except (TypeError, ValueError):
+                    return default
+            def _spec_i(key, default=0):
+                try:
+                    val = request.POST.get(key, default)
+                    return int(float(val)) if val not in (None, '') else default
+                except (TypeError, ValueError):
+                    return default
+            quote.eave_lm         = _spec_f('eave_lm')
+            quote.perimeter_m     = _spec_f('perimeter_m')
+            quote.ridge_lm        = _spec_f('ridge_lm')
+            quote.valley_lm       = _spec_f('valley_lm')
+            quote.hip_lm          = _spec_f('hip_lm')
+            quote.rake_lm         = _spec_f('rake_lm')
+            quote.pitch_deg_actual = _spec_f('pitch_deg_actual')
+            quote.storeys         = max(1, _spec_i('storeys_actual', 1))
+            quote.roof_colour     = (request.POST.get('roof_colour') or '').strip()[:60]
+            quote.detected_equipment_json = (request.POST.get('detected_equipment_json') or '')[:1000]
+
             quote.save()
 
             # ──────────────────────────────────────────────────────────────
@@ -203,6 +231,16 @@ def quote_create(request):
                 _dp_count = (_dp_explicit if _dp_explicit > 0
                              else max(2, round(eave_lm / 10)))
 
+                # Batten replacement — when toggled, auto-compute lm at the
+                # Port City rule of 2 lm per m² of roof (matches the
+                # workbook note 'm² @ 2').  Caller-override via form field
+                # `batten_replace_lm` honoured if non-zero.
+                _batten_lm = _safe_float(request.POST.get('batten_replace_lm'), 0)
+                if on('opt_batten') and _batten_lm <= 0:
+                    _batten_lm = round(base_area * 2, 1)
+                elif not on('opt_batten'):
+                    _batten_lm = 0
+
                 pc_quote = build_port_city_quote(
                     roof_type        = pc_roof_type,
                     roof_area_m2     = base_area,
@@ -210,6 +248,7 @@ def quote_create(request):
                     is_highset       = st >= 1.10,
                     is_asbestos      = on('opt_asbestos'),
                     is_decromastic   = on('opt_decromastic'),
+                    batten_replace_lm = _batten_lm,
                     solar_panels_rr  = solar_panel_count if on('opt_solar_rr') else 0,
                     solar_hw_rr      = on('opt_solar_hw'),
                     include_fuse_pull= on('opt_fuse_pull'),

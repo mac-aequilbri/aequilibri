@@ -318,11 +318,19 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   <input type="hidden" name="eave_lm"        id="eaveLm"        value="0">
   <input type="hidden" name="perimeter_m"    id="perimeterM"    value="0">
   <input type="hidden" name="ridge_lm"       id="ridgeLm"       value="0">
+  <input type="hidden" name="valley_lm"      id="valleyLm"      value="0">
+  <input type="hidden" name="hip_lm"         id="hipLm"         value="0">
+  <input type="hidden" name="rake_lm"        id="rakeLm"        value="0">
+  <input type="hidden" name="pitch_deg_actual" id="pitchDegActual" value="0">
+  <input type="hidden" name="storeys_actual" id="storeysActual" value="1">
+  <input type="hidden" name="roof_colour"    id="roofColour"    value="">
+  <input type="hidden" name="detected_equipment_json" id="detectedEquipmentJson" value="">
   <!-- Port City pricing-engine inputs (populated by AI + scope toggles below) -->
   <input type="hidden" name="opt_asbestos"   id="optAsbestos"   value="0">
   <input type="hidden" name="opt_decromastic" id="optDecromastic" value="0">
   <input type="hidden" name="opt_fuse_pull"  id="optFusePull"   value="1">
   <input type="hidden" name="opt_bins"       id="optBins"       value="0">
+  <input type="hidden" name="opt_batten"     id="optBatten"     value="0">
   <input type="hidden" name="opt_solar_rr"   id="optSolarRR"    value="0">
   <input type="hidden" name="opt_solar_hw"   id="optSolarHw"    value="0">
   <input type="hidden" name="solar_panel_count"    id="solarPanelCount"    value="0">
@@ -622,6 +630,60 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         </div>
       </div>
 
+      <!-- Roof Specifications — auto-populated from AI analysis -->
+      <div class="card p-4 mb-4">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="fw-bold mb-0">📐 Roof Specifications</h6>
+          <span style="font-size:.6rem;background:#e3f2fd;color:#0d47a1;
+                       border:1px solid #64b5f6;border-radius:3px;
+                       padding:1px 6px;font-weight:600">AUTO-DETECTED</span>
+        </div>
+        <div class="small text-muted mb-3" style="font-size:.74rem;line-height:1.45;">
+          Measurements populated from the AI Roof Drawing + Solar API +
+          Geoscape. These appear on the printed quote PDF — they describe
+          the roof but don't directly change the price (price is driven by
+          the roof-type rate × area).
+        </div>
+        <div class="row g-2" style="font-size:.78rem;">
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Ridge length</label>
+            <div id="specRidge" class="fw-bold">— lm</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Valley length</label>
+            <div id="specValley" class="fw-bold">— lm</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Hip length</label>
+            <div id="specHip" class="fw-bold">— lm</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Rake length</label>
+            <div id="specRake" class="fw-bold">— lm</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Eave length</label>
+            <div id="specEave" class="fw-bold">— lm</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Perimeter</label>
+            <div id="specPerim" class="fw-bold">— lm</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Measured pitch</label>
+            <div id="specPitchDeg" class="fw-bold">— °</div>
+          </div>
+          <div class="col-md-3 col-6">
+            <label class="form-label small text-muted mb-0">Roof colour</label>
+            <div id="specColour" class="fw-bold text-muted" style="font-style:italic;">not detected</div>
+          </div>
+        </div>
+        <div id="specEquipmentRow" class="mt-3 pt-2 border-top" style="display:none;">
+          <label class="form-label small text-muted mb-1">Detected equipment</label>
+          <div id="specEquipment" style="font-size:.78rem;">—</div>
+        </div>
+      </div>
+
       <!-- Material -->
       <div class="card p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between mb-2">
@@ -693,6 +755,24 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             <span class="text-muted" style="font-size:.7rem">— $500 (almost always required for re-roof)</span>
           </span>
           <button type="button" class="tog-btn on" id="tog-fuse_pull" onclick="toggleOpt('fuse_pull')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Skip Bins</strong>
+            <span class="text-muted" style="font-size:.7rem">
+              — $1,600 each; auto-calculated <span id="binsAutoCount">at 1 bin per 200 m²</span>
+            </span>
+          </span>
+          <button type="button" class="tog-btn" id="tog-bins" onclick="toggleOpt('bins')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Batten Replacement</strong>
+            <span class="text-muted" style="font-size:.7rem">
+              — $16.50/lm; auto-calculated <span id="battenAutoLm">at 2 lm per m² of roof</span>
+            </span>
+          </span>
+          <button type="button" class="tog-btn" id="tog-batten" onclick="toggleOpt('batten')"></button>
         </div>
       </div>
 
@@ -1353,7 +1433,9 @@ const options = {
   // Port City priced items
   gutter:true,         // default ON — most jobs include gutter quote
   fuse_pull:true,      // default ON — almost every re-roof needs it
-  bins:false, asbestos:false, decromastic:false,
+  bins:false,          // opt-in — workbooks show qty blank by default
+  batten:false,        // opt-in — only when battens need replacing
+  asbestos:false, decromastic:false,
   solar_rr:false, solar_hw:false,
 };
 const COLORS  = ['#DC9F82','#27ae60','#3498db','#9b59b6'];
@@ -2334,6 +2416,7 @@ function toggleOpt(k) {
     decromastic: 'optDecromastic',
     fuse_pull:   'optFusePull',
     bins:        'optBins',
+    batten:      'optBatten',
     solar_rr:    'optSolarRR',
     solar_hw:    'optSolarHw',
   };
@@ -2406,11 +2489,14 @@ function updatePreview() {
 
   // Pull other backend toggles from hidden form fields so the preview
   // matches whatever the saved quote will compute.
-  const optAsbestos = document.getElementById('optAsbestos')?.value === '1';
-  const optSolarRR  = document.getElementById('optSolarRR')?.value === '1';
-  const optSolarHW  = document.getElementById('optSolarHw')?.value === '1';
-  const solarCount  = parseInt(document.getElementById('solarPanelCount')?.value || 0, 10) || 0;
-  const isHighset   = st >= 1.10;
+  const optAsbestos    = document.getElementById('optAsbestos')?.value === '1';
+  const optDecromastic = document.getElementById('optDecromastic')?.value === '1';
+  const optSolarRR     = document.getElementById('optSolarRR')?.value === '1';
+  const optSolarHW     = document.getElementById('optSolarHw')?.value === '1';
+  const optBins        = document.getElementById('optBins')?.value === '1';
+  const optBatten      = document.getElementById('optBatten')?.value === '1';
+  const solarCount     = parseInt(document.getElementById('solarPanelCount')?.value || 0, 10) || 0;
+  const isHighset      = st >= 1.10;
 
   // Build line items — same order as backend build_port_city_quote()
   const items = [];
@@ -2428,6 +2514,29 @@ function updatePreview() {
     if (isHighset)
       items.push({d:'Asbestos — Highset Allowance', q:1, u:'lot', r:1485});
   }
+  // Decromastic tile removal premium
+  if (optDecromastic) {
+    items.push({d:'Decromastic Tile Removal', q:flat, u:'m²', r:110});
+  }
+  // Skip Bins — 1 per 200 m² (round up)
+  const binCount = Math.max(1, Math.ceil(flat / 200));
+  if (optBins) {
+    items.push({d:`Skip Bins (${binCount} × 200 m² capacity)`,
+                q:binCount, u:'ea', r:1600});
+  }
+  // Batten Replacement — 2 lm per m² of roof
+  const battenLm = Math.round(flat * 2);
+  if (optBatten) {
+    items.push({d:'Batten Replacement', q:battenLm, u:'lm', r:16.5});
+  }
+  // Update the auto-caption text under each toggle so the user sees the
+  // computed quantity even when the toggle is off
+  const binsLbl = document.getElementById('binsAutoCount');
+  if (binsLbl) binsLbl.textContent =
+    `→ would be ${binCount} bin${binCount > 1 ? 's' : ''} for ${flat} m² roof = $${(binCount*1600).toLocaleString()}`;
+  const battenLbl = document.getElementById('battenAutoLm');
+  if (battenLbl) battenLbl.textContent =
+    `→ would be ${battenLm} lm for ${flat} m² roof = $${Math.round(battenLm*16.5).toLocaleString()}`;
   // Solar items
   if (optSolarRR && solarCount > 0) {
     items.push({d:'Solar Panel — Remove & Replace', q:solarCount, u:'ea', r:126});
@@ -2913,6 +3022,15 @@ function populateLidarResults(data) {
   _setHid('eaveLm',     data.guttering_linear_m != null ? data.guttering_linear_m : data.eave_lm);
   _setHid('perimeterM', data.perimeter_m);
   _setHid('ridgeLm',    data.ridge_lm || data.ridge_linear_m);
+  // ── NEW spec fields persisted from LiDAR/Solar API ──
+  _setHid('valleyLm',   data.valley_lm);
+  _setHid('hipLm',      data.hip_lm);
+  _setHid('rakeLm',     data.rake_lm);
+  _setHid('pitchDegActual', data.dominant_pitch_deg);
+  if (data.storeys) _setHid('storeysActual', data.storeys);
+  if (data.roof_colour) {
+    const c = document.getElementById('roofColour'); if (c) c.value = String(data.roof_colour);
+  }
 
   // Row 2 — Solar API specific (section count, area, pitch, boundary linear metres)
   const isSolar = data.data_source === 'google_solar_api';
@@ -7559,6 +7677,63 @@ function _rdStoreyFactorFromCount(s) {
   if (s === 2) return '1.10';
   return '1.20';
 }
+// ── Roof Specifications card — re-render from hidden form fields ───────────
+function refreshSpecCard() {
+  const fmtLm = id => {
+    const v = parseFloat(document.getElementById(id)?.value || 0);
+    return v > 0 ? v.toFixed(1) + ' lm' : '— lm';
+  };
+  const fmtDeg = id => {
+    const v = parseFloat(document.getElementById(id)?.value || 0);
+    return v > 0 ? v.toFixed(0) + '°' : '— °';
+  };
+  const $set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  $set('specRidge',    fmtLm('ridgeLm'));
+  $set('specValley',   fmtLm('valleyLm'));
+  $set('specHip',      fmtLm('hipLm'));
+  $set('specRake',     fmtLm('rakeLm'));
+  $set('specEave',     fmtLm('eaveLm'));
+  $set('specPerim',    fmtLm('perimeterM'));
+  $set('specPitchDeg', fmtDeg('pitchDegActual'));
+
+  const colour = (document.getElementById('roofColour')?.value || '').trim();
+  const colEl = document.getElementById('specColour');
+  if (colEl) {
+    if (colour) {
+      colEl.textContent = colour;
+      colEl.classList.remove('text-muted');
+      colEl.style.fontStyle = 'normal';
+    } else {
+      colEl.textContent = 'not detected';
+      colEl.classList.add('text-muted');
+      colEl.style.fontStyle = 'italic';
+    }
+  }
+  // Equipment list
+  try {
+    const eqJson = document.getElementById('detectedEquipmentJson')?.value || '';
+    const eq = eqJson ? JSON.parse(eqJson) : [];
+    const row = document.getElementById('specEquipmentRow');
+    const list = document.getElementById('specEquipment');
+    if (Array.isArray(eq) && eq.length) {
+      if (row)  row.style.display = '';
+      if (list) list.innerHTML = eq.map(e =>
+        `<span style="display:inline-block;background:#e8f5e9;color:#1b5e20;
+                      border:1px solid #66bb6a;border-radius:10px;padding:1px 8px;
+                      margin:1px 4px 1px 0;font-size:.72rem;font-weight:600;">${e}</span>`
+      ).join('');
+    } else if (row) {
+      row.style.display = 'none';
+    }
+  } catch(e) { /* ignore */ }
+}
+// Re-render whenever the indicative preview recomputes
+const _origUpdatePreview = window.updatePreview;
+window.updatePreview = function() {
+  if (typeof _origUpdatePreview === 'function') _origUpdatePreview.apply(this, arguments);
+  refreshSpecCard();
+};
+
 function _rdSetSelect(id, value, label) {
   if (!value) return;
   const el = document.getElementById(id);
@@ -7630,6 +7805,39 @@ rdUseResults = function() {
   _hidSet('perimeterM', _rdPerimM);
   _hidSet('ridgeLm',    rdData.ridge_lm != null ? rdData.ridge_lm
                        : (Math.sqrt(total) * 0.6));
+  // Valley / Hip / Rake — populated when present in the AI response
+  _hidSet('valleyLm',   rdData.valley_lm);
+  _hidSet('hipLm',      rdData.hip_lm);
+  _hidSet('rakeLm',     rdData.rake_lm);
+
+  // Pitch degrees (actual measured) — average across sections
+  if (avgPitch != null && avgPitch > 0) {
+    const pe = document.getElementById('pitchDegActual');
+    if (pe) pe.value = String(avgPitch.toFixed(1));
+  }
+
+  // Storeys (actual count from feature detection)
+  if (rdLastFeatures && rdLastFeatures.storeys) {
+    const se = document.getElementById('storeysActual');
+    if (se) se.value = String(rdLastFeatures.storeys);
+  }
+
+  // Detected equipment — bundle into a JSON list for persistence
+  if (rdLastFeatures) {
+    const eq = [];
+    if (rdLastFeatures.solar_panels) {
+      const n = parseInt(rdLastFeatures.solar_panel_count || 0, 10);
+      eq.push(n > 0 ? `Solar panels (${n})` : 'Solar panels');
+    }
+    if (rdLastFeatures.solar_hw)    eq.push('Solar hot water system');
+    if (rdLastFeatures.air_conditioning) eq.push('Air-conditioning unit(s)');
+    if (rdLastFeatures.skylights)   eq.push('Skylight(s)');
+    if (rdLastFeatures.tv_antenna)  eq.push('TV antenna');
+    if (rdLastFeatures.satellite_dish) eq.push('Satellite dish');
+    if (rdLastFeatures.solar_tubes) eq.push('Solar tube skylights');
+    const eqEl = document.getElementById('detectedEquipmentJson');
+    if (eqEl && eq.length) eqEl.value = JSON.stringify(eq);
+  }
 
   rdSaveCorrectionMemory(true);
   closeRoofDrawing();

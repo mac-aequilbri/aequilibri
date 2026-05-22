@@ -94,6 +94,33 @@ class Quote(models.Model):
                               help_text='JSON [[lat,lon],...] building footprint from MS footprints')
     roof_sections_json  = models.TextField(blank=True, default='',
                               help_text='JSON Solar API section list (facing, area, bbox, pitch)')
+
+    # ── Roof Specifications (auto-populated from AI Roof Drawing /
+    # LiDAR / Solar API analysis at quote creation).  Shown on the PDF
+    # "Roof Specifications" panel and on quote_detail for estimator
+    # review.  All optional — left at default when measurement not
+    # available. ─────────────────────────────────────────────────────
+    eave_lm         = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                              help_text='Total eave length (lm) — drives edge protection & gutter qty')
+    perimeter_m     = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                              help_text='Building perimeter (lm)')
+    ridge_lm        = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                              help_text='Ridge line length (lm)')
+    valley_lm       = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                              help_text='Valley length (lm)')
+    hip_lm          = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                              help_text='Hip line length (lm)')
+    rake_lm         = models.DecimalField(max_digits=8, decimal_places=2, default=0,
+                              help_text='Rake length (lm)')
+    pitch_deg_actual = models.DecimalField(max_digits=5, decimal_places=1, default=0,
+                              help_text='AI-measured average pitch in degrees (independent of pitch_type categorical)')
+    storeys         = models.PositiveSmallIntegerField(default=1,
+                              help_text='Detected/declared storey count')
+    roof_colour     = models.CharField(max_length=60, blank=True, default='',
+                              help_text='Colorbond / tile colour (auto-detected via Geoscape when available)')
+    detected_equipment_json = models.TextField(blank=True, default='',
+                              help_text='JSON list of equipment detected by AI feature scan (solar panels, solar HW, etc.)')
+
     created_at      = models.DateTimeField(auto_now_add=True)
     updated_at      = models.DateTimeField(auto_now=True)
 
@@ -179,6 +206,16 @@ class Quote(models.Model):
         import re as _re
         m = _re.search(r'\b(\d{4})\b', str(self.property_address or ''))
         return m.group(1) if m else ''
+
+    @property
+    def detected_equipment(self):
+        """Return a list of equipment strings parsed from JSON."""
+        import json as _j
+        try:
+            data = _j.loads(self.detected_equipment_json or '[]')
+            return data if isinstance(data, list) else []
+        except (TypeError, ValueError):
+            return []
 
     @property
     def display_name(self):
