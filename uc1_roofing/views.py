@@ -134,6 +134,7 @@ def quote_create(request):
             sort = 1
             pc_quote = None
             pc_notes = ''
+            pc_roof_type = 'hip'           # pre-declare in case try block throws before assignment
             try:
                 base_area = _safe_float(quote.adjusted_area_sqm, 0)
 
@@ -284,12 +285,23 @@ def quote_create(request):
                 quote.save(update_fields=['notes'])
 
             # Log execution
-            ExecutionLog.objects.create(
-                tool_name='generate_quote',
-                payload=json.dumps({'address': quote.property_address, 'material': material}),
-                result=json.dumps({'quote_id': quote.id, 'ref': quote.ref_number}),
-                quote=quote,
-            )
+            try:
+                ExecutionLog.objects.create(
+                    tool_name='generate_quote',
+                    payload=json.dumps({
+                        'address':  quote.property_address,
+                        'material': quote.material,  # was undefined local var — use quote.material
+                        'roof_type': pc_roof_type if pc_quote else 'unknown',
+                        'area_m2':  float(quote.adjusted_area_sqm or 0),
+                        'total_inc_gst': float(quote.total_inc_gst),
+                    }),
+                    result=json.dumps({'quote_id': quote.id, 'ref': quote.ref_number}),
+                    quote=quote,
+                )
+            except Exception as _log_err:
+                # Never let logging failure 500 the quote save
+                print(f"[quote_create] ExecutionLog failed: {_log_err!r}",
+                      file=_sys.stderr)
 
             messages.success(request, f'Quote {quote.ref_number} created successfully.')
             return redirect('uc1:quote_detail', pk=quote.pk)
