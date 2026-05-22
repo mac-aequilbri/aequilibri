@@ -633,30 +633,30 @@ dialog#roofInspDialog::backdrop { background:transparent; }
       <div class="sticky-sidebar">
       <div class="area-preview mb-4">
         <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="text-muted fw-bold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">Indicative Estimate</div>
-          <span style="font-size:.65rem;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:1px 6px;font-weight:600;">GUIDE ONLY</span>
+          <div class="text-muted fw-bold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">Port City Estimate</div>
+          <span style="font-size:.65rem;background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;border-radius:4px;padding:1px 6px;font-weight:600;">PORT CITY PRICING</span>
         </div>
         <div class="text-center mb-3 p-3" style="background:rgba(220,159,130,.15);border-radius:8px;border:1px solid rgba(220,159,130,.4)">
-          <div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.05em">Indicative Total (incl. GST)</div>
+          <div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.05em">Total Tender Price (incl. GST)</div>
           <div id="p_total" style="font-size:2.2rem;font-weight:800;color:var(--ae-space);font-family:'Montserrat',sans-serif">$—</div>
           <div id="p_gst_line" style="font-size:.75rem;color:#888"></div>
         </div>
-        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">Flat area</span><span id="p_flat">—</span></div>
-        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">× Pitch</span><span id="p_pf">—</span></div>
-        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">× Complexity</span><span id="p_cx">—</span></div>
-        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">× Storeys</span><span id="p_st">—</span></div>
-        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">+ Wastage</span><span id="p_waste">—</span></div>
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">Roof area (slope)</span><span id="p_flat">—</span></div>
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">Roof type</span><span id="p_rooftype">—</span></div>
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">Rate</span><span id="p_rate_per_m2">—</span></div>
         <hr class="my-2">
-        <div class="d-flex justify-content-between mb-2 small fw-bold"><span>Effective area</span><span id="p_eff">— m²</span></div>
-        <div class="border-top pt-2 small text-muted">
-          <div class="mb-1">Material: <strong id="p_mat">—</strong></div>
-          <div id="p_rate"></div>
-          <div id="p_subtotal" class="mt-1 fw-bold" style="color:#2c2c2c"></div>
-        </div>
+        <div id="p_breakdown" class="small" style="font-family:'SF Mono','Consolas',monospace;font-size:.66rem;line-height:1.55;color:#444;"></div>
+        <hr class="my-2">
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">Internal subtotal</span><span id="p_internal">—</span></div>
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">× 1.10 markup</span><span id="p_quoted">—</span></div>
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">+ Gutter sub-quote</span><span id="p_gutter_sub">$0</span></div>
+        <div class="d-flex justify-content-between mb-1 small fw-bold"><span>Subtotal ex GST</span><span id="p_subtotal_x">—</span></div>
+        <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">+ GST (10%)</span><span id="p_gst_amt">—</span></div>
 
         <div class="mt-3 p-2 rounded" style="background:#fff8f0;border:1px solid #f0d5b8;font-size:.7rem;color:#7a5c3a;line-height:1.5;">
-          ⚠️ <strong>Indicative only</strong> — based on industry rate ranges.<br>
-          The formal quote with your locked-in rates is generated on the <strong>next screen</strong> after saving.
+          🎯 <strong>Aligned with Port City's pricing matrix.</strong><br>
+          Uses the same per-roof-type rate, edge protection, travel zone and
+          markup formula as the 5 reference Estimating Calculation worksheets.
         </div>
 
         <button type="button" class="btn btn-outline-secondary w-100 mt-3" onclick="previewPDF()">🖨️ Print Indicative Estimate</button>
@@ -2194,39 +2194,111 @@ function toggleOpt(k) {
 
 // ── Preview ────────────────────────────────────────────────────────────────
 function avg(a) { return (a[0]+a[1])/2; }
+// ── Port City pricing constants (mirror uc1_roofing/pricing_port_city.py) ──
+const PC_ROOF_RATE       = {'1.00':120, '1.10':130, '1.20':140, '1.35':140};
+const PC_ROOF_LABEL      = {'1.00':'Gable', '1.10':'Hip', '1.20':'Ultra', '1.35':'Ultra'};
+const PC_FUSE_PULL       = 500;
+const PC_EDGE_PER_LM     = 19;
+const PC_GUTTER_PER_LM   = 100;
+const PC_DOWNPIPE_90     = 250;
+const PC_BIN_PER_200M2   = 1600;
+const PC_TRAVEL_RATES    = {ayr_ingham:600, charters:700, cairns_mackay:2000, local:0};
+const PC_MARKUP          = 0.10;
+const PC_GST             = 0.10;
+
+function _pcTravelZone(addrText) {
+  const t = (addrText || '').toLowerCase();
+  // Postcode-first lookup (most reliable)
+  const pcMatch = t.match(/\b(\d{4})\b/);
+  if (pcMatch) {
+    const pc = pcMatch[1];
+    if (['4807','4806','4808','4850'].includes(pc)) return {key:'ayr_ingham', days:3};
+    if (['4816'].includes(pc)) return {key:'charters', days:1};
+    if (['4820'].includes(pc)) return {key:'charters', days:2};
+    if (['4810','4811','4812','4813','4814','4815','4817','4818'].includes(pc)) return {key:'local', days:0};
+  }
+  // Suburb keywords
+  if (/\b(ayr|home hill|ingham|rita island|brandon|giru)\b/i.test(t))
+    return {key:'ayr_ingham', days:3};
+  if (/\b(paluma)\b/i.test(t))            return {key:'charters', days:1};
+  if (/\b(charters towers)\b/i.test(t))   return {key:'charters', days:2};
+  if (/\b(toomulla|rollingstone|crystal creek)\b/i.test(t))
+    return {key:'ayr_ingham', days:1};
+  if (/\b(cairns|mackay)\b/i.test(t))     return {key:'cairns_mackay', days:5};
+  return {key:'local', days:0};
+}
+
 function updatePreview() {
-  const mat = MATERIALS[selMatIdx];
+  // Use slope-corrected roof area DIRECTLY (no pitch/waste markup) — same
+  // contract as the backend Port City pricing engine.
   const flat = confirmedArea || Math.round(estArea);
-  if (!mat||!flat) return;
-  const pf  = PITCH_FACTORS[document.getElementById('pitchSel')?.value||'standard']||1.082;
-  const cx  = parseFloat(document.getElementById('complexSel')?.value||1.10);
-  const st  = parseFloat(document.getElementById('storeySel')?.value||1.10);
-  const eff = flat*pf*cx*st, effW = eff*(1+mat.wastage);
-  const cs  = parseFloat(document.getElementById('customSupply')?.value)||null;
-  const ci  = parseFloat(document.getElementById('customInstall')?.value)||null;
-  const sr  = cs||avg(mat.supply), ir = ci||avg(mat.install);
-  let sub   = 0;
-  if (options.remove)    sub += eff*avg([12,22])*st;
-  sub += effW*sr + eff*ir;
-  if (options.sarking&&mat.sarking>0) sub+=eff*mat.sarking;
-  const ridgeLm=0, gutterLm=0; // no perimeter without draw sections
-  if (options.ridge&&mat.ridge[1]>0) sub+=ridgeLm*avg(mat.ridge);
-  if (options.flashings) sub+=effW*sr*mat.flashing;
-  if (options.gutter)    sub+=gutterLm*avg(mat.gutter);
-  if (options.fascia)    sub+=gutterLm*avg([45,65])*st;
-  const gst=sub*.1, total=sub+gst;
-  const pk=document.getElementById('pitchSel')?.value||'standard';
-  document.getElementById('p_flat').textContent   = flat+' m²';
-  document.getElementById('p_pf').textContent     = `×${pf.toFixed(3)} (${PITCH_LABELS[pk]})`;
-  document.getElementById('p_cx').textContent     = `×${cx.toFixed(2)}`;
-  document.getElementById('p_st').textContent     = `×${st.toFixed(2)}`;
-  document.getElementById('p_waste').textContent  = `+${Math.round(mat.wastage*100)}%`;
-  document.getElementById('p_eff').textContent    = effW.toFixed(1)+' m²';
-  document.getElementById('p_mat').textContent    = mat.name;
-  document.getElementById('p_rate').textContent   = `Supply $${sr.toFixed(0)}/m² · Install $${ir.toFixed(0)}/m²`;
-  document.getElementById('p_subtotal').textContent=`Subtotal: $${Math.round(sub).toLocaleString()} ex GST`;
-  document.getElementById('p_total').textContent  = '$'+Math.round(total).toLocaleString();
-  document.getElementById('p_gst_line').textContent=`Subtotal $${Math.round(sub).toLocaleString()} + GST $${Math.round(gst).toLocaleString()}`;
+  if (!flat) return;
+  const cx  = document.getElementById('complexSel')?.value || '1.10';
+  const st  = parseFloat(document.getElementById('storeySel')?.value || '1.10');
+  const cxKey = parseFloat(cx).toFixed(2);
+  const roofRate  = PC_ROOF_RATE[cxKey]  || 130;
+  const roofLabel = PC_ROOF_LABEL[cxKey] || 'Hip';
+
+  // Eave length (safety rail / gutter quantity) — observed ratio ≈ 0.25 × area
+  const eaveLm = Math.round(flat * 0.25);
+
+  // Travel zone from address
+  const addr = document.getElementById('propAddrHidden')?.value
+            || document.getElementById('addrIn')?.value || '';
+  const tz = _pcTravelZone(addr);
+  const travelRate = PC_TRAVEL_RATES[tz.key] || 0;
+
+  // Build line items
+  const items = [];
+  items.push({d:`${roofLabel} Roof Replacement`, q:flat, u:'m²',  r:roofRate});
+  items.push({d:'Edge Protection (safety rail)', q:eaveLm, u:'lm', r:PC_EDGE_PER_LM});
+  items.push({d:'Fuse Pull',                     q:1,    u:'ea',  r:PC_FUSE_PULL});
+  if (tz.days > 0)
+    items.push({d:`Travel — ${tz.key.replace('_','/')}`, q:tz.days, u:'day', r:travelRate});
+
+  const internal = items.reduce((s,it) => s + it.q * it.r, 0);
+  const quoted   = internal * (1 + PC_MARKUP);
+
+  // Gutter sub-quote (only if toggle on)
+  let gutterSub = 0;
+  if (options.gutter) {
+    const gLm = eaveLm;                // assume eave length for gutters
+    const dpCount = Math.max(2, Math.round(gLm / 10));
+    gutterSub = gLm * PC_GUTTER_PER_LM + dpCount * PC_DOWNPIPE_90;
+    items.push({d:'──── Gutter sub-quote ────', q:'', u:'', r:NaN, head:true});
+    items.push({d:`Guttering 150mm quad`, q:gLm, u:'lm', r:PC_GUTTER_PER_LM});
+    items.push({d:`Downpipes 90mm`,       q:dpCount, u:'ea', r:PC_DOWNPIPE_90});
+  }
+
+  const subtotalEx = quoted + gutterSub;
+  const gst        = subtotalEx * PC_GST;
+  const totalInc   = subtotalEx + gst;
+
+  // ── Render ────────────────────────────────────────────────────────────
+  const $set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const fmt  = n => '$' + Math.round(n).toLocaleString();
+  $set('p_flat',       flat + ' m²');
+  $set('p_rooftype',   roofLabel + (st >= 1.10 ? ' (Highset)' : ''));
+  $set('p_rate_per_m2', `$${roofRate}/m²`);
+
+  // Line-by-line breakdown
+  const lines = items.map(it => {
+    if (it.head) return `<div style="color:#999;margin-top:4px">${it.d}</div>`;
+    const amt = it.q * it.r;
+    return `<div class="d-flex justify-content-between">
+              <span>${it.d}</span>
+              <span>${it.q} ${it.u} × $${it.r} = <b>${fmt(amt)}</b></span>
+            </div>`;
+  }).join('');
+  document.getElementById('p_breakdown').innerHTML = lines;
+
+  $set('p_internal',   fmt(internal));
+  $set('p_quoted',     fmt(quoted));
+  $set('p_gutter_sub', fmt(gutterSub));
+  $set('p_subtotal_x', fmt(subtotalEx));
+  $set('p_gst_amt',    fmt(gst));
+  $set('p_total',      fmt(totalInc));
+  $set('p_gst_line',   `Subtotal ${fmt(subtotalEx)} + GST ${fmt(gst)}`);
 }
 
 // ── PDF ────────────────────────────────────────────────────────────────────
