@@ -313,6 +313,11 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   <input type="hidden" name="opt_gutter"    id="optGutter"    value="1">
   <input type="hidden" name="opt_flashings" id="optFlashings" value="1">
   <input type="hidden" name="opt_fascia"    id="optFascia"    value="0">
+  <!-- Linear-metre values (eave/perimeter/ridge) populated by the AI analysis
+       so the backend can price guttering / ridge capping / fascia accurately. -->
+  <input type="hidden" name="eave_lm"        id="eaveLm"        value="0">
+  <input type="hidden" name="perimeter_m"    id="perimeterM"    value="0">
+  <input type="hidden" name="ridge_lm"       id="ridgeLm"       value="0">
 
   <div class="wizard-bar">
     <div class="wz-step active" id="wz1"><div class="wz-num">1</div><span>Roof Area Detection</span></div>
@@ -2583,6 +2588,14 @@ function populateLidarResults(data) {
   document.getElementById('ldEave').textContent      = fmt(data.eave_height_m);
   document.getElementById('ldRidge').textContent     = fmt(data.ridge_height_m);
   updateRoofMaterialBlock('ld', data, true);
+
+  // Persist the linear-metre values so the backend quote handler can price
+  // guttering / ridge capping / fascia accurately from real measurements.
+  const _setHid = (id, v) => { const el = document.getElementById(id);
+                               if (el && v != null && isFinite(+v)) el.value = String(+v); };
+  _setHid('eaveLm',     data.guttering_linear_m != null ? data.guttering_linear_m : data.eave_lm);
+  _setHid('perimeterM', data.perimeter_m);
+  _setHid('ridgeLm',    data.ridge_lm || data.ridge_linear_m);
 
   // Row 2 — Solar API specific (section count, area, pitch, boundary linear metres)
   const isSolar = data.data_source === 'google_solar_api';
@@ -7262,6 +7275,26 @@ rdUseResults = function() {
     _rdSetSelect('storeySel', _rdStoreyFactorFromCount(rdLastFeatures.storeys),
                  `${rdLastFeatures.storeys} storey(s)`);
   }
+
+  // Persist eave / perimeter / ridge linear-metres so the backend can price
+  // guttering, ridge capping, and fascia from real AI measurements.
+  // Only set if NOT already populated by the LiDAR/Solar populateLidarResults().
+  const _hidSet = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && v != null && isFinite(+v) && +v > 0 && +(el.value || 0) <= 0) {
+      el.value = String(+v);
+    }
+  };
+  const _rdPerimM = rdNum(rdData.perimeter_m, 0)
+                 || (rdData.outline_pct && rdData.outline_pct.length >= 3
+                       ? Math.sqrt(total) * 4   // rough estimate from area
+                       : 0);
+  _hidSet('eaveLm',     rdData.guttering_linear_m != null ? rdData.guttering_linear_m
+                       : (rdData.eave_lm != null ? rdData.eave_lm
+                          : (_rdPerimM * 0.6)));   // ~60% of perimeter ≈ eaves
+  _hidSet('perimeterM', _rdPerimM);
+  _hidSet('ridgeLm',    rdData.ridge_lm != null ? rdData.ridge_lm
+                       : (Math.sqrt(total) * 0.6));
 
   rdSaveCorrectionMemory(true);
   closeRoofDrawing();

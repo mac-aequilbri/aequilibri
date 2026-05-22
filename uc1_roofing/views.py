@@ -177,6 +177,77 @@ def quote_create(request):
                 )
                 sort += 1
 
+                # ── Linear-metre accessory pricing (Guttering / Ridge / Fascia)
+                # Eave / perimeter / ridge measurements come from the AI analysis
+                # via hidden form fields populated by populateLidarResults().
+                # Falls back to area-based estimates when measurements are missing.
+                def _flt(key, default=0.0):
+                    try: return float(request.POST.get(key, default) or default)
+                    except (TypeError, ValueError): return default
+                eave_lm     = _flt('eave_lm')
+                perimeter_m = _flt('perimeter_m')
+                ridge_lm    = _flt('ridge_lm')
+                # Fallback estimates from flat area when measurements are missing.
+                if eave_lm <= 0:
+                    eave_lm = round((base_area ** 0.5) * 4 * 0.6, 1)  # ~60% of perim
+                if ridge_lm <= 0:
+                    ridge_lm = round((base_area ** 0.5) * 0.6, 1)    # ~60% of one side
+
+                # Helper: pick the active GutteringRate by item_type, or fall back to default
+                def _gutter_rate(item_type, default_rate):
+                    try:
+                        rate_obj = GutteringRate.objects.filter(
+                            item_type=item_type, is_active=True
+                        ).first()
+                        return float(rate_obj.rate_ex_gst), rate_obj.description
+                    except Exception:
+                        pass
+                    return float(default_rate), ''
+
+                # Guttering — 150 mm quad along eave length
+                if on('opt_gutter') and eave_lm > 0:
+                    rate, desc_extra = _gutter_rate('gutter', 38.00)
+                    QuoteItem.objects.create(
+                        quote=quote,
+                        description=(f'Guttering — 150 mm quad'
+                                     + (f' ({desc_extra})' if desc_extra else '')),
+                        quantity=eave_lm, unit='lm',
+                        unit_price_ex_gst=rate, sort_order=sort,
+                    )
+                    sort += 1
+                    # Downpipes — 1 per ~10 lm of gutter, $85 each
+                    dp_count = max(2, round(eave_lm / 10))
+                    dp_rate, _ = _gutter_rate('downpipe', 85.00)
+                    QuoteItem.objects.create(
+                        quote=quote,
+                        description='Downpipes — 90 mm round',
+                        quantity=dp_count, unit='ea',
+                        unit_price_ex_gst=dp_rate, sort_order=sort,
+                    )
+                    sort += 1
+
+                # Ridge capping — typical 0.6 × √area linear metres of ridge
+                if on('opt_ridge') and ridge_lm > 0:
+                    rate, _ = _gutter_rate('ridge_cap', 32.00)
+                    QuoteItem.objects.create(
+                        quote=quote,
+                        description='Ridge capping — Colorbond, mechanically fixed',
+                        quantity=ridge_lm, unit='lm',
+                        unit_price_ex_gst=rate, sort_order=sort,
+                    )
+                    sort += 1
+
+                # Fascia boards — along eave length when toggle is on
+                if on('opt_fascia') and eave_lm > 0:
+                    rate, _ = _gutter_rate('fascia', 28.00)
+                    QuoteItem.objects.create(
+                        quote=quote,
+                        description='Fascia boards — Colorbond fascia, fixed to rafters',
+                        quantity=eave_lm, unit='lm',
+                        unit_price_ex_gst=rate, sort_order=sort,
+                    )
+                    sort += 1
+
             # Log execution
             ExecutionLog.objects.create(
                 tool_name='generate_quote',
