@@ -590,7 +590,18 @@ dialog#roofInspDialog::backdrop { background:transparent; }
 
       <!-- Material -->
       <div class="card p-4 mb-4">
-        <h6 class="fw-bold mb-3">🏗️ Roofing Material</h6>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="fw-bold mb-0">🏗️ Roofing Material</h6>
+          <span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;
+                       border:1px solid #66bb6a;border-radius:3px;
+                       padding:1px 6px;font-weight:600">SCOPE WORDING ONLY</span>
+        </div>
+        <div class="small text-muted mb-3" style="font-size:.74rem;line-height:1.45;">
+          Affects the scope text shown on the quote PDF (e.g. "Trimdek" vs "Custom Orb").
+          <strong>Pricing follows the Port City per-roof-type rate</strong> (Gable $120 /
+          Hip $130 / Ultra $140 per m²) regardless of profile.  Non-Colorbond materials
+          fall outside Port City's published rates and require a custom quote.
+        </div>
         <input type="hidden" name="material" id="matHidden" value="colorbond">
         <div id="materialGrid" class="d-flex flex-column gap-2"></div>
       </div>
@@ -2161,19 +2172,37 @@ function goStep1() {
 }
 
 // ── Materials ──────────────────────────────────────────────────────────────
+// NOTE: Port City charges per ROOF TYPE (Gable / Hip / Ultra), not per material
+// profile.  The cards below are kept for SCOPE wording only — they no longer
+// affect the price.  Non-Colorbond options are flagged 'custom quote' because
+// they fall outside Port City's published per-m² bands.
 function renderMaterials() {
-  document.getElementById('materialGrid').innerHTML = MATERIALS.map((m,i)=>`
-    <div class="material-card ${i===selMatIdx?'selected':''}" onclick="selectMat(${i})">
+  const PORT_CITY_NATIVE = {colorbond:true};   // materials priced by Port City
+  document.getElementById('materialGrid').innerHTML = MATERIALS.map((m,i)=>{
+    const isNative = !!PORT_CITY_NATIVE[m.id];
+    const sel = (i===selMatIdx);
+    return `
+    <div class="material-card ${sel?'selected':''}" onclick="selectMat(${i})">
       <div class="mat-radio"></div>
       <div class="flex-grow-1">
         <div class="d-flex align-items-center gap-2 flex-wrap">
           <span style="font-size:.85rem;font-weight:600">${m.name}</span>
           ${m.tag?`<span class="mat-tag tag-${m.tag}">${m.tagLabel}</span>`:''}
+          ${isNative
+            ? `<span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;border-radius:3px;padding:1px 5px;font-weight:600">PORT CITY RATE</span>`
+            : `<span style="font-size:.6rem;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:3px;padding:1px 5px;font-weight:600">CUSTOM QUOTE</span>`}
         </div>
-        <div style="font-size:.72rem;color:#888;margin-top:2px">$${m.supply[0]}–$${m.supply[1]}/m² supply · $${m.install[0]}–$${m.install[1]}/m² install</div>
-        <div style="font-size:.7rem;color:#999">${m.desc}</div>
+        <div style="font-size:.7rem;color:#999;margin-top:2px">${m.desc}</div>
+        ${isNative
+          ? `<div style="font-size:.68rem;color:#1b5e20;margin-top:3px">
+               Priced by roof type: Gable $120/m² · Hip $130/m² · Ultra $140/m² (+10% markup, +10% GST)
+             </div>`
+          : `<div style="font-size:.68rem;color:#856404;margin-top:3px">
+               Not in Port City's standard rates — pricing requires custom quote
+             </div>`}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function selectMat(i) {
   selMatIdx=i;
