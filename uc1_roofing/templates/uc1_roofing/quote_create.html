@@ -587,9 +587,35 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             </select>
           </div>
         </div>
-        <!-- Pitch retained as hidden because Quote.pitch_type is a required model field.
-             Value is no longer used in Port City pricing — defaults to 'standard'. -->
-        <input type="hidden" name="pitch_type" id="pitchSel" value="standard">
+        <!-- Pitch — informational only.  Port City prices off the slope-area
+             directly, so the per-m² rate already accounts for pitch geometry.
+             AI Roof Drawing auto-populates this from per-section pitch_est
+             values; the user can override.  Value appears on the printed
+             quote's scope line so the PDF reflects the real pitch instead of
+             a hardcoded "Standard 22°". -->
+        <div class="row g-3 mt-1">
+          <div class="col-md-12">
+            <label class="form-label d-flex align-items-center gap-2">
+              <span>Average Pitch</span>
+              <span style="font-size:.6rem;background:#e3f2fd;color:#0d47a1;
+                           border:1px solid #64b5f6;border-radius:3px;
+                           padding:1px 6px;font-weight:600">SCOPE ONLY · NO PRICE EFFECT</span>
+              <span id="pitchAiBadge" style="display:none;font-size:.6rem;
+                           background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;
+                           border-radius:3px;padding:1px 6px;font-weight:600">AI-DETECTED</span>
+            </label>
+            <select id="pitchSel" name="pitch_type" class="form-select">
+              {% for val, label in pitch_choices %}
+              <option value="{{ val }}" {% if val == 'standard' %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            <small class="text-muted" style="font-size:.7rem;">
+              Auto-set from the AI Roof Drawing's average section pitch when
+              available. Shown on the printed quote (scope text) — does not
+              change the dollar amount.
+            </small>
+          </div>
+        </div>
       </div>
 
       <!-- Material -->
@@ -7509,11 +7535,19 @@ function _rdSetSelect(id, value, label) {
   if (!value) return;
   const el = document.getElementById(id);
   if (!el) return;
-  // Only set if the option exists — avoids creating a phantom "value" that
-  // doesn't match any <option> (which leaves the dropdown displaying blank).
-  const opt = Array.from(el.options).find(o => o.value === String(value));
-  if (!opt) return;
+  // For <select>, validate the value exists in options to avoid creating a
+  // phantom "value" that doesn't match any option (blank display).
+  // For <input type="hidden"> the same call should just set .value.
+  if (el.tagName === 'SELECT') {
+    const opt = Array.from(el.options).find(o => o.value === String(value));
+    if (!opt) return;
+  }
   el.value = String(value);
+  // Show the AI-DETECTED badge next to pitch when the AI populates it
+  if (id === 'pitchSel') {
+    const badge = document.getElementById('pitchAiBadge');
+    if (badge) badge.style.display = 'inline-block';
+  }
   // Fire change so the preview/totals recalculate.
   el.dispatchEvent(new Event('change', { bubbles: true }));
   console.log(`[rdUseResults] set ${id} = ${value} (${label || 'auto'})`);
