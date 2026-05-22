@@ -8,8 +8,51 @@
     <h4 class="mb-0">Quotes</h4>
     <small class="text-muted">All roofing estimates</small>
   </div>
-  <a href="{% url 'uc1:quote_create' %}" class="btn btn-ae">＋ New Quote</a>
+  <div class="d-flex gap-2">
+    {% if total_quote_count > 0 %}
+    <button type="button" class="btn btn-outline-danger" data-bs-toggle="modal"
+            data-bs-target="#purgeAllModal" title="Delete every quote in the database">
+      🗑️ Delete All ({{ total_quote_count }})
+    </button>
+    {% endif %}
+    <a href="{% url 'uc1:quote_create' %}" class="btn btn-ae">＋ New Quote</a>
+  </div>
 </div>
+
+<!-- ── Delete-All confirmation modal ────────────────────────────────────── -->
+{% if total_quote_count > 0 %}
+<div class="modal fade" id="purgeAllModal" tabindex="-1" aria-labelledby="purgeAllLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title" id="purgeAllLabel">⚠️ Delete ALL quotes — irreversible</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="purge_all_quotes">
+        <div class="modal-body">
+          <p>This will permanently delete <strong>{{ total_quote_count }}</strong> quote(s)
+             from the database, plus every associated line item, execution-log row,
+             and saved quote PDF reference.</p>
+          <p class="text-danger small mb-3">
+            This is <strong>irreversible</strong> on production. There is no soft-delete or undo.
+          </p>
+          <label class="form-label small">
+            To confirm, type <code>YES_DELETE_ALL_QUOTES</code> below:
+          </label>
+          <input type="text" name="confirm" class="form-control"
+                 placeholder="YES_DELETE_ALL_QUOTES" autocomplete="off" required>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">🗑️ Delete all quotes</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="px-4 pb-4">
   <!-- Filter -->

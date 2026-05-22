@@ -65,6 +65,28 @@ def dashboard(request):
 # ─── Quote List ───────────────────────────────────────────────────────────────
 
 def quote_list(request):
+    # ── Bulk-delete handler ──────────────────────────────────────────────
+    # Triggered by the 🗑️ Delete All button on quote_list.html.  Requires
+    # POST + a confirmation token that matches a fixed sentinel so an
+    # accidental GET cannot wipe the table.
+    if request.method == 'POST' and request.POST.get('action') == 'purge_all_quotes':
+        if request.POST.get('confirm') == 'YES_DELETE_ALL_QUOTES':
+            count_quotes = Quote.objects.count()
+            count_items  = QuoteItem.objects.count()
+            # cascade-deletes QuoteItem via on_delete=CASCADE
+            Quote.objects.all().delete()
+            messages.success(
+                request,
+                f'🗑️  Deleted {count_quotes} quote(s) and {count_items} line '
+                f'item(s). The database is now clean.'
+            )
+        else:
+            messages.error(
+                request,
+                'Confirmation token did not match. No quotes were deleted.'
+            )
+        return redirect('uc1:quote_list')
+
     status_filter = request.GET.get('status', '')
     qs = Quote.objects.select_related('contact').all()
     if status_filter:
@@ -73,6 +95,7 @@ def quote_list(request):
         'quotes': qs,
         'status_filter': status_filter,
         'status_choices': Quote._meta.get_field('status').choices,
+        'total_quote_count': Quote.objects.count(),
     })
 
 
