@@ -556,36 +556,40 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         </div>
       </div>
 
-      <!-- Parameters -->
+      <!-- Roof Type & Storeys — drive the Port City roof rate -->
       <div class="card p-4 mb-4">
-        <h6 class="fw-bold mb-3">⚙️ Roof Parameters</h6>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="fw-bold mb-0">⚙️ Roof Type & Storeys</h6>
+          <span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;
+                       border:1px solid #66bb6a;border-radius:3px;
+                       padding:1px 6px;font-weight:600">DRIVES PRICE</span>
+        </div>
+        <div class="small text-muted mb-3" style="font-size:.74rem;line-height:1.45;">
+          Two inputs determine the roof rate per m² and whether highset
+          allowances apply for asbestos/solar work.
+        </div>
         <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label">Pitch</label>
-            <select name="pitch_type" id="pitchSel" class="form-select" onchange="updatePreview()">
-              {% for val, label in pitch_choices %}
-              <option value="{{ val }}" {% if val == 'standard' %}selected{% endif %}>{{ label }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          <div class="col-md-4">
-            <label class="form-label">Complexity</label>
+          <div class="col-md-6">
+            <label class="form-label">Roof Type</label>
             <select id="complexSel" name="complexity_factor" class="form-select" onchange="updatePreview()">
-              <option value="1.00">Simple</option>
-              <option value="1.10" selected>Moderate</option>
-              <option value="1.20">Complex</option>
-              <option value="1.35">Very Complex</option>
+              <option value="1.00">Gable — $120/m² (simple, single ridge)</option>
+              <option value="1.10" selected>Hip — $130/m² (standard QLD residential)</option>
+              <option value="1.20">Ultra — $140/m² (complex multi-wing)</option>
+              <option value="1.35">Ultra — $140/m² (very complex)</option>
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label">Storeys</label>
             <select id="storeySel" name="storey_factor" class="form-select" onchange="updatePreview();refreshFallback3D()">
-              <option value="1.00">Single</option>
-              <option value="1.10" selected>Double</option>
-              <option value="1.20">3+</option>
+              <option value="1.00">Single storey</option>
+              <option value="1.10" selected>Double storey (triggers highset allowances)</option>
+              <option value="1.20">3+ storeys (triggers highset allowances)</option>
             </select>
           </div>
         </div>
+        <!-- Pitch retained as hidden because Quote.pitch_type is a required model field.
+             Value is no longer used in Port City pricing — defaults to 'standard'. -->
+        <input type="hidden" name="pitch_type" id="pitchSel" value="standard">
       </div>
 
       <!-- Material -->
@@ -606,31 +610,91 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         <div id="materialGrid" class="d-flex flex-column gap-2"></div>
       </div>
 
-      <!-- Toggles -->
+      <!-- Toggles — Port City pricing items -->
       <div class="card p-4 mb-4">
-        <h6 class="fw-bold mb-3">📋 Include in Quote</h6>
-        <div class="toggle-row"><span>Remove existing roof</span><button type="button" class="tog-btn on" id="tog-remove" onclick="toggleOpt('remove')"></button></div>
-        <div class="toggle-row"><span>Sarking / underlay</span><button type="button" class="tog-btn on" id="tog-sarking" onclick="toggleOpt('sarking')"></button></div>
-        <div class="toggle-row"><span>Ridge capping</span><button type="button" class="tog-btn on" id="tog-ridge" onclick="toggleOpt('ridge')"></button></div>
-        <div class="toggle-row"><span>Guttering — 150mm quad</span><button type="button" class="tog-btn on" id="tog-gutter" onclick="toggleOpt('gutter')"></button></div>
-        <div class="toggle-row"><span>Wall &amp; valley flashings</span><button type="button" class="tog-btn on" id="tog-flashings" onclick="toggleOpt('flashings')"></button></div>
-        <div class="toggle-row"><span>Fascia boards</span><button type="button" class="tog-btn" id="tog-fascia" onclick="toggleOpt('fascia')"></button></div>
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 class="fw-bold mb-0">💰 Pricing Inclusions</h6>
+          <span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;
+                       border:1px solid #66bb6a;border-radius:3px;
+                       padding:1px 6px;font-weight:600">EACH TOGGLE = REAL $$</span>
+        </div>
+        <div class="small text-muted mb-3" style="font-size:.74rem;line-height:1.45;">
+          Toggle items that should be priced into this quote. Each is a line
+          item from Port City's estimating sheet.
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Guttering &amp; downpipes</strong>
+            <span class="text-muted" style="font-size:.7rem">— $100/lm + $250/downpipe (added as a separate sub-quote)</span>
+          </span>
+          <button type="button" class="tog-btn on" id="tog-gutter" onclick="toggleOpt('gutter')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Asbestos roof removal</strong>
+            <span class="text-muted" style="font-size:.7rem">— $252 base + $1,485 highset; insulation $25–$60/m² on discovery</span>
+          </span>
+          <button type="button" class="tog-btn" id="tog-asbestos" onclick="toggleOpt('asbestos')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Decromastic tile removal</strong>
+            <span class="text-muted" style="font-size:.7rem">— $110/m² premium (homeowner to declare any asbestos)</span>
+          </span>
+          <button type="button" class="tog-btn" id="tog-decromastic" onclick="toggleOpt('decromastic')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Solar panels — Remove &amp; Reinstall</strong>
+            <span class="text-muted" style="font-size:.7rem">— $126/panel (count auto-detected by AI feature scan; +$250 if highset)</span>
+          </span>
+          <button type="button" class="tog-btn" id="tog-solar_rr" onclick="toggleOpt('solar_rr')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Solar Hot Water — R&amp;R</strong>
+            <span class="text-muted" style="font-size:.7rem">— $1,800 (auto-detected; uncheck if leaving in place)</span>
+          </span>
+          <button type="button" class="tog-btn" id="tog-solar_hw" onclick="toggleOpt('solar_hw')"></button>
+        </div>
+        <div class="toggle-row">
+          <span>
+            <strong>Fuse Pull (Ergon disconnect)</strong>
+            <span class="text-muted" style="font-size:.7rem">— $500 (almost always required for re-roof)</span>
+          </span>
+          <button type="button" class="tog-btn on" id="tog-fuse_pull" onclick="toggleOpt('fuse_pull')"></button>
+        </div>
       </div>
 
-      <!-- Custom rates -->
-      <div class="card p-3 mb-4" style="background:var(--ae-cream)">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <small class="fw-bold">💲 Custom Rate Override</small>
-          <button type="button" class="btn btn-sm btn-outline-secondary"
-                  onclick="document.getElementById('customRates').classList.toggle('d-none')">Toggle</button>
+      <!-- Always-included automatic items -->
+      <div class="card p-3 mb-4" style="background:#f8f9fa">
+        <div class="small fw-bold mb-2" style="color:#1565c0">
+          🤖 Automatically applied (no toggle needed)
         </div>
-        <div id="customRates" class="d-none row g-2 mt-1">
-          <div class="col-6"><label class="form-label small">Supply ($/m²)</label>
-            <input type="number" id="customSupply" class="form-control form-control-sm" oninput="updatePreview()"></div>
-          <div class="col-6"><label class="form-label small">Install ($/m²)</label>
-            <input type="number" id="customInstall" class="form-control form-control-sm" oninput="updatePreview()"></div>
+        <div class="small text-muted" style="font-size:.72rem;line-height:1.6;">
+          • <strong>Edge protection / safety rail</strong> — $19/lm, computed from eave length<br>
+          • <strong>Travel allowance</strong> — auto-detected from suburb/postcode
+            ($600/day Ayr–Ingham · $700/day Charters · $2,000/day Cairns/Mackay)<br>
+          • <strong>10% markup</strong> on internal cost, then <strong>10% GST</strong>
         </div>
       </div>
+
+      <!-- Items that DO NOT affect the Port City price -->
+      <details class="card p-3 mb-4" style="background:#fffaf3">
+        <summary class="small fw-bold" style="cursor:pointer;color:#856404">
+          🛈 Other scope items (not priced separately by Port City)
+        </summary>
+        <div class="small text-muted mt-2 mb-2" style="font-size:.72rem;line-height:1.5;">
+          These are included in the per-m² roof rate and don't move the
+          price. Keep them ticked so they appear on the scope-of-works list
+          on the printed quote.
+        </div>
+        <div class="toggle-row"><span style="font-size:.82rem;">Remove existing roof</span><button type="button" class="tog-btn on" id="tog-remove" onclick="toggleOpt('remove')"></button></div>
+        <div class="toggle-row"><span style="font-size:.82rem;">Sarking / underlay (Aircell)</span><button type="button" class="tog-btn on" id="tog-sarking" onclick="toggleOpt('sarking')"></button></div>
+        <div class="toggle-row"><span style="font-size:.82rem;">Ridge capping</span><button type="button" class="tog-btn on" id="tog-ridge" onclick="toggleOpt('ridge')"></button></div>
+        <div class="toggle-row"><span style="font-size:.82rem;">Wall &amp; valley flashings</span><button type="button" class="tog-btn on" id="tog-flashings" onclick="toggleOpt('flashings')"></button></div>
+        <div class="toggle-row"><span style="font-size:.82rem;">Fascia boards (rarely separate; $65/lm if priced)</span><button type="button" class="tog-btn" id="tog-fascia" onclick="toggleOpt('fascia')"></button></div>
+      </details>
 
       <div class="card p-4 mb-4">
         <h6 class="fw-bold mb-2">📝 Notes</h6>
@@ -1253,7 +1317,15 @@ let drawPoints   = [];
 let drawTemp     = null;
 let isDrawing    = false;
 
-const options = {remove:true,sarking:true,ridge:true,gutter:true,flashings:true,fascia:false};
+const options = {
+  // Scope items (no price impact, kept for PDF scope wording)
+  remove:true, sarking:true, ridge:true, flashings:true, fascia:false,
+  // Port City priced items
+  gutter:true,         // default ON — most jobs include gutter quote
+  fuse_pull:true,      // default ON — almost every re-roof needs it
+  bins:false, asbestos:false, decromastic:false,
+  solar_rr:false, solar_hw:false,
+};
 const COLORS  = ['#DC9F82','#27ae60','#3498db','#9b59b6'];
 
 // ── Map init ───────────────────────────────────────────────────────────────
@@ -2215,9 +2287,30 @@ function selectMat(i) {
 // ── Toggles ────────────────────────────────────────────────────────────────
 function toggleOpt(k) {
   options[k]=!options[k];
-  document.getElementById('tog-'+k).classList.toggle('on',options[k]);
-  const hidMap={remove:'optRemove',sarking:'optSarking',ridge:'optRidge',gutter:'optGutter',flashings:'optFlashings',fascia:'optFascia'};
-  if(hidMap[k]) document.getElementById(hidMap[k]).value = options[k]?'1':'0';
+  const tog = document.getElementById('tog-'+k);
+  if (tog) tog.classList.toggle('on', options[k]);
+  // All toggles update their corresponding hidden POST inputs so the
+  // backend Port City pricing engine sees the same state.
+  const hidMap = {
+    // Old-school scope items (no price impact, but still recorded)
+    remove:    'optRemove',
+    sarking:   'optSarking',
+    ridge:     'optRidge',
+    gutter:    'optGutter',
+    flashings: 'optFlashings',
+    fascia:    'optFascia',
+    // NEW — Port City pricing toggles
+    asbestos:    'optAsbestos',
+    decromastic: 'optDecromastic',
+    fuse_pull:   'optFusePull',
+    bins:        'optBins',
+    solar_rr:    'optSolarRR',
+    solar_hw:    'optSolarHw',
+  };
+  if(hidMap[k]) {
+    const el = document.getElementById(hidMap[k]);
+    if (el) el.value = options[k] ? '1' : '0';
+  }
   updatePreview();
 }
 
