@@ -210,22 +210,33 @@ def quote_create(request):
                         request.POST.get('bullnose_m2'), 0),
                     include_gutters = on('opt_gutter'),
                 )
-                # Whole price (ex GST, ex Gutters) loaded onto line 1.
-                # Gutters are kept SEPARATE so the customer can see "Job Notes:
-                # gutters additional cost $X" when not included, OR see them
-                # itemised when included.
+                # Whole price (ex GST, ex Gutters) loaded onto a NEW header
+                # line "Full roof replacement as per scope below" — matches
+                # the layout used on Port City's typed quote PDFs (e.g.
+                # Hilleard #173, Lovelady #124, Bullard #255).  The standard
+                # scope-of-works lines are then descriptive sub-items.
                 roof_price_inc_gutter = pc_quote.grand_total_ex_gst \
                     if on('opt_gutter') else pc_quote.quoted_ex_gst
-                for idx, desc in enumerate(scope_lines, start=1):
+                # 1. Parent line — gets the price, qty 1 "job"
+                roof_label = quote.get_material_display() \
+                    if hasattr(quote, 'get_material_display') else 'Colorbond'
+                QuoteItem.objects.create(
+                    quote=quote,
+                    description=f'{roof_label} full roof replacement '
+                                f'(as per scope of works below)',
+                    quantity=_safe_decimal(1),
+                    unit='job',
+                    unit_price_ex_gst=_safe_decimal(roof_price_inc_gutter),
+                    sort_order=1,
+                )
+                # 2. Descriptive scope-of-works sub-items — all $0
+                for idx, desc in enumerate(scope_lines, start=2):
                     QuoteItem.objects.create(
                         quote=quote,
                         description=str(desc)[:300],
                         quantity=_safe_decimal(1),
                         unit='lot',
-                        unit_price_ex_gst=(
-                            _safe_decimal(roof_price_inc_gutter) if idx == 1
-                            else _safe_decimal(0)
-                        ),
+                        unit_price_ex_gst=_safe_decimal(0),
                         sort_order=idx,
                     )
 
