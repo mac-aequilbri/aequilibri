@@ -103,75 +103,132 @@ def quote_create(request):
 
             # ──────────────────────────────────────────────────────────────
             # Build line items using the Port City pricing engine.
-            # Matches the 5 reference Estimating Calculation worksheets:
-            # Condron Pl AYR, Toomulla, West End, Oonoonba, Mt Louisa.
+            # Defensive — any failure must NOT 500 the quote form; fall back
+            # to a single-line minimal quote and log the traceback so we can
+            # diagnose from Render's stdout.
             # ──────────────────────────────────────────────────────────────
-            base_area = float(quote.adjusted_area_sqm)  # flat × pitch × waste
+            from decimal import Decimal as _D
+            import traceback as _traceback
+            import sys as _sys
 
-            # Complexity factor → Port City roof type
-            cx = float(request.POST.get('complexity_factor', '1.10'))
-            st = float(request.POST.get('storey_factor',     '1.10'))
-            roof_type_map = {1.00: 'gable', 1.10: 'hip', 1.20: 'ultra', 1.35: 'ultra'}
-            pc_roof_type = roof_type_map.get(cx, 'hip')
+            def _safe_decimal(value, default='0'):
+                try:
+                    if value is None or value == '':
+                        return _D(default)
+                    return _D(str(value))
+                except Exception:
+                    return _D(default)
 
-            # Toggle helpers
-            def on(key):  return request.POST.get(key, '0') == '1'
-            def flt(key, default=0.0):
-                try: return float(request.POST.get(key, default) or default)
-                except (TypeError, ValueError): return default
+            def _safe_float(value, default=0.0):
+                try:
+                    if value is None or value == '':
+                        return default
+                    return float(value)
+                except (TypeError, ValueError):
+                    return default
 
-            eave_lm   = flt('eave_lm')   or round((base_area ** 0.5) * 4 * 0.6, 1)
-            solar_panel_count = int(flt('solar_panel_count', 0))
-
-            pc_quote = build_port_city_quote(
-                roof_type        = pc_roof_type,
-                roof_area_m2     = base_area,
-                eave_lm          = eave_lm,
-                # Storey ≥ 2 → highset surcharges
-                is_highset       = st >= 1.10,
-                # Removal type — detected from form toggles
-                is_asbestos      = on('opt_asbestos'),
-                is_decromastic   = on('opt_decromastic'),
-                # Solar — count from feature detection
-                solar_panels_rr  = solar_panel_count if on('opt_solar_rr') else 0,
-                solar_hw_rr      = on('opt_solar_hw'),
-                # Site logistics — fuse pull on by default, bins opt-in
-                include_fuse_pull= on('opt_fuse_pull') or True,
-                include_bins     = on('opt_bins'),
-                # Travel — auto-detect from address suburb/postcode
-                address          = quote.property_address or '',
-                suburb           = request.POST.get('address_suburb', '') or '',
-                postcode         = request.POST.get('address_postcode', '') or '',
-                # Gutters (optional)
-                include_gutters  = on('opt_gutter'),
-                gutter_lm        = eave_lm if on('opt_gutter') else 0,
-                downpipe_90mm    = int(flt('downpipe_count_90mm', 0)) if on('opt_gutter')
-                                   else 0,
-                gutter_travel_days = flt('gutter_travel_days', 0),
-                # Markup
-                markup_pct       = flt('markup_pct', 0.10),
-            )
+            def on(key):
+                return str(request.POST.get(key, '0')).strip() == '1'
 
             sort = 1
-            for item in pc_quote.items + pc_quote.gutter_items:
-                QuoteItem.objects.create(
-                    quote=quote,
-                    description=item.description,
-                    quantity=item.quantity, unit=item.unit,
-                    unit_price_ex_gst=round(item.rate * (1 + pc_quote.markup_pct), 2),
-                    sort_order=sort,
-                )
-                sort += 1
+            pc_quote = None
+            pc_notes = ''
+            try:
+                base_area = _safe_float(quote.adjusted_area_sqm, 0)
 
-            # Stash the pricing breakdown on the Quote.notes for transparency
-            quote.notes = (
-                f"Port City pricing: internal ${pc_quote.internal_subtotal:.2f} × "
-                f"{(1 + pc_quote.markup_pct):.2f} markup = ${pc_quote.quoted_ex_gst:.2f} "
-                f"+ gutters ${pc_quote.gutter_subtotal:.2f} = "
-                f"${pc_quote.grand_total_ex_gst:.2f} ex GST. "
-                f"Total inc GST: ${pc_quote.total_inc_gst:.2f}."
-            )
-            quote.save(update_fields=['notes'])
+                # Complexity factor → Port City roof type.  Use string keys so
+                # IEEE-754 representation of 1.20 / 1.35 cannot break lookup.
+                cx_raw = str(request.POST.get('complexity_factor', '1.10')).strip()
+                st     = _safe_float(request.POST.get('storey_factor', '1.10'), 1.10)
+                roof_type_map = {'1.00': 'gable', '1.10': 'hip',
+                                 '1.20': 'ultra', '1.35': 'ultra'}
+                # Normalise to 2 decimal places, e.g. '1.1' → '1.10'
+                try: cx_key = f"{float(cx_raw):.2f}"
+                except (TypeError, ValueError): cx_key = '1.10'
+                pc_roof_type = roof_type_map.get(cx_key, 'hip')
+
+                eave_lm = _safe_float(request.POST.get('eave_lm'), 0) \
+                          or round((base_area ** 0.5) * 4 * 0.6, 1)
+                solar_panel_count = int(_safe_float(
+                    request.POST.get('solar_panel_count'), 0))
+
+                pc_quote = build_port_city_quote(
+                    roof_type        = pc_roof_type,
+                    roof_area_m2     = base_area,
+                    eave_lm          = eave_lm,
+                    is_highset       = st >= 1.10,
+                    is_asbestos      = on('opt_asbestos'),
+                    is_decromastic   = on('opt_decromastic'),
+                    solar_panels_rr  = solar_panel_count if on('opt_solar_rr') else 0,
+                    solar_hw_rr      = on('opt_solar_hw'),
+                    include_fuse_pull= on('opt_fuse_pull'),
+                    include_bins     = on('opt_bins'),
+                    address          = quote.property_address or '',
+                    suburb           = request.POST.get('address_suburb', '') or '',
+                    postcode         = request.POST.get('address_postcode', '') or '',
+                    include_gutters  = on('opt_gutter'),
+                    gutter_lm        = eave_lm if on('opt_gutter') else 0,
+                    downpipe_90mm    = int(_safe_float(
+                        request.POST.get('downpipe_count_90mm'), 0)
+                    ) if on('opt_gutter') else 0,
+                    gutter_travel_days = _safe_float(
+                        request.POST.get('gutter_travel_days'), 0),
+                    markup_pct       = _safe_float(
+                        request.POST.get('markup_pct'), 0.10),
+                )
+
+                markup = _safe_decimal(1 + pc_quote.markup_pct, '1.10')
+                for item in pc_quote.items + pc_quote.gutter_items:
+                    QuoteItem.objects.create(
+                        quote=quote,
+                        description=str(item.description)[:300],
+                        quantity=_safe_decimal(item.quantity),
+                        unit=str(item.unit)[:20],
+                        unit_price_ex_gst=round(_safe_decimal(item.rate) * markup, 2),
+                        sort_order=sort,
+                    )
+                    sort += 1
+
+                pc_notes = (
+                    f"Port City pricing: internal ${pc_quote.internal_subtotal:.2f} "
+                    f"× {(1 + pc_quote.markup_pct):.2f} markup "
+                    f"= ${pc_quote.quoted_ex_gst:.2f} "
+                    f"+ gutters ${pc_quote.gutter_subtotal:.2f} "
+                    f"= ${pc_quote.grand_total_ex_gst:.2f} ex GST. "
+                    f"Total inc GST: ${pc_quote.total_inc_gst:.2f}."
+                )
+            except Exception as _pc_err:
+                # Capture full traceback to Render logs without crashing the
+                # request — fall through to a minimal single-line quote so
+                # the user still ends up on the quote-detail page.
+                print(f"[quote_create] Port City pricing FAILED: {_pc_err!r}",
+                      file=_sys.stderr)
+                _traceback.print_exc(file=_sys.stderr)
+                pc_notes = (
+                    f"⚠️ Port City pricing engine error — fell back to "
+                    f"minimal quote. Error: {type(_pc_err).__name__}: "
+                    f"{str(_pc_err)[:200]}"
+                )
+                try:
+                    fallback_area = _safe_float(quote.adjusted_area_sqm, 0)
+                    if fallback_area > 0:
+                        QuoteItem.objects.create(
+                            quote=quote,
+                            description=(
+                                f"Roof replacement — {quote.get_material_display()} "
+                                f"(rate-card fallback)"
+                            )[:300],
+                            quantity=_safe_decimal(fallback_area),
+                            unit='m²',
+                            unit_price_ex_gst=_safe_decimal(135),  # mean of observed
+                            sort_order=1,
+                        )
+                except Exception:
+                    pass
+
+            if pc_notes:
+                quote.notes = (pc_notes + ('\n' + (quote.notes or '') if quote.notes else ''))[:2000]
+                quote.save(update_fields=['notes'])
 
             # Log execution
             ExecutionLog.objects.create(
