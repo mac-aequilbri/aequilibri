@@ -10,6 +10,7 @@ urlpatterns = [
     path('quotes/new/',         views.quote_create,      name='quote_create'),
     path('quotes/<int:pk>/',    views.quote_detail,      name='quote_detail'),
     path('quotes/<int:pk>/print/', views.quote_print,   name='quote_print'),
+    path('quotes/<int:pk>/delete/', views.quote_delete, name='quote_delete'),
     path('rate-cards/',         views.rate_card_list,    name='rate_cards'),
     path('rate-cards/create/',  views.rate_card_create,  name='rate_card_create'),
     path('rate-cards/<int:pk>/delete/', views.rate_card_delete, name='rate_card_delete'),

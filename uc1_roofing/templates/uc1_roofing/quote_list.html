@@ -88,9 +88,14 @@
             <td class="text-end fw-bold">${{ q.total_inc_gst|floatformat:2 }}</td>
             <td><span class="status-badge status-{{ q.status }}">{{ q.get_status_display }}</span></td>
             <td class="small text-muted">{{ q.created_at|date:"d M Y" }}</td>
-            <td>
+            <td class="text-nowrap">
               <a href="{% url 'uc1:quote_detail' q.pk %}" class="btn btn-sm btn-ae-outline">View</a>
               <a href="{% url 'uc1:quote_print' q.pk %}" target="_blank" class="btn btn-sm btn-outline-secondary">PDF</a>
+              <form method="post" action="{% url 'uc1:quote_delete' q.pk %}" style="display:inline;"
+                    onsubmit="return confirm('Delete quote {{ q.ref_number }} for {{ q.property_address|truncatechars:40 }}?\nThis cannot be undone.');">
+                {% csrf_token %}
+                <button class="btn btn-sm btn-outline-danger" title="Delete this quote">🗑️</button>
+              </form>
             </td>
           </tr>
           {% empty %}

@@ -8,9 +8,18 @@
     <h4 class="mb-0">{{ quote.ref_number }}</h4>
     <small class="text-muted">{{ quote.property_address }}</small>
   </div>
-  <div class="d-flex gap-2">
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'uc1:quote_create' %}?address={{ quote.property_address|urlencode }}"
+       class="btn btn-outline-primary" title="Open AI Roof Drawing with this address pre-loaded">
+       🗺️ Re-analyse on Map
+    </a>
     <a href="{% url 'uc1:purchase_compare' quote.pk %}" class="btn btn-success">📦 Purchase Materials</a>
     <a href="{% url 'uc1:quote_print' quote.pk %}" target="_blank" class="btn btn-ae">🖨 Export PDF</a>
+    <form method="post" action="{% url 'uc1:quote_delete' quote.pk %}" style="display:inline;"
+          onsubmit="return confirm('Delete quote {{ quote.ref_number }}?\nThis cannot be undone.');">
+      {% csrf_token %}
+      <button class="btn btn-outline-danger" title="Delete this quote">🗑️ Delete Quote</button>
+    </form>
     <a href="{% url 'uc1:quote_list' %}" class="btn btn-outline-secondary">← Back</a>
   </div>
 </div>
@@ -82,6 +91,22 @@
                     margin-top:6px;">{{ quote.internal_notes_text }}</pre>
       </details>
       {% endif %}
+    </div>
+
+    <!-- Roof Outline Preview -->
+    <div class="card p-4 mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="mb-0 fw-bold">🛰️ Roof Outline</h6>
+        <a href="{% url 'uc1:quote_create' %}?address={{ quote.property_address|urlencode }}"
+           class="btn btn-sm btn-outline-primary"
+           title="Open this address in the AI Roof Drawing tool to inspect or correct the outline">
+           🗺️ Open on Map
+        </a>
+      </div>
+      <small class="text-muted d-block mb-2">
+        Captured at quote creation. Click "Open on Map" to verify or re-draw with the AI tool.
+      </small>
+      {% include 'uc1_roofing/_roof_plan_svg.html' with plan_svg_id='detailRoofPlanSvg' plan_height=260 %}
     </div>
 
     <!-- Line Items -->

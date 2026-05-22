@@ -408,6 +408,21 @@ def quote_print(request, pk):
     return render(request, 'uc1_roofing/quote_print.html', {'quote': quote})
 
 
+@require_POST
+def quote_delete(request, pk):
+    """Delete a single quote (and its cascade-linked line items).
+
+    POST-only — the per-row trash button on the quote list submits to here.
+    JS confirms client-side before the form submits.
+    """
+    quote = get_object_or_404(Quote, pk=pk)
+    ref = quote.ref_number
+    addr = quote.property_address
+    quote.delete()
+    messages.success(request, f'🗑️  Deleted quote {ref} ({addr[:60]}).')
+    return redirect('uc1:quote_list')
+
+
 # ─── Rate Cards ───────────────────────────────────────────────────────────────
 
 def rate_card_list(request):

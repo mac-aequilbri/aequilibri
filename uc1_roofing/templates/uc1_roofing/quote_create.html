@@ -349,7 +349,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         <div class="d-flex gap-2">
           <input type="text" id="addrIn" class="form-control form-control-lg"
                  placeholder="Search address — then click the roof on the satellite image"
-                 value=""
+                 value="{{ request.GET.address|default:'' }}"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();searchAddress();}">
           <button type="button" class="btn btn-ae px-4" id="detectBtn" onclick="searchAddress()">🔍 Search</button>
           <button type="button" class="btn btn-outline-secondary px-3" onclick="toggleLayer()" title="Toggle satellite/street">🛰️</button>
@@ -2073,6 +2073,26 @@ function clearAll() {
 // ── Address search — Google Geocoding API (Search button fallback) ────────
 // Primary: Places Autocomplete (wired in initMap — handles suggestions inline)
 // Fallback: manual geocode when user clicks 🔍 without picking a suggestion
+// Auto-fire the address search when the page is opened with ?address=...
+// (used by the "Re-analyse on Map" link on the quote detail page so the
+// user lands directly on the AI Roof Drawing for their saved quote).
+window.addEventListener('DOMContentLoaded', () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const addr = params.get('address');
+    if (addr) {
+      const addrEl = document.getElementById('addrIn');
+      if (addrEl) {
+        addrEl.value = addr;
+        // Wait a tick for the rest of the page JS to wire up
+        setTimeout(() => {
+          if (typeof searchAddress === 'function') searchAddress();
+        }, 300);
+      }
+    }
+  } catch(e) { console.warn('address autofill error:', e); }
+});
+
 async function searchAddress() {
   const q = document.getElementById('addrIn').value.trim();
   if (!q) return;
