@@ -403,16 +403,26 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         Click map points to trace the roof outline — double-click to finish
       </div>
 
-      <!-- ── Roof Inspector + AI Drawing buttons ── -->
+      <!-- ── AI Roof Drawing + Manual Compare buttons ── -->
+      <!-- View Roof Analysis is now a tab inside AI Roof Drawing (📐 2D
+           plan / 🏠 3D model toggle in the dialog header), so the
+           standalone Inspector button is removed.  The DOM element is
+           kept hidden so any JS that toggles its disabled state still
+           works without throwing. -->
       <div id="roofInspBar" class="mt-3 pt-3 border-top">
         <button type="button" id="roofInspBtn" class="btn btn-ae w-100 py-2 mb-2"
-                onclick="openRoofInspector()" disabled>
+                onclick="openRoofInspector()" disabled
+                style="display:none;"
+                aria-hidden="true">
           📍 Click a roof on the map to enable analysis
         </button>
         <button type="button" id="roofDrawBtn" class="btn btn-outline-primary w-100 py-2"
                 onclick="openRoofDrawing()" disabled
                 style="font-size:.88rem;font-weight:700;">
           🛰️ AI Roof Drawing
+          <span style="display:block;font-size:.66rem;font-weight:500;opacity:.85;margin-top:1px;">
+            edit · 2D plan · 3D model
+          </span>
         </button>
         <button type="button" id="manualCompareBtn" class="btn btn-outline-success w-100 py-2 mt-2"
                 onclick="openManualCompare()" disabled
@@ -1241,6 +1251,30 @@ dialog#roofInspDialog::backdrop { background:transparent; }
     <span style="font-size:1.3rem;">🛰️</span>
     <h5>AI Roof Drawing</h5>
     <span id="rdConfBadge" style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#1565c0;color:#fff;"></span>
+
+    <!-- View toggle — merges the former View Roof Analysis dialog into
+         this one.  Edit shows the satellite-image editing canvas (default).
+         2D plan + 3D model launch the inspector dialog pre-set to the
+         right view, since the heavy rendering machinery already lives
+         there.  Quick visual switch, single entry point for the user. -->
+    <div id="rdViewToggle" style="display:flex;gap:4px;margin-left:auto;margin-right:8px;">
+      <button type="button"
+              id="rdViewEditBtn"
+              class="btn btn-ae btn-sm"
+              onclick="rdSwitchView('edit')"
+              style="font-size:.66rem;padding:3px 9px;">✏️ Edit</button>
+      <button type="button"
+              id="rdView2dBtn"
+              class="btn btn-outline-secondary btn-sm"
+              onclick="rdSwitchView('plan')"
+              style="font-size:.66rem;padding:3px 9px;">📐 2D plan</button>
+      <button type="button"
+              id="rdView3dBtn"
+              class="btn btn-outline-secondary btn-sm"
+              onclick="rdSwitchView('3d')"
+              style="font-size:.66rem;padding:3px 9px;">🏠 3D model</button>
+    </div>
+
     <button id="rdClose" onclick="closeRoofDrawing()">← Back to Quote</button>
   </div>
 
@@ -1321,27 +1355,45 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             </select>
             <label style="display:block;font-size:.68rem;color:#666;margin:7px 0 3px;">Active section</label>
             <select id="rdSectionSelect" class="rd-select" onchange="rdSetActiveSection(this.value)"></select>
-            <div class="rd-edit-grid">
-              <button type="button" id="rdUndoBtn" onclick="rdUndo()">Undo</button>
-              <button type="button" id="rdRedoBtn" onclick="rdRedo()">Redo</button>
-              <button type="button" id="rdAddVertexBtn" onclick="rdSetEditMode('add')">Add vertex</button>
-              <button type="button" onclick="rdDeleteSelectedVertex()">Delete vertex</button>
-              <button type="button" onclick="rdStartSplitSection()">Split section</button>
-              <button type="button" onclick="rdMergeActiveSection()">Merge section</button>
-              <button type="button" onclick="rdRedrawActiveSection()">Redraw selected</button>
-              <button type="button" onclick="rdDeleteActiveSection()">Delete section</button>
-              <button type="button" onclick="rdFinishDrawSection()">Finish drawing</button>
-              <button type="button" onclick="rdClearSectionsForManualRedraw()">Clear sections &amp; redraw</button>
-              <button type="button"
-                      onclick="rdRedrawAllManual()"
-                      style="grid-column:span 2;background:#fff4f4;border:1px solid #c62828;color:#c62828;font-weight:600;">
-                🧹 Redraw all (manual)
-              </button>
+
+            <!-- Undo / Redo stay as quick-access buttons (most common ops). -->
+            <div class="rd-edit-grid" style="grid-template-columns:1fr 1fr;">
+              <button type="button" id="rdUndoBtn" onclick="rdUndo()">↶ Undo</button>
+              <button type="button" id="rdRedoBtn" onclick="rdRedo()">↷ Redo</button>
             </div>
-            <div class="rd-edit-row">
-              <button type="button" onclick="rdClipSectionsToOutline()">Fit sections inside</button>
-              <button type="button" onclick="rdRecheckWithAi()">AI re-split outline</button>
-            </div>
+
+            <!-- All other editing actions consolidate into a single Action
+                 dropdown to keep the sidebar uncluttered.  onchange routes
+                 to the existing handler, then resets the select so the
+                 same action can be picked again. -->
+            <label style="display:block;font-size:.68rem;color:#666;margin:9px 0 3px;">Action</label>
+            <select id="rdActionMenu" class="rd-select" onchange="rdDispatchAction(this)">
+              <option value="">— pick an action —</option>
+              <optgroup label="Vertex">
+                <option value="add-vertex">Add vertex (click on edge)</option>
+                <option value="delete-vertex">Delete selected vertex</option>
+              </optgroup>
+              <optgroup label="Section">
+                <option value="split-section">Split section</option>
+                <option value="merge-section">Merge section</option>
+                <option value="redraw-section">Redraw selected section</option>
+                <option value="delete-section">Delete section</option>
+                <option value="fit-sections">Fit sections inside outline</option>
+              </optgroup>
+              <optgroup label="Drawing">
+                <option value="finish-drawing">Finish drawing current shape</option>
+                <option value="clear-sections">Clear sections &amp; redraw</option>
+              </optgroup>
+              <optgroup label="Start over">
+                <option value="ai-resplit">AI re-split outline</option>
+                <option value="redraw-all">🧹 Redraw all (manual)</option>
+              </optgroup>
+            </select>
+            <!-- Add-vertex mode button stays visible only as a state hint
+                 (highlighted when active) — the dropdown is the entry. -->
+            <button type="button" id="rdAddVertexBtn"
+                    onclick="rdSetEditMode('add')"
+                    style="display:none;"></button>
           </div>
           <hr style="border:none;border-top:1px solid #eee;margin:9px 0;">
           <div class="rd-nudge-step">
@@ -1358,8 +1410,15 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <div id="rdNudgeReadout">Offset: 0 px, 0 px</div>
         </div>
 
-        <div class="rd-panel-title">Quality Check</div>
-        <div id="rdQualityPanel" class="rd-quality-panel warn">
+        <!-- Quality Check panel hidden per user request — the score is
+             still computed server-side and emitted in the JSON payload so
+             the eval harness and logs can use it, but surfacing
+             "Needs correction" / "Check before using" badges in the UI
+             erodes user confidence in the tool.  Element kept in the DOM
+             (display:none) so legacy JS that touches it doesn't break. -->
+        <div id="rdQualityPanel"
+             class="rd-quality-panel warn"
+             style="display:none;">
           Run AI Drawing to calculate outline quality.
         </div>
 
@@ -4714,13 +4773,14 @@ async function rdRerun() {
           ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
           : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    // Task 1 + 2: surface cache hit + quality score in the status line
+    // Cache tag retained (perf-only signal, not a quality judgment).
+    // Quality-score suffix removed per user request — surfacing "Q 0.62"
+    // numbers in the UI undermined trust without giving the user any
+    // actionable info.  The score is still in apiData.quality for the
+    // backend audit log and the eval harness.
     const cacheTag = apiData.cache_hit ? '  ⚡ cached' : '';
-    const qScore   = (apiData.quality && typeof apiData.quality.quality_score === 'number')
-                       ? `  · Q ${apiData.quality.quality_score.toFixed(2)}` : '';
-    rdSetStatus(`Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}${qScore}`, false);
-    // Task 2: estimator-review banner when needs_review = true
-    renderQualityBanner(apiData.quality);
+    rdSetStatus(`Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}`, false);
+    renderQualityBanner(apiData.quality);   // no-op (quality banner hidden)
   } catch(e) {
     rdSetStatus('Network error: ' + e.message, false);
   }
@@ -5474,6 +5534,37 @@ function rdSetActiveSection(value) {
   rdSelectedVertex = null;
   rdSyncEditUi();
   if (rdData) rdDrawCanvas(rdData);
+}
+
+// Action-dropdown dispatcher.  All consolidated editing actions route
+// through here; the existing handlers (rdDeleteSelectedVertex, rdStart-
+// SplitSection, etc.) are unchanged so behaviour is identical to the old
+// button grid.  Resets the select to the placeholder on exit so the same
+// action can be re-picked without first choosing a different option.
+function rdDispatchAction(selectEl) {
+  const value = selectEl && selectEl.value;
+  if (!value) return;
+  try {
+    switch (value) {
+      case 'add-vertex':      rdSetEditMode('add'); break;
+      case 'delete-vertex':   rdDeleteSelectedVertex(); break;
+      case 'split-section':   rdStartSplitSection(); break;
+      case 'merge-section':   rdMergeActiveSection(); break;
+      case 'redraw-section':  rdRedrawActiveSection(); break;
+      case 'delete-section':  rdDeleteActiveSection(); break;
+      case 'fit-sections':    rdClipSectionsToOutline(); break;
+      case 'finish-drawing':  rdFinishDrawSection(); break;
+      case 'clear-sections':  rdClearSectionsForManualRedraw(); break;
+      case 'ai-resplit':      rdRecheckWithAi(); break;
+      case 'redraw-all':      rdRedrawAllManual(); break;
+      default:                break;
+    }
+  } catch (e) {
+    console.warn('[rdDispatchAction] handler failed for', value, e);
+  } finally {
+    // Reset so the same action can be picked again immediately.
+    selectEl.value = '';
+  }
 }
 
 function rdSetEditMode(mode) {
@@ -7865,6 +7956,45 @@ function closeRoofDrawing() {
   document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// View toggle dispatcher: 'edit' stays in the AI Roof Drawing dialog with
+// the satellite-image editing canvas.  'plan' and '3d' close this dialog
+// and open the inspector dialog (where the heavy 2D-plan + 3D-model
+// rendering machinery already lives) pre-set to the requested view.
+// Result: one entry point ("AI Roof Drawing") with three view modes, no
+// separate "View Roof Analysis" button needed.
+async function rdSwitchView(view) {
+  if (view === 'edit') {
+    // Edit is the default — nothing to do beyond updating the button state.
+    _rdMarkActiveViewBtn('edit');
+    return;
+  }
+  // Make sure the inspector has the latest geometry from rdData before
+  // we hand off to it.
+  try {
+    if (typeof rdSyncPlanToInspector === 'function'
+        && rdData && Array.isArray(rdData.sections) && rdData.sections.length) {
+      rdSyncPlanToInspector();
+    }
+  } catch (e) { /* defensive */ }
+  // Close this dialog, open the inspector with the requested view.
+  closeRoofDrawing();
+  if (typeof openRoofInspector === 'function') {
+    await openRoofInspector();
+  }
+  if (typeof ridSetView === 'function') {
+    ridSetView(view);
+  }
+}
+
+function _rdMarkActiveViewBtn(view) {
+  const map = { edit: 'rdViewEditBtn', plan: 'rdView2dBtn', '3d': 'rdView3dBtn' };
+  Object.entries(map).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className = (k === view) ? 'btn btn-ae btn-sm' : 'btn btn-outline-secondary btn-sm';
+  });
+}
+
 function rdToggleSectionLabels() {
   rdShowSectionLabels = !rdShowSectionLabels;
   const btn = document.getElementById('rdToggleLabelsBtn');
@@ -7881,7 +8011,15 @@ function rdSetStatus(msg, spinning) {
 // when the response's `needs_review` flag is true. Lists the failing signals
 // so the estimator knows WHY the model wants a manual check.
 function renderQualityBanner(quality) {
-  let host = document.getElementById('rdQualityBanner');
+  // Suppressed per user request — quality-of-detection messages were
+  // eroding user confidence in the tool.  Score is still computed by
+  // the backend, persisted in the cache table, and visible in
+  // server logs / the eval harness for audit.  The function is left in
+  // place as a no-op (instead of removed) so legacy callers don't break.
+  const host = document.getElementById('rdQualityBanner');
+  if (host) host.style.display = 'none';
+  return;
+  // eslint-disable-next-line no-unreachable
   if (!host) {
     // Inject the banner placeholder next to the status line
     const statusBar = document.getElementById('rdStatus');
@@ -8340,12 +8478,10 @@ rdRerun = async function(force=false) {
           ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
           : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    // Task 1 + 2: cache hit + quality score
+    // Quality-score suffix removed (see comment in rdRecheckWithAi path).
     const cacheTag = apiData.cache_hit ? '  ⚡ cached' : '';
-    const qScore   = (apiData.quality && typeof apiData.quality.quality_score === 'number')
-                       ? `  · Q ${apiData.quality.quality_score.toFixed(2)}` : '';
     rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.'
-                                  : `Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}${qScore}`, false);
+                                  : `Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}`, false);
     if (typeof renderQualityBanner === 'function') renderQualityBanner(apiData.quality);
   } catch(e) {
     rdSetRoofLoading(false);
