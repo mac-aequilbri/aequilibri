@@ -6174,8 +6174,17 @@ function rdFinishDrawOutline() {
   rdRecomputeGeometry();
   rdAfterGeometryEdit();
   rdSyncEditUi();
+  // Show the user the next-step path explicitly so they know the new
+  // geometry will replace the old saved correction.  total_area_m2 is now
+  // non-zero (rdRecalculateSectionTotals fallback) so the Use button is
+  // enabled — clicking it saves a fresh correction that wins over the
+  // older saved one on every subsequent quote save (most-recent-first
+  // tie-break in find_best_memory_match).
+  const totalNow = rdNum(rdData.total_area_m2, 0);
   rdSetStatus(
-    'Outline captured. Now draw each roof plane: click each corner of a section, then double-click or press Finish drawing. Repeat for every plane.',
+    `Outline captured (${totalNow.toFixed(0)} m² with default 22° pitch). `
+    + 'Next: draw each roof plane for accurate areas, then click '
+    + '"Use These Measurements" to save the new correction and apply it to the quote.',
     false
   );
 }
@@ -6655,8 +6664,28 @@ function rdRecalculateSectionTotals() {
   const sections = rdData.sections;
   const total = sections.reduce((sum, sec) => sum + rdNum(sec.area_m2, 0), 0);
   const pitchSum = sections.reduce((sum, sec) => sum + rdNum(sec.pitch_est, rdNum(sec.pitch_deg, 0)), 0);
-  rdData.total_area_m2 = +total.toFixed(1);
-  rdData.avg_pitch_deg = sections.length ? +(pitchSum / sections.length).toFixed(1) : 0;
+  const avgPitch = sections.length
+    ? +(pitchSum / sections.length).toFixed(1)
+    : rdNum(rdData.avg_pitch_deg, 22);
+  rdData.avg_pitch_deg = avgPitch;
+
+  // Fallback for manual-redraw mid-state: outline drawn, sections not yet
+  // drawn (or section areas haven't been computed because the geometry
+  // recompute couldn't read scale.meters_per_px).  Without this fallback,
+  // total_area_m2 stays at 0, which disables the "Use These Measurements"
+  // button (rdAfterGeometryEdit gates on total_area_m2 > 0) and the user
+  // can never push the redrawn area back to the form.
+  //
+  // Compute total = footprint_area_m2 × slope_factor when sections sum to
+  // ~zero.  slope_factor = 1 / cos(pitch), capped so a near-vertical pitch
+  // doesn't blow up.  Same formula as rdRecomputeGeometry uses per-section.
+  let computedTotal = total;
+  const footprintArea = rdNum(rdData.footprint_area_m2, 0);
+  if (computedTotal < 1 && footprintArea > 0) {
+    const slope = 1 / Math.max(Math.cos(avgPitch * Math.PI / 180), 0.2);
+    computedTotal = +(footprintArea * slope).toFixed(1);
+  }
+  rdData.total_area_m2 = +computedTotal.toFixed(1);
 }
 
 function rdSyncPlanToInspector() {
