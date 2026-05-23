@@ -5469,6 +5469,28 @@ function rdAdoptSavedCorrectionOnMap(data=rdData) {
     ridData.data_source = ridData.data_source || 'ai_roof_drawing';
   }
   rdSyncPlanToInspector();
+
+  // ── Push corrected area to the visible form fields immediately ─────────
+  // Previously the corrected area only landed in rdData/ridData and the
+  // *main form badge / slider / hidden #flatArea* kept showing the original
+  // pre-correction number until the user clicked "Use These Measurements".
+  // That made it look like the quote was still being priced on the old
+  // surface area, even though the AI Roof Drawing UI showed the corrected
+  // outline.  Push the value through `setEstimate()` (slider + badges +
+  // estPanel) and also into #flatArea + confirmedArea so the indicative
+  // preview, the area badge, and the final form submission all agree.
+  try {
+    const correctedTotal = rdNum(data.total_area_m2, 0)
+                        || rdNum((data.sections || []).reduce(
+                             (s, sec) => s + rdNum(sec.area_m2, 0), 0), 0);
+    if (correctedTotal > 0 && typeof setEstimate === 'function') {
+      setEstimate(Math.round(correctedTotal));
+      const flatEl = document.getElementById('flatArea');
+      if (flatEl) flatEl.value = Math.round(correctedTotal);
+      if (typeof confirmedArea !== 'undefined') confirmedArea = Math.round(correctedTotal);
+      detectionMethod = 'Saved correction';
+    }
+  } catch (e) { /* defensive only */ }
 }
 
 async function rdLoadSavedCorrection(lat, lng) {
