@@ -1331,7 +1331,12 @@ dialog#roofInspDialog::backdrop { background:transparent; }
               <button type="button" onclick="rdRedrawActiveSection()">Redraw selected</button>
               <button type="button" onclick="rdDeleteActiveSection()">Delete section</button>
               <button type="button" onclick="rdFinishDrawSection()">Finish drawing</button>
-              <button type="button" onclick="rdClearSectionsForManualRedraw()">Clear sections & redraw</button>
+              <button type="button" onclick="rdClearSectionsForManualRedraw()">Clear sections &amp; redraw</button>
+              <button type="button"
+                      onclick="rdRedrawAllManual()"
+                      style="grid-column:span 2;background:#fff4f4;border:1px solid #c62828;color:#c62828;font-weight:600;">
+                🧹 Redraw all (manual)
+              </button>
             </div>
             <div class="rd-edit-row">
               <button type="button" onclick="rdClipSectionsToOutline()">Fit sections inside</button>
@@ -6013,6 +6018,12 @@ function rdFinishSplit() {
 
 function rdFinishDrawSection() {
   if (!rdData) return;
+  // When the user is mid-outline-redraw, the "Finish drawing" button should
+  // close the outline instead of switching to section mode.  Dispatch.
+  if (rdEditMode === 'draw-outline') {
+    rdFinishDrawOutline();
+    return;
+  }
   if (rdEditMode !== 'draw-section') {
     rdSetEditTarget('draw-section');
     rdSetStatus('Click around the roof plane, then press Finish drawing.', false);
@@ -6085,6 +6096,88 @@ function rdClearSectionsForManualRedraw() {
   rdRecomputeGeometry();
   rdAfterGeometryEdit();
   rdSetStatus('Sections cleared. Click around the first roof plane, then press Finish drawing or double-click. Repeat for each plane.', false);
+}
+
+// Wipe outline AND every section, then put the dialog into pure-manual
+// mode: user clicks around the roof perimeter on the satellite image to
+// draw a fresh outline, then draws each section.  No AI assistance — for
+// addresses where the AI is consistently wrong and the user wants to take
+// over completely.  The saved correction in memory is NOT touched here
+// (use the 🗑️ Delete correction button for that).
+function rdRedrawAllManual() {
+  if (!rdData) {
+    alert('Open AI Roof Drawing first so the satellite image is loaded, then redraw.');
+    return;
+  }
+  if (!confirm(
+    'Wipe the current outline AND all roof sections, and redraw from scratch by clicking on the satellite image?\n\n'
+    + 'You will trace the roof perimeter point-by-point, then draw each roof plane.\n\n'
+    + 'Note: this does NOT delete any saved correction in the database — use the Delete correction button for that.'
+  )) {
+    return;
+  }
+  rdPushHistory();
+  rdApplyOverlayOffsetToData();
+  rdData.drawing_boundary_pct = [];
+  rdData.footprint           = [];
+  rdData.sections            = [];
+  rdData.total_area_m2       = 0;
+  rdData.footprint_area_m2   = 0;
+  rdData.perimeter_m         = 0;
+  rdActiveSection            = 0;
+  rdSelectedVertex           = null;
+  rdReplaceSectionIndex      = null;
+  rdDrawSectionPts           = [];   // shared buffer for outline + section drawing
+  rdSplitPts                 = [];
+  rdEditTarget               = 'outline';
+  rdEditMode                 = 'draw-outline';
+  rdManualRedrawSession      = true;
+  // Drop the saved-correction provenance so the green banner stops claiming
+  // a correction is applied while the user is actively redrawing.
+  rdData.correction_source   = '';
+  rdData._savedCorrectionId  = null;
+  rdRecomputeGeometry();
+  rdSyncCorrectionUi();
+  rdSyncEditUi();
+  rdDrawCanvas(rdData);
+  rdSetStatus(
+    'Trace the roof perimeter: click each corner around the roof (3+ points). Press Finish drawing or double-click when done.',
+    false
+  );
+}
+
+// Called from the existing "Finish drawing" button + double-click handler
+// when rdEditMode === 'draw-outline'.  Captures the buffered click points
+// as the new drawing_boundary_pct + footprint, then switches the dialog
+// into draw-section mode so the user can immediately start defining roof
+// planes inside the outline they just drew.
+function rdFinishDrawOutline() {
+  if (!rdData) return;
+  if (rdEditMode !== 'draw-outline') return;
+  if (!Array.isArray(rdDrawSectionPts) || rdDrawSectionPts.length < 3) {
+    rdSetStatus('Need at least 3 points for an outline. Click each corner of the roof perimeter, then Finish.', false);
+    return;
+  }
+  rdPushHistory();
+  rdData.drawing_boundary_pct = rdCleanPctPolygon(rdDrawSectionPts);
+  if (typeof rdPctToGeoPolygon === 'function') {
+    rdData.footprint = rdPctToGeoPolygon(rdData.drawing_boundary_pct, rdData);
+  }
+  if (Array.isArray(rdData.footprint) && rdData.footprint.length >= 3) {
+    rdData.footprint_area_m2 = calcArea(rdData.footprint);
+    rdData.perimeter_m       = rdPerimeter(rdData.footprint);
+  }
+  rdDrawSectionPts = [];
+  rdEditTarget     = 'draw-section';
+  rdEditMode       = 'draw-section';
+  rdManualRedrawSession = true;
+  rdRecomputeGeometry();
+  rdAfterGeometryEdit();
+  rdSyncEditUi();
+  rdSetStatus(
+    'Outline captured. Now draw each roof plane: click each corner of a section, then double-click or press Finish drawing. Repeat for every plane.',
+    false
+  );
 }
 
 function rdMovePointTowardInside(pt, outline) {
@@ -6423,6 +6516,14 @@ function rdBindCanvasEditing(canvas) {
     if (!rdData || rdScaleMode) return;
     const pt = rdCanvasPoint(e, canvas);
     rdEnsureEditableGeometry(rdData, canvas, rdLastDisplayScale);
+    if (rdEditMode === 'draw-outline') {
+      // Manual outline-redraw mode: click points accumulate in
+      // rdDrawSectionPts (shared buffer). Finish via "Finish drawing"
+      // button or double-click, which dispatches to rdFinishDrawOutline().
+      rdDrawSectionPts.push(rdPixelsToPct(pt, canvas));
+      rdDrawCanvas(rdData);
+      return;
+    }
     if (rdEditMode === 'draw-section' || rdEditTarget === 'draw-section') {
       rdDrawSectionPts.push(rdPixelsToPct(pt, canvas));
       rdDrawCanvas(rdData);
@@ -6469,7 +6570,8 @@ function rdBindCanvasEditing(canvas) {
   };
   canvas.onmouseleave = canvas.onmouseup;
   canvas.ondblclick = () => {
-    if (rdEditMode === 'draw-section') rdFinishDrawSection();
+    if (rdEditMode === 'draw-outline') rdFinishDrawOutline();
+    else if (rdEditMode === 'draw-section') rdFinishDrawSection();
   };
 }
 
