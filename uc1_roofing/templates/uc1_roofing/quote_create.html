@@ -1671,6 +1671,15 @@ async function clickEstimate(lat, lon) {
         document.getElementById('badgeArea').textContent = roofArea;
         document.getElementById('flatArea').value = roofArea;
 
+        // ── Saved-correction auto-apply ────────────────────────────────
+        // If this address has a previously-saved manual correction, fetch
+        // it in the background and override the area/badge/#flatArea with
+        // the corrected value.  Otherwise the form would silently price on
+        // the Solar API's original area (e.g. 283 m² when the corrected
+        // value is smaller) — the saved correction would only kick in if
+        // the user happened to open AI Roof Drawing again.
+        _autoApplySavedCorrectionToForm(lat, lon);
+
         // Geocode + candidate footprint in background. AI outline is on-demand
         // from the AI Roof Drawing button to avoid paid image/vision calls per click.
         const addrPromise = _ridGeocode(lat, lon);
@@ -1692,12 +1701,22 @@ async function clickEstimate(lat, lon) {
             detectionMethod = `Hybrid outline (${chosen.source})`;
             if (chosen.apiData) { rdData = rdBuildPlanData(chosen.apiData, lat, lon); rdRecomputeGeometry(); }
             _setFootprintOutline(ridPolygon, '#27ae60', 0.14, 4, false);
-            estArea = roofArea;
-            document.getElementById('flatArea').value = roofArea;
-            document.getElementById('badgeArea').textContent = roofArea;
-            document.getElementById('estAreaDisplay').textContent = roofArea;
-            document.getElementById('areaSlider').value = roofArea;
-            document.getElementById('areaSliderVal').textContent = roofArea;
+            // Respect a saved correction that may have already overwritten
+            // #flatArea — only push roofArea back into the visible area
+            // fields when no correction is in play, otherwise we'd undo
+            // the corrected value and the quote would re-revert to the
+            // original area.  `detectionMethod` is the signal used by the
+            // saved-correction auto-apply path.
+            const _correctionInPlay = (typeof detectionMethod === 'string'
+                                       && detectionMethod.toLowerCase().includes('correction'));
+            if (!_correctionInPlay) {
+              estArea = roofArea;
+              document.getElementById('flatArea').value = roofArea;
+              document.getElementById('badgeArea').textContent = roofArea;
+              document.getElementById('estAreaDisplay').textContent = roofArea;
+              document.getElementById('areaSlider').value = roofArea;
+              document.getElementById('areaSliderVal').textContent = roofArea;
+            }
             setStatus(
               `<span class="det-badge db-p1">${chosen.badge}</span> ` +
               `<span class="text-muted small">${chosen.confidence} confidence · outline ${Math.round(chosen.area)} m² · ${sourceBadge} ground ${groundArea} m² · roof area ${roofArea} m²${materialTail}</span>`
@@ -5470,27 +5489,84 @@ function rdAdoptSavedCorrectionOnMap(data=rdData) {
   }
   rdSyncPlanToInspector();
 
-  // ── Push corrected area to the visible form fields immediately ─────────
-  // Previously the corrected area only landed in rdData/ridData and the
-  // *main form badge / slider / hidden #flatArea* kept showing the original
-  // pre-correction number until the user clicked "Use These Measurements".
-  // That made it look like the quote was still being priced on the old
-  // surface area, even though the AI Roof Drawing UI showed the corrected
-  // outline.  Push the value through `setEstimate()` (slider + badges +
-  // estPanel) and also into #flatArea + confirmedArea so the indicative
-  // preview, the area badge, and the final form submission all agree.
+  // Push corrected area to the visible form fields & hidden #flatArea — but
+  // WITHOUT calling setEstimate() (which redraws the map / fires panel
+  // refreshes / calls updateEstimateRoofMaterial — those side effects break
+  // the AI Roof Drawing dialog when invoked during its init flow).  Direct
+  // DOM writes only.
   try {
-    const correctedTotal = rdNum(data.total_area_m2, 0)
-                        || rdNum((data.sections || []).reduce(
-                             (s, sec) => s + rdNum(sec.area_m2, 0), 0), 0);
-    if (correctedTotal > 0 && typeof setEstimate === 'function') {
-      setEstimate(Math.round(correctedTotal));
-      const flatEl = document.getElementById('flatArea');
-      if (flatEl) flatEl.value = Math.round(correctedTotal);
-      if (typeof confirmedArea !== 'undefined') confirmedArea = Math.round(correctedTotal);
-      detectionMethod = 'Saved correction';
-    }
+    _applyCorrectedAreaToForm(data);
   } catch (e) { /* defensive only */ }
+}
+
+// Lightweight form-area updater shared by the AI-drawing-adoption path and
+// the address-click auto-load path.  Updates the slider value/min/max, the
+// area badges, the hidden #flatArea input, and the JS state vars estArea +
+// confirmedArea — no map drawing, no panel refresh, no detection-method
+// stomping.  Safe to call repeatedly.
+function _applyCorrectedAreaToForm(rdLikeData) {
+  if (!rdLikeData) return false;
+  const fromMeta = +rdLikeData.total_area_m2;
+  let corrected = Number.isFinite(fromMeta) && fromMeta > 0 ? fromMeta : 0;
+  if (!corrected && Array.isArray(rdLikeData.sections)) {
+    const sum = rdLikeData.sections.reduce(
+      (s, sec) => s + (+sec.area_m2 > 0 ? +sec.area_m2 : 0), 0);
+    if (sum > 0) corrected = sum;
+  }
+  if (!corrected) return false;
+  const rounded = Math.round(corrected);
+  const flatEl  = document.getElementById('flatArea');
+  if (flatEl) flatEl.value = rounded;
+  if (typeof confirmedArea !== 'undefined') confirmedArea = rounded;
+  if (typeof estArea !== 'undefined') estArea = rounded;
+  const ids = {
+    'areaSlider':       el => { el.value = rounded;
+                                 el.min   = Math.max(20, Math.round(rounded * 0.4));
+                                 el.max   = Math.round(rounded * 2.5); },
+    'areaSliderVal':    el => { el.textContent = rounded; },
+    'badgeArea':        el => { el.textContent = rounded; },
+    'estAreaDisplay':   el => { el.textContent = rounded; },
+  };
+  Object.entries(ids).forEach(([id, fn]) => {
+    const el = document.getElementById(id);
+    if (el) { try { fn(el); } catch (e) {} }
+  });
+  return true;
+}
+
+// Address-click follow-up: check the saved-correction memory for this lat/lng
+// and, if a correction with a positive total_area_m2 exists, push it into the
+// visible form fields and the hidden #flatArea so the user proceeding to the
+// next step gets priced on the corrected area — without having to open AI
+// Roof Drawing again.  Updates the status line so the user sees what happened.
+async function _autoApplySavedCorrectionToForm(lat, lng) {
+  if (typeof rdLoadSavedCorrection !== 'function') return;
+  try {
+    const correction = await rdLoadSavedCorrection(lat, lng);
+    if (!correction) return;
+    // Synthesise a minimal rdLike object so _applyCorrectedAreaToForm
+    // can read total_area_m2 / sections without needing to mutate rdData.
+    const applied = _applyCorrectedAreaToForm({
+      total_area_m2: correction.total_area_m2,
+      sections:      Array.isArray(correction.sections) ? correction.sections : [],
+    });
+    if (applied) {
+      detectionMethod = 'Saved manual correction';
+      // Append a small note to the status line so the user sees the override.
+      try {
+        const sl = document.getElementById('statusLine');
+        if (sl) {
+          const corrected = Math.round(+document.getElementById('flatArea').value || 0);
+          if (corrected > 0) {
+            sl.innerHTML += ` <span class="text-success small" style="margin-left:6px;">📐 Saved correction applied — area updated to ${corrected} m²</span>`;
+          }
+        }
+      } catch (e) { /* status line is best-effort */ }
+    }
+  } catch (e) {
+    // Never block the address-click flow on a correction-lookup error.
+    console.warn('[saved-correction auto-apply] lookup failed', e);
+  }
 }
 
 async function rdLoadSavedCorrection(lat, lng) {
