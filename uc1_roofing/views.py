@@ -2378,13 +2378,29 @@ def _merge_weak_sections(parsed: dict, max_sections: int = 8) -> None:
 def roof_drawing_analyze(request):
     """
     POST /uc1/api/roof-drawing/
-    Body (JSON): { lat, lng, zoom? }
+    Body (JSON): { lat, lng, zoom?, address? }
+    Query string: ?force_refresh=1   (bypass cache)
 
     1. Fetches a satellite screenshot from Google Static Maps API
-    2. Sends to Claude Vision for roof section detection
-    3. Returns: { image_b64, sections, scale, roof_type, confidence, notes }
+    2. Looks up the RoofAnalysisCache by (lat, lng, zoom, image_hash,
+       MODEL_VERSION, PROMPT_VERSION) — returns cached JSON if found
+    3. On miss: sends to Claude Vision (temperature=0 for determinism),
+       caches the parsed result
+    4. Returns: { image_b64, sections, scale, roof_type, confidence, notes,
+                  ..., cache_hit: bool, cache_key: str }
     """
     from core.claude_client import call_claude_vision
+    import hashlib as _hashlib
+
+    # ── Task 1: cache + prompt version constants ────────────────────────
+    # MODEL_VERSION moves with the call_claude_vision model arg.  Bump
+    # PROMPT_VERSION whenever ROOF_VISION_SYSTEM or the user-prompt
+    # template changes — older cache rows are simply skipped because
+    # their key won't match.
+    MODEL_VERSION  = 'claude-opus-4-7'
+    PROMPT_VERSION = 'v3-tight-outline'   # bump on prompt change
+
+    force_refresh = request.GET.get('force_refresh', '').strip() in ('1', 'true', 'yes')
 
     try:
         body    = json.loads(request.body)
@@ -2645,17 +2661,78 @@ def roof_drawing_analyze(request):
         # padding around the roof and it traced the crop boundary instead of
         # the roof edge). Reverted to the original single-pass flow.
         multi_pass_used = False
-        result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt, vision_b64, vision_media_type)
 
-        # ── Parse Claude's JSON response ─────────────────────────────────────
-        raw = result['content'].strip()
-        raw = re.sub(r'^```(?:json)?\s*', '', raw)
-        raw = re.sub(r'\s*```$', '', raw)
+        # ── Task 1: cache lookup ─────────────────────────────────────────────
+        # Cache key includes the annotated image hash so any change to the
+        # footprint guide or click position naturally invalidates.
+        from .models import RoofAnalysisCache
         try:
-            parsed = json.loads(raw)
-        except json.JSONDecodeError:
-            parsed = {"sections": [], "roof_type": "unknown", "confidence": "low",
-                      "notes": "Could not parse Claude response"}
+            _img_bytes_for_hash = base64.b64decode(vision_b64)
+        except Exception:
+            _img_bytes_for_hash = img_bytes
+        image_hash = _hashlib.sha256(_img_bytes_for_hash).hexdigest()[:32]
+        cache_raw = (f"{lat:.6f}|{lng:.6f}|{zoom}|{image_hash}|"
+                     f"{MODEL_VERSION}|{PROMPT_VERSION}")
+        cache_key = _hashlib.sha256(cache_raw.encode()).hexdigest()
+        cache_hit = False
+        parsed = None
+        if not force_refresh:
+            try:
+                hit = RoofAnalysisCache.objects.filter(cache_key=cache_key).first()
+            except Exception:
+                hit = None
+            if hit:
+                cache_hit = True
+                parsed = hit.result_json
+                try:
+                    from django.db.models import F
+                    from django.utils import timezone
+                    RoofAnalysisCache.objects.filter(pk=hit.pk).update(
+                        hit_count=F('hit_count') + 1, last_hit_at=timezone.now(),
+                    )
+                except Exception:
+                    pass
+                print(f"[roof_drawing_analyze] cache HIT  key={cache_key[:12]}…  "
+                      f"address={(body.get('address') or '')[:60]!r}",
+                      file=__import__('sys').stderr)
+
+        if parsed is None:
+            # MISS — call Claude (temperature=0 for determinism)
+            result = call_claude_vision(ROOF_VISION_SYSTEM, user_prompt,
+                                        vision_b64, vision_media_type,
+                                        temperature=0)
+            raw = result['content'].strip()
+            raw = re.sub(r'^```(?:json)?\s*', '', raw)
+            raw = re.sub(r'\s*```$', '', raw)
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                parsed = {"sections": [], "roof_type": "unknown", "confidence": "low",
+                          "notes": "Could not parse Claude response"}
+            # Persist the cache entry (best-effort — never break the request on a cache write failure)
+            try:
+                RoofAnalysisCache.objects.update_or_create(
+                    cache_key=cache_key,
+                    defaults={
+                        'address':        (body.get('address') or '')[:255],
+                        'lat':            lat,
+                        'lng':            lng,
+                        'zoom':           zoom,
+                        'image_hash':     image_hash,
+                        'result_json':    parsed,
+                        'model_version':  MODEL_VERSION,
+                        'prompt_version': PROMPT_VERSION,
+                    },
+                )
+                print(f"[roof_drawing_analyze] cache STORE key={cache_key[:12]}…",
+                      file=__import__('sys').stderr)
+            except Exception as _cache_exc:
+                print(f"[roof_drawing_analyze] cache store FAILED: {_cache_exc!r}",
+                      file=__import__('sys').stderr)
+        else:
+            # Set `result` to a synthetic dict so downstream code that
+            # reads `result.get('demo_mode')` etc still works.
+            result = {'content': json.dumps(parsed), 'demo_mode': False}
 
         # ── LOCK the green outline as final when a footprint exists ─────────
         # Per user policy 2026-05-22: the Geoscape/Microsoft footprint is
@@ -2702,6 +2779,32 @@ def roof_drawing_analyze(request):
         # Must run AFTER area_m2 is assigned above.
         _merge_weak_sections(parsed, max_sections=8)
 
+        # ── Task 2: quality scoring ───────────────────────────────────────────
+        # Computes a 0..1 quality score from outline geometry + Geoscape
+        # ground-truth area when available. UI uses `needs_review` to
+        # decide whether to show a yellow estimator-review banner.
+        from .services.roof_quality import compute_quality_score, meters_per_pixel
+        try:
+            _geoscape_for_score = None  # backend-side Geoscape data, if available
+            try:
+                from .geoscape_service import lookup_geoscape_building
+                _gs = lookup_geoscape_building(lat=lat, lon=lng,
+                                                address=body.get('address') or '')
+                if _gs:
+                    _geoscape_for_score = {'buildingArea': _gs.get('area_sqm')}
+            except Exception:
+                _geoscape_for_score = None
+            _mpp = meters_per_pixel(lat, zoom)
+            quality = compute_quality_score(
+                parsed,
+                geoscape=_geoscape_for_score,
+                image_dims=(width, height),
+                meters_per_pixel_val=_mpp,
+            )
+        except Exception as _qexc:
+            quality = {'signals': {'scoring_error': str(_qexc)[:200]},
+                       'quality_score': None, 'needs_review': False}
+
         return JsonResponse({
             'ok': True,
             'image_b64': img_b64,
@@ -2740,6 +2843,13 @@ def roof_drawing_analyze(request):
             'notes': parsed.get('notes', ''),
             'demo_mode': result.get('demo_mode', False),
             'multi_pass_used': multi_pass_used,
+            # Task 1: cache transparency for the eval harness + dev debugging
+            'cache_hit':       cache_hit,
+            'cache_key':       cache_key,
+            'prompt_version':  PROMPT_VERSION,
+            'model_version':   MODEL_VERSION,
+            # Task 2: quality scoring + auto-flag
+            'quality':         quality,
             'correction_learning_applied': bool(correction_learning.text),
             'correction_learning_count': correction_learning.correction_count,
             # Solar API calibration data
@@ -2891,11 +3001,55 @@ def roof_correction_save(request):
             }),
             status='success',
         )
+        # ── Task 1: invalidate cache for this address so a re-analysis
+        # picks up the saved correction immediately, not the stale Claude
+        # output that triggered the correction in the first place.
+        try:
+            invalidate_cache_for_address(address, lat=body.get('lat'),
+                                         lng=body.get('lng'))
+        except Exception as _inv_exc:
+            print(f"[roof_correction_save] cache invalidate FAILED: {_inv_exc!r}",
+                  file=__import__('sys').stderr)
         return JsonResponse({'ok': True, 'id': log.id})
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
     except Exception as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=500)
+
+
+# ── Task 1: cache invalidation helper ───────────────────────────────────
+# Called from `roof_correction_save` whenever the estimator saves a
+# manual fix; can also be called from a Django shell for ad-hoc cache
+# clearing.  Deletes all RoofAnalysisCache entries whose address matches
+# OR whose (lat, lng) sit within ~10m of the given point — covers both
+# exact-address and click-on-map flows.
+def invalidate_cache_for_address(address: str = '',
+                                  lat: float | None = None,
+                                  lng: float | None = None) -> int:
+    """Delete cache entries for an address / coordinate. Returns # deleted."""
+    from .models import RoofAnalysisCache
+    from django.db.models import Q
+    q = Q()
+    address = (address or '').strip()
+    if address:
+        q |= Q(address=address)
+    try:
+        if lat is not None and lng is not None:
+            lat_f, lng_f = float(lat), float(lng)
+            # ~10m tolerance in degrees of latitude / longitude
+            #   1 degree latitude ≈ 111_320 m → 10/111320 ≈ 0.00009 deg
+            tol = 0.0001
+            q |= (Q(lat__gte=lat_f - tol) & Q(lat__lte=lat_f + tol) &
+                  Q(lng__gte=lng_f - tol) & Q(lng__lte=lng_f + tol))
+    except (TypeError, ValueError):
+        pass
+    if not q:
+        return 0
+    count, _ = RoofAnalysisCache.objects.filter(q).delete()
+    print(f"[invalidate_cache_for_address] deleted {count} cache row(s) for "
+          f"address={address!r} lat={lat} lng={lng}",
+          file=__import__('sys').stderr)
+    return count
 
 
 @csrf_exempt

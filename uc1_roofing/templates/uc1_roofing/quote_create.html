@@ -4571,7 +4571,13 @@ async function rdRerun() {
           ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
           : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    rdSetStatus(`Roof drawing generated from ${outlineLabel}${learningSuffix}.`, false);
+    // Task 1 + 2: surface cache hit + quality score in the status line
+    const cacheTag = apiData.cache_hit ? '  ⚡ cached' : '';
+    const qScore   = (apiData.quality && typeof apiData.quality.quality_score === 'number')
+                       ? `  · Q ${apiData.quality.quality_score.toFixed(2)}` : '';
+    rdSetStatus(`Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}${qScore}`, false);
+    // Task 2: estimator-review banner when needs_review = true
+    renderQualityBanner(apiData.quality);
   } catch(e) {
     rdSetStatus('Network error: ' + e.message, false);
   }
@@ -7386,6 +7392,54 @@ function rdSetStatus(msg, spinning) {
   document.getElementById('rdStatusTxt').innerHTML = msg;
 }
 
+// Task 2: render the quality-score banner inside the AI Roof Drawing dialog
+// when the response's `needs_review` flag is true. Lists the failing signals
+// so the estimator knows WHY the model wants a manual check.
+function renderQualityBanner(quality) {
+  let host = document.getElementById('rdQualityBanner');
+  if (!host) {
+    // Inject the banner placeholder next to the status line
+    const statusBar = document.getElementById('rdStatus');
+    if (!statusBar) return;
+    host = document.createElement('div');
+    host.id = 'rdQualityBanner';
+    host.style.cssText =
+      'margin:6px 14px;padding:6px 10px;border-radius:5px;font-size:.78rem;line-height:1.4;display:none;';
+    statusBar.parentNode.insertBefore(host, statusBar.nextSibling);
+  }
+  if (!quality) { host.style.display = 'none'; return; }
+  const score = quality.quality_score;
+  const signals = quality.signals || {};
+  // Collect failing signals (those ending in _ok = false)
+  const failing = Object.keys(signals)
+    .filter(k => k.endsWith('_ok') && signals[k] === false)
+    .map(k => k.replace(/_ok$/, ''));
+  if (!quality.needs_review) {
+    host.style.display = score != null && score >= 0.85 ? 'none' : '';
+    // Only show a subtle "OK" pill if score is mid-range (0.7–0.85)
+    if (score != null && score >= 0.7 && score < 0.85) {
+      host.style.background = '#fff8e7';
+      host.style.border     = '1px solid #ffd54f';
+      host.style.color      = '#7a5c00';
+      host.innerHTML =
+        `📊 <strong>Quality ${score.toFixed(2)}</strong> — acceptable but worth a quick look. ` +
+        (failing.length ? `<span style="opacity:.85;">(check: ${failing.join(', ')})</span>` : '');
+    }
+    return;
+  }
+  // needs_review = true → red banner
+  host.style.display = '';
+  host.style.background = '#ffebee';
+  host.style.border     = '1px solid #ef9a9a';
+  host.style.color      = '#b71c1c';
+  host.innerHTML =
+    `⚠️ <strong>Review recommended — Quality ${score != null ? score.toFixed(2) : 'n/a'}</strong>. ` +
+    (failing.length
+      ? `Failing checks: <em>${failing.join(', ')}</em>. `
+      : '') +
+    `Use the Edit / Save Correction tools to fix the outline before quoting.`;
+}
+
 async function rdRerun() {
   if (!estCenter) { rdSetStatus('Click a roof on the map first.', false); return; }
   const [lat, lng] = estCenter;
@@ -7801,7 +7855,13 @@ rdRerun = async function(force=false) {
           ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
           : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
     const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
-    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : `Roof drawing generated from ${outlineLabel}${learningSuffix}.`, false);
+    // Task 1 + 2: cache hit + quality score
+    const cacheTag = apiData.cache_hit ? '  ⚡ cached' : '';
+    const qScore   = (apiData.quality && typeof apiData.quality.quality_score === 'number')
+                       ? `  · Q ${apiData.quality.quality_score.toFixed(2)}` : '';
+    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.'
+                                  : `Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}${qScore}`, false);
+    if (typeof renderQualityBanner === 'function') renderQualityBanner(apiData.quality);
   } catch(e) {
     rdSetRoofLoading(false);
     rdSetStatus('Network error: ' + e.message, false);

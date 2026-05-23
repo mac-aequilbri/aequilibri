@@ -824,3 +824,46 @@ class RoofConditionReport(models.Model):
 
     def __str__(self): return f"{self.report_number} — {self.quote.property_address[:60]}"
     class Meta: verbose_name = 'Roof Condition Report'; ordering = ['-generated_at']
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TASK 1 — Result cache for the roof analysis Claude call
+# ═══════════════════════════════════════════════════════════════════════════════
+class RoofAnalysisCache(models.Model):
+    """Caches the parsed JSON result of a roof-analysis Claude call.
+
+    Cache key = SHA-256 of (lat, lng, zoom, image_hash, model_version,
+    prompt_version).  Identical inputs → byte-identical output, returned in
+    < 50ms instead of waiting for a fresh Claude call.
+
+    The cache is invalidated:
+      - explicitly via ``invalidate_cache_for_address(addr)`` when a user
+        saves a manual correction
+      - implicitly by bumping ``PROMPT_VERSION`` whenever the system prompt
+        changes (older entries are simply ignored because their key won't
+        match)
+      - by ``?force_refresh=1`` on the analysis endpoint
+    """
+    cache_key      = models.CharField(max_length=128, unique=True, db_index=True)
+    address        = models.CharField(max_length=255, db_index=True, blank=True, default='')
+    lat            = models.FloatField()
+    lng            = models.FloatField()
+    zoom           = models.IntegerField()
+    image_hash     = models.CharField(max_length=64,
+                          help_text='SHA-256 (truncated) of the satellite PNG sent to Claude')
+    result_json    = models.JSONField(
+                          help_text='Parsed Claude response (the full JSON body returned to the client)')
+    model_version  = models.CharField(max_length=64, default='claude-opus-4-7')
+    prompt_version = models.CharField(max_length=32, default='v1',
+                          help_text='Bump in views.py to invalidate all entries when system prompt changes')
+    created_at     = models.DateTimeField(auto_now_add=True)
+    last_hit_at    = models.DateTimeField(auto_now=True)
+    hit_count      = models.IntegerField(default=0)
+
+    class Meta:
+        indexes = [models.Index(fields=['address', 'created_at'])]
+        verbose_name = 'Roof Analysis Cache Entry'
+        ordering = ['-last_hit_at']
+
+    def __str__(self):
+        return f'{self.cache_key[:12]}… ({self.address[:40]}, {self.hit_count} hits)'

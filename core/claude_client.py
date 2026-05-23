@@ -21,10 +21,17 @@ def _get_api_key() -> str:
 
 
 def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
-                       media_type: str = 'image/png', max_tokens: int = 2048) -> dict:
+                       media_type: str = 'image/png', max_tokens: int = 2048,
+                       temperature: float | None = None) -> dict:
     """
     Call Claude with a single base64 image + text prompt.
+
     Returns { "content": str, "demo_mode": bool }
+
+    Pass ``temperature=0`` for deterministic output (used by the roof analysis
+    call — eliminates run-to-run variance in section count etc).  Omit for
+    the Anthropic default (~1.0) which is fine for feature detection where
+    a touch of variance helps the multi-image vote.
     """
     api_key = _get_api_key()
     if not api_key:
@@ -32,18 +39,21 @@ def call_claude_vision(system_prompt: str, user_text: str, image_b64: str,
     try:
         import anthropic
         client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model="claude-opus-4-7",   # Opus required — roof polygon extraction is complex
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[{
+        params: dict = {
+            "model":       "claude-opus-4-7",   # Opus required — roof polygon extraction is complex
+            "max_tokens":  max_tokens,
+            "system":      system_prompt,
+            "messages":    [{
                 "role": "user",
                 "content": [
                     {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_b64}},
                     {"type": "text", "text": user_text},
                 ],
             }],
-        )
+        }
+        if temperature is not None:
+            params["temperature"] = float(temperature)
+        response = client.messages.create(**params)
         text = "\n".join(b.text for b in response.content if b.type == "text")
         return {"content": text, "demo_mode": False}
     except Exception as e:

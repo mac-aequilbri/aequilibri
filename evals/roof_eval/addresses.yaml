@@ -1,0 +1,170 @@
+# Roof eval address set.
+#
+# Add 30-50 addresses with this mix (from the Task 0 brief):
+#   - 5  simple rectangular hip roofs
+#   - 10 L-shape or T-shape roofs
+#   - 5  complex multi-section roofs (5+ sections)
+#   - 10 historically problematic addresses (from ExecutionLog correction records)
+#   - 5  known Geoscape-missing addresses
+#   - 5  known wrong-building / offset cases
+#
+# ground_truth fields are optional — only set when you have hand-verified data.
+# Used by metrics.py for area_ratio / section_count_ok signals.
+
+addresses:
+  # ── Test quotes from Port City brief (real addresses, used during dev) ─────
+  - id: tq_001
+    address: "11 Condron Place, Ayr QLD 4807"
+    lat: -19.5800
+    lng: 147.4070
+    category: l_shape
+    notes: "Original test address #593 — Gable roof, 171 m² per Port City worksheet"
+    ground_truth:
+      expected_area_m2: 171
+      expected_section_count: 2
+      roof_type: gable
+
+  - id: tq_002
+    address: "11 Ahern Street, Ayr QLD 4807"
+    lat: -19.5760
+    lng: 147.4040
+    category: simple_hip
+    notes: "Test quote #595 — gutters included variant"
+
+  - id: tq_003
+    address: "238 Dalrymple Service Rd, Vincent QLD 4814"
+    lat: -19.2823
+    lng: 146.7765
+    category: simple_hip
+    notes: "Test quote #592 — local (Townsville), no travel"
+
+  - id: tq_004
+    address: "8 Sandhill Road, Rita Island QLD 4807"
+    lat: -19.6200
+    lng: 147.3950
+    category: rural
+    notes: "Test quote #598 — rural Burdekin"
+
+  # ── Port City reference worksheet addresses (we have GROUND TRUTH from Excel) ─
+  - id: pcw_001
+    address: "4 The Esplanade, Toomulla QLD 4816"
+    lat: -19.1340
+    lng: 146.6310
+    category: simple_hip
+    notes: "Port City worksheet — Ultra-Gable 105 m²"
+    ground_truth:
+      expected_area_m2: 105
+      roof_type: ultra_gable
+
+  - id: pcw_002
+    address: "30 Estate Street, West End QLD 4810"
+    lat: -19.2580
+    lng: 146.8050
+    category: simple_hip
+    notes: "Port City worksheet — Hip 125 m²"
+    ground_truth:
+      expected_area_m2: 125
+      roof_type: hip
+
+  - id: pcw_003
+    address: "112 Abbott Street, Oonoonba QLD 4811"
+    lat: -19.2950
+    lng: 146.8260
+    category: l_shape
+    notes: "Port City worksheet — Hip 180 m² with 18 solar panels"
+    ground_truth:
+      expected_area_m2: 180
+      roof_type: hip
+
+  - id: pcw_004
+    address: "14 Calliandra Court, Mt Louisa QLD 4814"
+    lat: -19.2730
+    lng: 146.7920
+    category: complex
+    notes: "Port City worksheet — Hip 340 m² (large)"
+    ground_truth:
+      expected_area_m2: 340
+      roof_type: hip
+
+  # ── Historical Port City quote addresses ───────────────────────────────────
+  - id: hist_001
+    address: "5 Richardson St, Douglas QLD 4814"
+    lat: -19.3160
+    lng: 146.7610
+    category: complex
+    notes: "Quote #282 Lynham — 208 m² Decromastic→Colorbond, multi-wing"
+    ground_truth:
+      expected_area_m2: 208
+
+  - id: hist_002
+    address: "7 Ballard Street, Mysterton QLD 4812"
+    lat: -19.2860
+    lng: 146.7790
+    category: simple_hip
+    notes: "Quote #255 Bullard — 135 m² with solar HW removal"
+    ground_truth:
+      expected_area_m2: 135
+
+  - id: hist_003
+    address: "14 Burgess Street, Annandale QLD 4814"
+    lat: -19.3160
+    lng: 146.7670
+    category: l_shape
+    notes: "Quote #214 Poltorasky — 319 m² tile-to-colorbond"
+    ground_truth:
+      expected_area_m2: 319
+
+  - id: hist_004
+    address: "20 Landers Avenue, Rangewood QLD 4817"
+    lat: -19.3140
+    lng: 146.6360
+    category: complex
+    notes: "Quote #173 Hilleard — 366 m² + 36 solar + bullnose"
+    ground_truth:
+      expected_area_m2: 366
+
+  - id: hist_005
+    address: "23 Clancy Street, Kirwan QLD 4817"
+    lat: -19.3170
+    lng: 146.7180
+    category: simple_hip
+    notes: "Quote #412 Wong — 137 m² Hip"
+    ground_truth:
+      expected_area_m2: 137
+      roof_type: hip
+
+  - id: hist_006
+    address: "171 Harold Street, West End QLD 4810"
+    lat: -19.2570
+    lng: 146.7860
+    category: asbestos
+    notes: "Quote #418 Ward — 170 m² ASBESTOS roof, complex hip"
+    ground_truth:
+      expected_area_m2: 170
+
+  - id: hist_007
+    address: "3 Maud Street, Kelso QLD 4815"
+    lat: -19.3680
+    lng: 146.7370
+    category: simple_hip
+    notes: "Quote #124 Lovelady — 209 m² Hip with 8 solar panels"
+    ground_truth:
+      expected_area_m2: 209
+      roof_type: hip
+
+  - id: hist_008
+    address: "61 Mount Spec Road, Paluma QLD 4816"
+    lat: -19.0066
+    lng: 146.2050
+    category: rural
+    notes: "Quote #290 Granata — 124 m² rural/remote"
+    ground_truth:
+      expected_area_m2: 124
+
+  # ── Add 30+ more addresses below as you build the eval set ────────────────
+  # Suggested categories still to fill:
+  #   - simple_hip (5 more)
+  #   - l_shape (7 more)
+  #   - complex (3 more)
+  #   - geoscape_missing (5 — addresses where Geoscape returned no polygon)
+  #   - wrong_building (5 — where Geoscape returned an adjacent building)
