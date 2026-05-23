@@ -176,6 +176,74 @@ def save_roof_correction(body: dict[str, Any]) -> int:
     return log.id
 
 
+def find_all_matching_corrections(
+    *,
+    address: str = "",
+    lat: float | None = None,
+    lng: float | None = None,
+    limit: int = 1000,
+    min_score: int = 500,
+) -> list[ExecutionLog]:
+    """Return EVERY saved correction that matches the given address / point.
+
+    The single-match ``find_best_memory_match`` returns the highest-scoring
+    row only, which is right for the GET endpoint (we want the most
+    authoritative correction to apply).  But deletion needs the full set —
+    a single address can accumulate many ``roof_correction`` rows over
+    repeated correction-save calls (each ``rdSaveCorrectionMemory()`` POSTs
+    a new ExecutionLog), and the UI delete button should remove all of
+    them so the next page load isn't still pricing on a stale row.
+
+    Uses the same address-normalisation + GPS-proximity scoring as
+    ``find_best_memory_match`` for consistency.
+    """
+    address_key = normalize_address_key(address)
+    matches: list[ExecutionLog] = []
+
+    logs = ExecutionLog.objects.filter(
+        tool_name=ROOF_CORRECTION_TOOL,
+        status="success",
+    ).order_by("-created_at")[:limit]
+
+    for log in logs:
+        payload = decode_payload(log)
+        if not payload:
+            continue
+
+        address_score = 0
+        candidate_key = normalize_address_key(payload.get("address"))
+        if address_key and candidate_key:
+            if address_key == candidate_key:
+                address_score = 1000
+            elif len(address_key) > 10 and (
+                address_key in candidate_key or candidate_key in address_key
+            ):
+                address_score = 850
+
+        candidate_lat = to_float(payload.get("lat"))
+        candidate_lng = to_float(payload.get("lng"))
+        proximity = distance_m(lat, lng, candidate_lat, candidate_lng)
+
+        # Neighbour-guard — same rule as find_best_memory_match.
+        if address_score == 0 and address_key and candidate_key:
+            if proximity is None or proximity > 10:
+                continue
+
+        score = address_score
+        if proximity is not None:
+            if proximity <= 8:
+                score += 900
+            elif proximity <= 30:
+                score += 750
+            elif proximity <= 75:
+                score += 350
+
+        if score >= min_score:
+            matches.append(log)
+
+    return matches
+
+
 def delete_roof_correction(
     *,
     address: str = "",
@@ -183,12 +251,19 @@ def delete_roof_correction(
     lng: float | None = None,
     log_id: int | None = None,
 ) -> int:
-    """Delete a saved roof correction (or all matching corrections for the
-    address / point).
+    """Delete saved roof correction(s) for an address / point.
 
-    Match strategy mirrors ``find_best_memory_match`` so the UI's "delete"
-    button removes whatever it would have loaded.  Returns the number of
-    rows actually deleted.
+    Two modes:
+
+    * ``log_id`` supplied → delete exactly that ExecutionLog row.
+    * Otherwise → find ALL corrections matching the address / lat / lng
+      (using the same scoring as the GET endpoint) and bulk-delete them.
+      A single address can accumulate many rows from repeated correction
+      saves; the UI's "delete correction" button is expected to clear all
+      of them so the next address-click load isn't still seeing a stale
+      correction.
+
+    Returns the number of ExecutionLog rows actually deleted.
 
     The ExecutionLog is otherwise append-only — we accept a hard delete
     here because the user explicitly asked to forget the correction, and
@@ -205,24 +280,13 @@ def delete_roof_correction(
         except (TypeError, ValueError):
             return 0
 
-    # Reuse the existing matcher so we delete exactly what the UI saw.
-    deleted = 0
-    while True:
-        match = find_best_memory_match(
-            tool_name=ROOF_CORRECTION_TOOL,
-            address=address,
-            lat=lat,
-            lng=lng,
-        )
-        if match is None:
-            break
-        count, _ = ExecutionLog.objects.filter(pk=match.log.pk).delete()
-        deleted += int(count)
-        if count == 0:
-            # Safety net — should never happen, but avoid an infinite loop
-            # if a query oddity keeps surfacing the same row.
-            break
-    return deleted
+    matches = find_all_matching_corrections(
+        address=address, lat=lat, lng=lng)
+    if not matches:
+        return 0
+    ids = [m.pk for m in matches]
+    count, _ = ExecutionLog.objects.filter(pk__in=ids).delete()
+    return int(count)
 
 
 def save_manual_ground_truth(body: dict[str, Any]) -> int:

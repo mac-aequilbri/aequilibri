@@ -5261,6 +5261,11 @@ async function rdDeleteSavedCorrection() {
       alert('Delete failed: ' + (data.error || 'unknown error'));
       return;
     }
+    const deletedCount = +data.deleted || 0;
+    if (deletedCount === 0) {
+      alert('No saved correction was found for this address.\nNothing was deleted.');
+      // Still close + revert UI so the banner clears.
+    }
 
     // Clear the local correction cache so subsequent dialog opens don't
     // re-load the just-deleted correction from the in-memory hit.
@@ -5286,14 +5291,18 @@ async function rdDeleteSavedCorrection() {
     }
     rdSyncCorrectionUi();
 
-    // Status feedback to both the dialog and the main map.
+    // Status feedback to both the dialog and the main map — include the
+    // count so the user can see if multiple stale corrections were cleared.
+    const countLabel = deletedCount === 1
+      ? '1 saved correction deleted'
+      : `${deletedCount} saved corrections deleted`;
     if (typeof rdSetStatus === 'function') {
-      rdSetStatus('Saved correction deleted — area reverted to ' + Math.round(solarArea) + ' m².', false);
+      rdSetStatus(`${countLabel} — area reverted to ${Math.round(solarArea)} m².`, false);
     }
     try {
       const sl = document.getElementById('statusLine');
       if (sl) {
-        sl.innerHTML += ' <span class="text-danger small" style="margin-left:6px;">🗑️ Saved correction deleted</span>';
+        sl.innerHTML += ` <span class="text-danger small" style="margin-left:6px;">🗑️ ${countLabel}</span>`;
       }
     } catch (e) {}
 
