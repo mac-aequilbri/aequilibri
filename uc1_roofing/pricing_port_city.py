@@ -532,6 +532,145 @@ def build_scope_of_works(
     return scope
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# ALTERNATIVE PRICING MECHANISMS
+# These build on top of the same Port City line-item costs but structure the
+# price differently.  Both return a PortCityQuote so downstream code (line
+# items, PDF rendering, totals) is unchanged.
+# ──────────────────────────────────────────────────────────────────────────────
+
+# ─── Tapered $/m² bands ──────────────────────────────────────────────────────
+# Rates already include margin — no markup multiplier applied on the roof line.
+# Bigger roofs amortise fixed mobilisation/setup costs, so the per-m² rate
+# steps down progressively.  Per-band rates calibrated to align with industry
+# norms (smaller jobs absorb fixed costs harder).
+TAPERED_BANDS: list[tuple[float | None, float]] = [
+    (100,  145.0),    # First 100 m²  @ $145/m²
+    (100,  130.0),    # Next  100 m²  @ $130/m²
+    (200,  120.0),    # Next  200 m²  @ $120/m²
+    (None, 115.0),    # 400+   m²     @ $115/m²
+]
+
+
+def tapered_roof_breakdown(roof_area_m2: float) -> list[dict]:
+    """Compute the tapered roof cost broken into bands.
+
+    Returns a list of dicts: ``[{'start': 0, 'end': 100, 'rate': 145, 'm2': 100, 'amount': 14500}, ...]``
+    """
+    bands: list[dict] = []
+    if roof_area_m2 <= 0:
+        return bands
+    remaining = float(roof_area_m2)
+    running = 0.0
+    for band_size, rate in TAPERED_BANDS:
+        if remaining <= 0:
+            break
+        m2_in_band = remaining if band_size is None else min(float(band_size), remaining)
+        start = running
+        end = running + m2_in_band
+        bands.append({
+            'start':  round(start, 1),
+            'end':    round(end, 1),
+            'rate':   round(rate, 2),
+            'm2':     round(m2_in_band, 1),
+            'amount': round(m2_in_band * rate, 2),
+        })
+        running   += m2_in_band
+        remaining -= m2_in_band
+    return bands
+
+
+def build_tapered_quote(**inputs) -> PortCityQuote:
+    """Build a tapered-$/m² quote.
+
+    Same inputs as ``build_port_city_quote`` — the only difference is the
+    roof line is replaced by 1-4 band lines (one per active tapered band).
+    Edge protection, fuse pull, travel, asbestos, solar, gutters etc.
+    are all kept identical so the customer sees the same scope, just a
+    different roof-cost decomposition.
+    """
+    # Start from the standard quote (will overwrite the roof line).
+    inputs = dict(inputs)
+    roof_area_m2 = float(inputs.get('roof_area_m2', 0) or 0)
+    inputs['markup_pct'] = inputs.get('markup_pct', 0)   # tapered uses 0 markup; bands include margin
+
+    # Build the standard quote with NO roof line — we replace it.
+    saved_area = inputs.pop('roof_area_m2', 0)
+    inputs['roof_area_m2'] = 0   # suppress roof line in the standard builder
+    q = build_port_city_quote(**inputs)
+    inputs['roof_area_m2'] = saved_area   # restore
+
+    # Re-add roof lines from tapered bands, inserted at the top
+    band_items = []
+    for b in tapered_roof_breakdown(roof_area_m2):
+        band_items.append(LineItem(
+            description=f"Colorbond Roof — m² {int(b['start'])+1}–{int(b['end'])} @ ${b['rate']}/m²",
+            quantity=b['m2'],
+            unit='m²',
+            rate=b['rate'],
+        ))
+    # Prepend the tapered band lines so they appear first
+    q.items = band_items + q.items
+    return q
+
+
+# ─── Good / Better / Best package tiers ──────────────────────────────────────
+PACKAGE_TIERS = {
+    'essential': {
+        'name':       '🥉 Essential',
+        'subtitle':   'Standard re-roof — solid quality, fair price',
+        'markup':     0.10,   # cost-plus 10% baseline (matches Port City)
+        'extras':     [],
+    },
+    'shield': {
+        'name':       '🥈 Shield',
+        'subtitle':   'Most popular — upgraded materials & warranty',
+        'markup':     0.18,
+        'extras': [
+            'Premium colour upgrade included (any standard Colorbond colour)',
+            'Aircell R2.0 insulation (upgraded from R1.5 — better thermal performance)',
+            '15-year transferable workmanship warranty (extended from 10)',
+            'Cyclonic tie-down "Plus" — fixing every rafter instead of every second',
+        ],
+    },
+    'summit': {
+        'name':       '🥇 Summit',
+        'subtitle':   'Premium architectural — lifetime confidence',
+        'markup':     0.30,
+        'extras': [
+            'Architectural Kliplok 700 concealed-fix profile (lower pitch capable)',
+            'Aircell R2.5 insulation (highest practical R-value for steel roof)',
+            '25-year transferable workmanship warranty',
+            'Cyclone N5 wind-load engineering certificate included',
+            'Premium fascia covers and high-grade flashings throughout',
+        ],
+    },
+}
+
+
+def build_package_quote(*, package_tier: str = 'essential', **inputs) -> PortCityQuote:
+    """Build a Good/Better/Best package quote.
+
+    Reuses the standard Port City line items but with a tier-specific markup
+    (Essential 10% / Shield 18% / Summit 30%).  The 'extras' belonging to
+    each tier are appended as $0 descriptive line items so they show up on
+    the PDF scope-of-works panel — justifying the higher tier price.
+    """
+    tier = PACKAGE_TIERS.get(package_tier, PACKAGE_TIERS['essential'])
+    inputs = dict(inputs)
+    inputs['markup_pct'] = tier['markup']
+
+    q = build_port_city_quote(**inputs)
+
+    # Append tier extras as $0 descriptive lines (qty 1 lot · rate 0)
+    for extra in tier.get('extras', []):
+        q.items.append(LineItem(
+            description=f'★ {extra}',
+            quantity=1, unit='inc', rate=0,
+        ))
+    return q
+
+
 def build_job_notes(
     *,
     is_asbestos:    bool = False,

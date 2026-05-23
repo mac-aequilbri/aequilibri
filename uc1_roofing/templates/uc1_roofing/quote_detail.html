@@ -75,6 +75,67 @@
         </div>
       </div>
 
+      <!-- ── Change Pricing Mechanism ────────────────────────────────── -->
+      <div class="border-top pt-3 mt-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="small fw-bold">💰 Pricing Mechanism</div>
+          <span class="badge"
+                style="font-size:.7rem;
+                  {% if quote.pricing_mechanism == 'tapered' %}background:#e3f2fd;color:#0d47a1;
+                  {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'shield' %}background:#fff3e0;color:#e65100;
+                  {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'summit' %}background:#f3e5f5;color:#6a1b9a;
+                  {% else %}background:#e8f5e9;color:#1b5e20;{% endif %}">
+            {% if quote.pricing_mechanism == 'tapered' %}📉 Tapered $/m²
+            {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'essential' %}🥉 Essential
+            {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'shield' %}🥈 Shield
+            {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'summit' %}🥇 Summit
+            {% elif quote.pricing_mode == 'optimal' %}💰 Optimal · 18%
+            {% elif quote.pricing_mode == 'premium' %}👑 Premium · 25%
+            {% else %}🎯 Port City Match · 10%{% endif %}
+          </span>
+        </div>
+        <form method="post" class="row g-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="change_pricing">
+          <div class="col-md-4">
+            <select name="new_mechanism" class="form-select form-select-sm"
+                    onchange="
+                      const m=this.value;
+                      document.getElementById('chp-modeRow').style.display = (m==='cost_plus') ? '' : 'none';
+                      document.getElementById('chp-tierRow').style.display = (m==='packages')  ? '' : 'none';
+                    ">
+              <option value="cost_plus" {% if quote.pricing_mechanism == 'cost_plus' %}selected{% endif %}>🎯 Cost-Plus</option>
+              <option value="tapered"   {% if quote.pricing_mechanism == 'tapered' %}selected{% endif %}>📉 Tapered $/m²</option>
+              <option value="packages"  {% if quote.pricing_mechanism == 'packages' %}selected{% endif %}>📦 Packages</option>
+            </select>
+          </div>
+          <div class="col-md-4" id="chp-modeRow" style="{% if quote.pricing_mechanism != 'cost_plus' %}display:none;{% endif %}">
+            <select name="new_mode" class="form-select form-select-sm">
+              <option value="match"   {% if quote.pricing_mode == 'match' %}selected{% endif %}>🎯 Match · 10%</option>
+              <option value="optimal" {% if quote.pricing_mode == 'optimal' %}selected{% endif %}>💰 Optimal · 18%</option>
+              <option value="premium" {% if quote.pricing_mode == 'premium' %}selected{% endif %}>👑 Premium · 25%</option>
+            </select>
+          </div>
+          <div class="col-md-4" id="chp-tierRow" style="{% if quote.pricing_mechanism != 'packages' %}display:none;{% endif %}">
+            <select name="new_tier" class="form-select form-select-sm">
+              <option value="essential" {% if quote.package_tier == 'essential' %}selected{% endif %}>🥉 Essential · 10%</option>
+              <option value="shield"    {% if quote.package_tier == 'shield' %}selected{% endif %}>🥈 Shield · 18%</option>
+              <option value="summit"    {% if quote.package_tier == 'summit' %}selected{% endif %}>🥇 Summit · 30%</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <button type="submit" class="btn btn-sm btn-outline-primary w-100"
+                    onclick="return confirm('Replace all current line items with re-priced ones?');">
+              🔄 Re-price this quote
+            </button>
+            <small class="text-muted d-block mt-1" style="font-size:.7rem;">
+              Re-runs the engine with the new mechanism, replaces line items,
+              updates the PDF. Saved roof specs are preserved.
+            </small>
+          </div>
+        </form>
+      </div>
+
       {% if quote.customer_notes %}
       <div class="small border-top pt-2 mt-2">
         <strong>Job notes (printed on quote):</strong>

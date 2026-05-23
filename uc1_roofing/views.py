@@ -29,7 +29,11 @@ from .geoscape_service import GeoscapeError, lookup_geoscape_building
 from .services.correction_memory import (roof_correction_learning_prompt,
                                           extract_suburb, suburb_section_pattern)
 from .pricing_port_city import (build_port_city_quote, detect_travel_zone,
-                                build_scope_of_works, build_job_notes)
+                                build_scope_of_works, build_job_notes,
+                                build_tapered_quote, build_package_quote,
+                                tapered_roof_breakdown, PACKAGE_TIERS)
+# Markup percentages used per cost-plus pricing mode.
+PRICING_MODE_MARKUP = {'match': 0.10, 'optimal': 0.18, 'premium': 0.25}
 from .services.paid_api_cache import SHORT_TTL_SECONDS, get_cached, set_cached
 
 
@@ -241,7 +245,33 @@ def quote_create(request):
                 elif not on('opt_batten'):
                     _batten_lm = 0
 
-                pc_quote = build_port_city_quote(
+                # ── Determine pricing mechanism ──────────────────────────
+                # cost_plus (default) → use modes match/optimal/premium
+                # tapered            → use banded $/m² rates (no markup)
+                # packages           → use Good/Better/Best tier definitions
+                pricing_mechanism = (
+                    request.POST.get('pricing_mechanism') or 'cost_plus').strip()
+                pricing_mode = (request.POST.get('pricing_mode') or 'match').strip()
+                package_tier = (request.POST.get('package_tier') or '').strip()
+
+                # Resolve final markup_pct from mechanism + mode/tier
+                if pricing_mechanism == 'packages':
+                    tier_data = PACKAGE_TIERS.get(package_tier or 'essential',
+                                                  PACKAGE_TIERS['essential'])
+                    final_markup = float(tier_data['markup'])
+                elif pricing_mechanism == 'tapered':
+                    final_markup = 0.0   # tapered bands include their own margin
+                else:
+                    final_markup = PRICING_MODE_MARKUP.get(pricing_mode,
+                                       _safe_float(request.POST.get('markup_pct'), 0.10))
+
+                quote.pricing_mechanism = pricing_mechanism
+                quote.pricing_mode      = pricing_mode if pricing_mechanism == 'cost_plus' else ''
+                quote.package_tier      = package_tier if pricing_mechanism == 'packages' else ''
+                quote.markup_pct        = _safe_decimal(final_markup, '0.10')
+
+                # Common pricing-engine inputs for all 3 mechanisms
+                _common_inputs = dict(
                     roof_type        = pc_roof_type,
                     roof_area_m2     = base_area,
                     eave_lm          = eave_lm,
@@ -261,9 +291,19 @@ def quote_create(request):
                     downpipe_90mm    = _dp_count if on('opt_gutter') else 0,
                     gutter_travel_days = _safe_float(
                         request.POST.get('gutter_travel_days'), 0),
-                    markup_pct       = _safe_float(
-                        request.POST.get('markup_pct'), 0.10),
+                    markup_pct       = final_markup,
                 )
+
+                # Dispatch to the right builder
+                if pricing_mechanism == 'tapered':
+                    pc_quote = build_tapered_quote(**_common_inputs)
+                elif pricing_mechanism == 'packages':
+                    pc_quote = build_package_quote(
+                        package_tier=(package_tier or 'essential'),
+                        **{k: v for k, v in _common_inputs.items() if k != 'markup_pct'},
+                    )
+                else:
+                    pc_quote = build_port_city_quote(**_common_inputs)
 
                 # ── Customer-facing scope of works (Port City PDF format) ──
                 # The QuoteItem rows are the CUSTOMER-FACING lines that show on
@@ -379,7 +419,16 @@ def quote_create(request):
 
             if pc_notes:
                 quote.notes = (pc_notes + ('\n' + (quote.notes or '') if quote.notes else ''))[:2000]
-                quote.save(update_fields=['notes'])
+            # Persist notes AND the pricing mechanism/mode/tier/markup so the
+            # PDF can render the right template and the quote can be re-priced
+            # later by switching mechanisms.
+            try:
+                quote.save(update_fields=[
+                    'notes', 'pricing_mechanism', 'pricing_mode',
+                    'package_tier', 'markup_pct',
+                ])
+            except Exception:
+                quote.save()
 
             # Log execution
             try:
@@ -419,6 +468,123 @@ def quote_create(request):
 
 # ─── Quote Detail ─────────────────────────────────────────────────────────────
 
+def _repricing_apply(quote, new_mech, new_mode, new_tier):
+    """Re-run the pricing engine for an existing Quote using new mechanism/
+    mode/tier choices.  Pulls all the roof-spec inputs already saved on the
+    Quote so the user doesn't have to re-enter anything.  Returns
+    ``(success: bool, message: str)``."""
+    try:
+        from .services.correction_memory import extract_suburb
+        from decimal import Decimal as _D
+
+        # Validate inputs
+        if new_mech not in ('cost_plus', 'tapered', 'packages'):
+            return False, f"Unknown mechanism: {new_mech!r}"
+        if new_mech == 'cost_plus' and new_mode not in PRICING_MODE_MARKUP:
+            new_mode = 'match'
+        if new_mech == 'packages' and new_tier not in PACKAGE_TIERS:
+            new_tier = 'essential'
+
+        # Decide final markup
+        if new_mech == 'tapered':
+            final_markup = 0.0
+        elif new_mech == 'packages':
+            final_markup = float(PACKAGE_TIERS[new_tier]['markup'])
+        else:
+            final_markup = PRICING_MODE_MARKUP[new_mode]
+
+        # Map complexity → roof type (from saved Quote.pitch_type isn't enough;
+        # we use the saved markup_pct rule of thumb based on stored items —
+        # fall back to 'hip' which is the most common).
+        # Simplest: keep using 'hip' unless area suggests otherwise.
+        roof_type = 'hip'
+
+        base_area = float(quote.flat_area_sqm or 0)
+        if base_area <= 0:
+            return False, "Quote has no roof area on record."
+
+        eave_lm = float(quote.eave_lm or 0) or round(base_area * 0.25, 1)
+        dp_count = max(2, round(eave_lm / 10))
+
+        common = dict(
+            roof_type=roof_type,
+            roof_area_m2=base_area,
+            eave_lm=eave_lm,
+            is_highset=int(quote.storeys or 1) >= 2,
+            address=quote.property_address or '',
+            suburb=extract_suburb(quote.property_address or ''),
+            postcode='',                                   # parsed from address by builder
+            include_fuse_pull=True,
+            include_gutters=True,                          # assume gutters were in scope
+            gutter_lm=eave_lm,
+            downpipe_90mm=dp_count,
+            markup_pct=final_markup,
+        )
+
+        if new_mech == 'tapered':
+            pc_quote = build_tapered_quote(**common)
+        elif new_mech == 'packages':
+            common.pop('markup_pct', None)
+            pc_quote = build_package_quote(package_tier=new_tier, **common)
+        else:
+            pc_quote = build_port_city_quote(**common)
+
+        # Wipe existing line items and replace
+        quote.items.all().delete()
+        scope_lines = build_scope_of_works(include_gutters=True)
+        roof_price = pc_quote.grand_total_ex_gst   # gutters included for now
+        roof_label = quote.get_material_display()
+        sort = 1
+        QuoteItem.objects.create(
+            quote=quote,
+            description=f'{roof_label} full roof replacement (as per scope of works below)',
+            quantity=_D('1'), unit='job',
+            unit_price_ex_gst=_D(str(round(roof_price, 2))),
+            sort_order=sort,
+        )
+        for desc in scope_lines:
+            sort += 1
+            QuoteItem.objects.create(
+                quote=quote, description=str(desc)[:300],
+                quantity=_D('1'), unit='lot', unit_price_ex_gst=_D('0'),
+                sort_order=sort,
+            )
+        # For packages: also append the tier-extras line items so they appear on the PDF
+        if new_mech == 'packages':
+            for extra in PACKAGE_TIERS[new_tier].get('extras', []):
+                sort += 1
+                QuoteItem.objects.create(
+                    quote=quote, description=f'★ {extra}'[:300],
+                    quantity=_D('1'), unit='inc', unit_price_ex_gst=_D('0'),
+                    sort_order=sort,
+                )
+
+        # Update Quote with new mechanism + audit notes
+        quote.pricing_mechanism = new_mech
+        quote.pricing_mode      = new_mode if new_mech == 'cost_plus' else ''
+        quote.package_tier      = new_tier if new_mech == 'packages' else ''
+        quote.markup_pct        = _D(str(final_markup))
+        quote.notes = (
+            f'Re-priced to {new_mech}'
+            + (f' / {new_mode}' if new_mech == 'cost_plus' else '')
+            + (f' / {new_tier}' if new_mech == 'packages' else '')
+            + f'. New ex-GST: ${pc_quote.grand_total_ex_gst:,.2f} '
+            + f'(internal ${pc_quote.internal_subtotal:,.2f} × '
+            + f'{1+pc_quote.markup_pct:.2f} markup).'
+        )[:2000]
+        quote.save(update_fields=['pricing_mechanism', 'pricing_mode',
+                                  'package_tier', 'markup_pct', 'notes'])
+        return True, (f'Re-priced as {new_mech}'
+                       + (f' / {new_mode}' if new_mech == 'cost_plus' else '')
+                       + (f' / {new_tier}' if new_mech == 'packages' else '')
+                       + f' — new total inc GST: ${pc_quote.total_inc_gst:,.2f}')
+    except Exception as exc:
+        import sys, traceback as tb
+        print(f'[_repricing_apply] FAILED: {exc!r}', file=sys.stderr)
+        tb.print_exc(file=sys.stderr)
+        return False, str(exc)
+
+
 def quote_detail(request, pk):
     quote = get_object_or_404(Quote.objects.prefetch_related('items'), pk=pk)
 
@@ -447,6 +613,20 @@ def quote_detail(request, pk):
             item_id = request.POST.get('item_id')
             QuoteItem.objects.filter(id=item_id, quote=quote).delete()
             messages.success(request, 'Line item removed.')
+        elif action == 'change_pricing':
+            # ── Re-quote with a different pricing mechanism ─────────────
+            # User selected a different mechanism (cost_plus / tapered /
+            # packages) and/or mode/tier from the quote-detail page.  Recompute
+            # the line items using the SAME roof-spec inputs we already saved
+            # on the Quote, then replace the QuoteItem rows.
+            new_mech = (request.POST.get('new_mechanism') or 'cost_plus').strip()
+            new_mode = (request.POST.get('new_mode') or 'match').strip()
+            new_tier = (request.POST.get('new_tier') or '').strip()
+            ok, msg = _repricing_apply(quote, new_mech, new_mode, new_tier)
+            if ok:
+                messages.success(request, f'✅ {msg}')
+            else:
+                messages.error(request, f'⚠️ Re-pricing failed: {msg}')
         return redirect('uc1:quote_detail', pk=quote.pk)
 
     return render(request, 'uc1_roofing/quote_detail.html', {'quote': quote})

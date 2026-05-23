@@ -354,6 +354,32 @@
     </div>
   </div>
 
+  <!-- ── Pricing Mechanism banner (only when not the default cost-plus match) ─ -->
+  {% if quote.pricing_mechanism != "cost_plus" or quote.pricing_mode != "match" %}
+  <div style="margin:8px 0 10px; padding:6px 10px; border-radius:4px;
+              font-size:8pt; line-height:1.4;
+              {% if quote.pricing_mechanism == 'tapered' %}background:#e3f2fd;border:1px solid #64b5f6;color:#0d47a1;
+              {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'shield' %}background:#fff3e0;border:1px solid #ffb74d;color:#e65100;
+              {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'summit' %}background:#f3e5f5;border:1px solid #ce93d8;color:#6a1b9a;
+              {% else %}background:#e8f5e9;border:1px solid #66bb6a;color:#1b5e20;{% endif %}">
+    <strong style="font-size:7.5pt;text-transform:uppercase;letter-spacing:.04em;">
+      {% if quote.pricing_mechanism == 'tapered' %}📉 Tapered $/m² pricing
+      {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'essential' %}🥉 Essential package
+      {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'shield' %}🥈 Shield package · Most popular
+      {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'summit' %}🥇 Summit package · Premium
+      {% elif quote.pricing_mode == 'optimal' %}💰 Optimal pricing (18% markup)
+      {% elif quote.pricing_mode == 'premium' %}👑 Premium pricing (25% markup)
+      {% else %}🎯 Port City Match (10% markup)
+      {% endif %}
+    </strong>
+    {% if quote.pricing_mechanism == 'tapered' %}
+      — Banded per-m² rate: larger jobs benefit from economies of scale.
+    {% elif quote.pricing_mechanism == 'packages' %}
+      — Fixed inclusion package; the ★ items in the scope-of-works below are bundled at no extra line cost.
+    {% endif %}
+  </div>
+  {% endif %}
+
   <!-- ── Roof Specifications grid ─────────────────────────────────────── -->
   {% if quote.ridge_lm or quote.valley_lm or quote.hip_lm or quote.rake_lm or quote.eave_lm or quote.roof_colour or quote.detected_equipment %}
   <table style="width:100%; border-collapse:collapse; margin:6px 0 10px;

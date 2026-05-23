@@ -902,6 +902,47 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <span id="pricingModeBadge" style="font-size:.65rem;background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;border-radius:4px;padding:1px 6px;font-weight:600;">PORT CITY MATCH</span>
         </div>
 
+        <!-- ── Pricing MECHANISM selector (the BIG choice) ───────────────── -->
+        <label class="form-label small text-muted mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">
+          Pricing mechanism
+        </label>
+        <select id="pricingMechanism" name="pricing_mechanism" class="form-select form-select-sm mb-2"
+                onchange="setPricingMechanism(this.value)">
+          <option value="cost_plus" selected>🎯 Cost-Plus (Port City) — line items × markup</option>
+          <option value="tapered">📉 Tapered $/m² — bigger jobs, lower rate per m²</option>
+          <option value="packages">📦 Good / Better / Best — fixed-package tiers</option>
+        </select>
+        <input type="hidden" name="package_tier" id="packageTier" value="">
+
+        <!-- ── PACKAGE TIER selector (only shown when mechanism='packages') ── -->
+        <div id="packageTierRow" class="d-flex w-100 mb-2" role="group"
+             style="border:1px solid #d8d8d8;border-radius:8px;overflow:hidden;display:none !important;">
+          <button type="button" class="package-tier-btn active" data-tier="essential"
+                  onclick="setPackageTier('essential')"
+                  style="flex:1;padding:6px 4px;border:0;background:#fff;color:#444;
+                         font-size:.7rem;font-weight:600;line-height:1.15;cursor:pointer;">
+            🥉 Essential<br>
+            <span style="font-size:.55rem;opacity:.75;font-weight:500;">Standard · 10%</span>
+          </button>
+          <button type="button" class="package-tier-btn" data-tier="shield"
+                  onclick="setPackageTier('shield')"
+                  style="flex:1;padding:6px 4px;border:0;background:#fff;color:#444;
+                         border-left:1px solid #d8d8d8;border-right:1px solid #d8d8d8;
+                         font-size:.7rem;font-weight:600;line-height:1.15;cursor:pointer;">
+            🥈 Shield<br>
+            <span style="font-size:.55rem;opacity:.75;font-weight:500;">Popular · 18%</span>
+          </button>
+          <button type="button" class="package-tier-btn" data-tier="summit"
+                  onclick="setPackageTier('summit')"
+                  style="flex:1;padding:6px 4px;border:0;background:#fff;color:#444;
+                         font-size:.7rem;font-weight:600;line-height:1.15;cursor:pointer;">
+            🥇 Summit<br>
+            <span style="font-size:.55rem;opacity:.75;font-weight:500;">Premium · 30%</span>
+          </button>
+        </div>
+
+        <!-- ── COST-PLUS mode toggle (shown only when mechanism='cost_plus') ── -->
+        <div id="costPlusModeRow"><!-- existing 3-mode toggle below stays here, JS toggles its visibility -->
         <!-- ── Pricing Mode toggle (3 modes) ─────────────────────────────── -->
         <div class="d-flex w-100 mb-2" role="group" aria-label="Pricing mode"
              style="border:1px solid #d8d8d8;border-radius:8px;overflow:hidden;">
@@ -933,6 +974,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <!-- Live "+$X (+Y%) vs Port City Match" annotation -->
         </div>
         <input type="hidden" name="pricing_mode" id="pricingMode" value="match">
+        </div><!-- /costPlusModeRow -->
         <div class="text-center mb-3 p-3" style="background:rgba(220,159,130,.15);border-radius:8px;border:1px solid rgba(220,159,130,.4)">
           <div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.05em">Total Tender Price (incl. GST)</div>
           <div id="p_total" style="font-size:2.2rem;font-weight:800;color:var(--ae-space);font-family:'Montserrat',sans-serif">$—</div>
@@ -2449,6 +2491,97 @@ const PRICING_MODE_MARKUP = {
 };
 let PC_MARKUP = PRICING_MODE_MARKUP.match;     // default
 
+// ── PRICING MECHANISM (top-level choice) ──────────────────────────────────
+// 3 mechanisms: cost_plus | tapered | packages
+// cost_plus has sub-modes (match/optimal/premium); packages has tiers.
+const TAPERED_BANDS_JS = [
+  [100, 145], [100, 130], [200, 120], [null, 115],
+];
+const PACKAGE_TIERS_JS = {
+  essential: {markup: 0.10, name: '🥉 Essential', badge: 'ESSENTIAL TIER',
+              extras: []},
+  shield:    {markup: 0.18, name: '🥈 Shield',    badge: 'SHIELD TIER · POPULAR',
+              extras: [
+                'Premium colour upgrade included',
+                'R2.0 Aircell insulation (upgraded from R1.5)',
+                '15-year transferable workmanship warranty',
+                'Cyclonic tie-down "Plus" — every rafter',
+              ]},
+  summit:    {markup: 0.30, name: '🥇 Summit',    badge: 'SUMMIT TIER · PREMIUM',
+              extras: [
+                'Architectural Kliplok 700 concealed-fix profile',
+                'R2.5 Aircell insulation (premium)',
+                '25-year transferable workmanship warranty',
+                'Cyclone N5 wind-load engineering certificate',
+                'Premium fascia covers & flashings',
+              ]},
+};
+let CURRENT_MECHANISM = 'cost_plus';
+let CURRENT_PACKAGE_TIER = 'essential';
+
+function setPricingMechanism(mechanism) {
+  CURRENT_MECHANISM = mechanism;
+  const cpRow  = document.getElementById('costPlusModeRow');
+  const pkgRow = document.getElementById('packageTierRow');
+  if (cpRow)  cpRow.style.display  = (mechanism === 'cost_plus') ? '' : 'none';
+  if (pkgRow) pkgRow.style.display = (mechanism === 'packages')  ? 'flex' : 'none';
+  // For tapered/packages, override the badge label
+  const badge = document.getElementById('pricingModeBadge');
+  if (badge && mechanism === 'tapered') {
+    badge.textContent = 'TAPERED $/m²';
+    badge.style.background = '#e3f2fd';
+    badge.style.color      = '#0d47a1';
+    badge.style.borderColor= '#64b5f6';
+  } else if (badge && mechanism === 'packages') {
+    setPackageTier(CURRENT_PACKAGE_TIER);   // re-applies the badge for current tier
+  } else {
+    // cost_plus — restore the active sub-mode badge
+    const mode = document.getElementById('pricingMode')?.value || 'match';
+    setPricingMode(mode);
+  }
+  // Update final markup field for backend
+  syncFinalMarkup();
+  updatePreview();
+}
+
+function setPackageTier(tier) {
+  if (!(tier in PACKAGE_TIERS_JS)) return;
+  CURRENT_PACKAGE_TIER = tier;
+  const hidden = document.getElementById('packageTier');
+  if (hidden) hidden.value = tier;
+  // Visual button state
+  document.querySelectorAll('.package-tier-btn').forEach(btn => {
+    const active = btn.dataset.tier === tier;
+    btn.classList.toggle('active', active);
+    btn.style.background = active ? '#1b5e20' : '#fff';
+    btn.style.color      = active ? '#fff'    : '#444';
+  });
+  // Badge
+  const badge = document.getElementById('pricingModeBadge');
+  if (badge) {
+    badge.textContent = PACKAGE_TIERS_JS[tier].badge;
+    badge.style.background = {essential:'#e8f5e9', shield:'#fff3e0', summit:'#f3e5f5'}[tier];
+    badge.style.color      = {essential:'#1b5e20', shield:'#e65100', summit:'#6a1b9a'}[tier];
+    badge.style.borderColor= {essential:'#66bb6a', shield:'#ffb74d', summit:'#ce93d8'}[tier];
+  }
+  syncFinalMarkup();
+  updatePreview();
+}
+
+function syncFinalMarkup() {
+  // Push the EFFECTIVE markup% into the existing hidden #markupPct field so
+  // the backend sees the right number even if the user submits without
+  // touching the cost-plus mode buttons.
+  let m = 0.10;
+  if (CURRENT_MECHANISM === 'tapered') m = 0.0;
+  else if (CURRENT_MECHANISM === 'packages')
+    m = PACKAGE_TIERS_JS[CURRENT_PACKAGE_TIER].markup;
+  else m = PRICING_MODE_MARKUP[document.getElementById('pricingMode')?.value || 'match'];
+  const el = document.getElementById('markupPct');
+  if (el) el.value = String(m);
+  PC_MARKUP = m;
+}
+
 function setPricingMode(mode) {
   if (!(mode in PRICING_MODE_MARKUP)) return;
   PC_MARKUP = PRICING_MODE_MARKUP[mode];
@@ -2543,8 +2676,21 @@ function updatePreview() {
   items.push({d:'Edge Protection — safety rail',
               q:eaveLm, u:'lm', r:PC_EDGE_PER_LM,
               note:eaveSource});
-  items.push({d:`Colorbond Roof Replacement — ${roofLabel}`,
-              q:flat, u:'m²', r:roofRate});
+  // Roof line — replaced by tapered bands when mechanism='tapered'
+  if (CURRENT_MECHANISM === 'tapered') {
+    let remaining = flat, running = 0;
+    for (const [bandSize, bandRate] of TAPERED_BANDS_JS) {
+      if (remaining <= 0) break;
+      const m2 = bandSize == null ? remaining : Math.min(bandSize, remaining);
+      const start = running, end = running + m2;
+      items.push({d:`Roof — m² ${Math.floor(start)+1}–${Math.floor(end)} @ $${bandRate}/m²`,
+                   q:m2, u:'m²', r:bandRate});
+      running   += m2;  remaining -= m2;
+    }
+  } else {
+    items.push({d:`Colorbond Roof Replacement — ${roofLabel}`,
+                q:flat, u:'m²', r:roofRate});
+  }
 
   // Asbestos premium
   if (optAsbestos) {
@@ -2588,6 +2734,14 @@ function updatePreview() {
   if (tz.days > 0)
     items.push({d:`Travel — ${tz.key.replace('_','/').replace(/^./, c=>c.toUpperCase())}`,
                 q:tz.days, u:'day', r:travelRate});
+
+  // ── Package extras (only shown in packages mechanism, $0 lines) ──
+  if (CURRENT_MECHANISM === 'packages') {
+    const tier = PACKAGE_TIERS_JS[CURRENT_PACKAGE_TIER] || PACKAGE_TIERS_JS.essential;
+    for (const extra of tier.extras) {
+      items.push({d:`★ ${extra}`, q:1, u:'inc', r:0});
+    }
+  }
 
   const internal = items.reduce((s,it) => s + (it.q || 0) * (it.r || 0), 0);
   const quoted   = internal * (1 + PC_MARKUP);

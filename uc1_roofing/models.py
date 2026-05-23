@@ -121,6 +121,36 @@ class Quote(models.Model):
     detected_equipment_json = models.TextField(blank=True, default='',
                               help_text='JSON list of equipment detected by AI feature scan (solar panels, solar HW, etc.)')
 
+    # ── Pricing mechanism + variant ──────────────────────────────────
+    # Three mechanisms are supported, each with optional sub-variants:
+    #   1. cost_plus → mode = match | optimal | premium
+    #   2. tapered   → no variant (band table is fixed in pricing_port_city)
+    #   3. packages  → package_tier = essential | shield | summit
+    # Stored on the Quote so the PDF can re-render at any time and the
+    # owner can SWITCH mechanism post-creation via the detail page.
+    PRICING_MECHANISM_CHOICES = [
+        ('cost_plus', 'Cost-Plus (Port City)'),
+        ('tapered',   'Tapered $/m²'),
+        ('packages',  'Good / Better / Best Packages'),
+    ]
+    PACKAGE_TIER_CHOICES = [
+        ('',          '—'),
+        ('essential', 'Essential'),
+        ('shield',    'Shield'),
+        ('summit',    'Summit'),
+    ]
+    pricing_mechanism = models.CharField(max_length=20,
+                              choices=PRICING_MECHANISM_CHOICES,
+                              default='cost_plus')
+    pricing_mode      = models.CharField(max_length=20, blank=True, default='match',
+                              help_text='Cost-Plus variant: match | optimal | premium')
+    package_tier      = models.CharField(max_length=20, blank=True, default='',
+                              choices=PACKAGE_TIER_CHOICES,
+                              help_text='Package mechanism: which Good/Better/Best tier was chosen')
+    markup_pct        = models.DecimalField(max_digits=5, decimal_places=4,
+                              default=0.10,
+                              help_text='Final markup applied (stored for audit + re-quote)')
+
     created_at      = models.DateTimeField(auto_now_add=True)
     updated_at      = models.DateTimeField(auto_now=True)
 
