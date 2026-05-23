@@ -6181,8 +6181,9 @@ function rdFinishDrawOutline() {
   // older saved one on every subsequent quote save (most-recent-first
   // tie-break in find_best_memory_match).
   const totalNow = rdNum(rdData.total_area_m2, 0);
+  const pitchNow = rdNum(rdData.avg_pitch_deg, 22);
   rdSetStatus(
-    `Outline captured (${totalNow.toFixed(0)} m² with default 22° pitch). `
+    `Outline captured (${totalNow.toFixed(0)} m² at ${pitchNow.toFixed(0)}° pitch). `
     + 'Next: draw each roof plane for accurate areas, then click '
     + '"Use These Measurements" to save the new correction and apply it to the quote.',
     false
@@ -6664,9 +6665,45 @@ function rdRecalculateSectionTotals() {
   const sections = rdData.sections;
   const total = sections.reduce((sum, sec) => sum + rdNum(sec.area_m2, 0), 0);
   const pitchSum = sections.reduce((sum, sec) => sum + rdNum(sec.pitch_est, rdNum(sec.pitch_deg, 0)), 0);
-  const avgPitch = sections.length
-    ? +(pitchSum / sections.length).toFixed(1)
-    : rdNum(rdData.avg_pitch_deg, 22);
+
+  // Pitch resolution priority (best evidence first):
+  //  1. Sum of drawn-section pitches    — the only "ground truth" if the
+  //                                       user actually drew planes
+  //  2. Form's #pitchDegActual          — measured value typed by the user
+  //  3. Form's #pitchSel dropdown       — mapped to its representative
+  //                                       degrees (flat 0 / low 10 /
+  //                                       standard 22 / steep 35 / very
+  //                                       steep 45) from PITCH_CHOICES
+  //  4. rdData.avg_pitch_deg            — original AI detection
+  //                                       (preserved across Redraw all)
+  //  5. rdData.dominant_pitch_deg       — alternative AI field
+  //  6. ridData.dominant_pitch_deg      — Solar API value
+  //  7. 22                              — absolute last resort
+  function _readPitchFromForm() {
+    const actualEl = document.getElementById('pitchDegActual');
+    const actual = actualEl ? rdNum(actualEl.value, 0) : 0;
+    if (actual > 0) return actual;
+    const selEl = document.getElementById('pitchSel');
+    if (selEl && selEl.value) {
+      const PITCH_DEG_FOR_KEY = {
+        flat: 0, low: 10, standard: 22, steep: 35, very_steep: 45,
+      };
+      const deg = PITCH_DEG_FOR_KEY[selEl.value];
+      if (typeof deg === 'number' && deg > 0) return deg;
+    }
+    return 0;
+  }
+  let avgPitch;
+  if (sections.length) {
+    avgPitch = +(pitchSum / sections.length).toFixed(1);
+  } else {
+    const formPitch  = _readPitchFromForm();
+    const aiPitch    = rdNum(rdData.avg_pitch_deg, 0)
+                    || rdNum(rdData.dominant_pitch_deg, 0);
+    const solarPitch = (typeof ridData !== 'undefined' && ridData)
+                      ? rdNum(ridData.dominant_pitch_deg, 0) : 0;
+    avgPitch = formPitch || aiPitch || solarPitch || 22;
+  }
   rdData.avg_pitch_deg = avgPitch;
 
   // Fallback for manual-redraw mid-state: outline drawn, sections not yet
