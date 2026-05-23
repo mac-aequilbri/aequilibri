@@ -2935,6 +2935,41 @@ document.getElementById('quoteForm').addEventListener('submit', function() {
     sections = rdData.sections;
   }
   document.getElementById('roofSectionsInput').value = JSON.stringify(sections);
+
+  // 3. Flat area (#flatArea / flat_area_sqm) — defensively propagate the
+  //    corrected roof area into the form's primary area field.  Bug fix:
+  //    `rdUseResults() → setEstimate(total)` updates the slider display +
+  //    `estArea` but NEVER writes to the hidden #flatArea input.  If the user
+  //    applies a saved correction that changes the roof area, the form would
+  //    otherwise submit with the pre-correction value (or 0 → backend pricing
+  //    engine receives area=0 and may 500 on certain downstream paths).
+  //
+  //    Priority for area: rdData.total_area_m2 > rdData section sum > existing
+  //    #flatArea > confirmedArea > estArea.  Only overwrite when we have a
+  //    positive value to push — never zero out a working field.
+  try {
+    let correctedArea = 0;
+    if (rdData) {
+      const fromMeta = +rdData.total_area_m2;
+      if (Number.isFinite(fromMeta) && fromMeta > 0) {
+        correctedArea = fromMeta;
+      } else if (Array.isArray(rdData.sections) && rdData.sections.length) {
+        const sum = rdData.sections.reduce(
+          (s, sec) => s + (+sec.area_m2 > 0 ? +sec.area_m2 : 0), 0);
+        if (sum > 0) correctedArea = sum;
+      }
+    }
+    if (correctedArea > 0) {
+      const flatEl = document.getElementById('flatArea');
+      const existing = +(flatEl && flatEl.value) || 0;
+      // Only overwrite if the corrected area differs by >0.5 m² — avoids
+      // clobbering a user-entered slider value that happens to match.
+      if (flatEl && Math.abs(correctedArea - existing) > 0.5) {
+        flatEl.value = Math.round(correctedArea);
+        confirmedArea = Math.round(correctedArea);
+      }
+    }
+  } catch (e) { /* never block submit */ }
 });
 
 // ── 3D Building Preview ────────────────────────────────────────────────────
@@ -8067,6 +8102,12 @@ rdUseResults = function() {
   const total = rdNum(rdData.total_area_m2, (rdData.sections || []).reduce((s,sec) => s + rdNum(sec.area_m2, 0), 0));
   if (!total) return;
   setEstimate(Math.round(total));
+  // setEstimate() updates the slider display + estArea but does NOT touch
+  // the hidden #flatArea input — push the corrected total there too so the
+  // form submission picks up the right area for backend pricing.
+  const _flatEl = document.getElementById('flatArea');
+  if (_flatEl) _flatEl.value = Math.round(total);
+  confirmedArea = Math.round(total);
   detectionMethod = 'AI roof drawing';
 
   // ── Auto-populate Roof Parameters from AI analysis ──────────────────

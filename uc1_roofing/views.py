@@ -112,6 +112,56 @@ def quote_create(request):
     if request.method == 'POST':
         form = QuoteForm(request.POST)
         if form.is_valid():
+            # ── Top-level traceback guard ───────────────────────────────
+            # If anything in the create flow raises, capture the full
+            # traceback to Render's stderr and surface a readable error
+            # message via Django messages instead of returning a bare 500.
+            # The user-visible failure mode is then "go back, fix, retry"
+            # rather than a stack-trace page with no context.
+            import sys as _sys_top
+            import traceback as _tb_top
+            try:
+                return _quote_create_post(request, form, rate_cards,
+                                          pitch_factors_json)
+            except Exception as _top_err:
+                print(f"[quote_create] TOP-LEVEL FAILURE: {_top_err!r}",
+                      file=_sys_top.stderr)
+                _tb_top.print_exc(file=_sys_top.stderr)
+                messages.error(
+                    request,
+                    f'Quote save failed: {type(_top_err).__name__}: '
+                    f'{str(_top_err)[:240]}.  The error has been logged.'
+                )
+                return render(request, 'uc1_roofing/quote_create.html', {
+                    'form': form,
+                    'rate_cards': rate_cards,
+                    'pitch_factors_json': pitch_factors_json,
+                    'pitch_choices': PITCH_CHOICES,
+                    'material_choices': MATERIAL_CHOICES,
+                    'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY,
+                })
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = QuoteForm()
+
+    return render(request, 'uc1_roofing/quote_create.html', {
+        'form': form,
+        'rate_cards': rate_cards,
+        'pitch_factors_json': pitch_factors_json,
+        'pitch_choices': PITCH_CHOICES,
+        'material_choices': MATERIAL_CHOICES,
+        'google_maps_api_key': settings.GOOGLE_MAPS_API_KEY,
+    })
+
+
+def _quote_create_post(request, form, rate_cards, pitch_factors_json):
+    """Body of POST handling extracted so quote_create() can wrap it in a
+    top-level try/except that logs full tracebacks to stderr (Render logs)
+    on any failure — replaces the silent Django 500 with a re-render of the
+    create form plus a readable error message.
+    """
+    if True:  # preserves indentation of the original block
             # Get or create contact
             contact_name = form.cleaned_data['client_name']
             contact, _ = Contact.objects.get_or_create(
@@ -451,11 +501,9 @@ def quote_create(request):
 
             messages.success(request, f'Quote {quote.ref_number} created successfully.')
             return redirect('uc1:quote_detail', pk=quote.pk)
-        else:
-            messages.error(request, 'Please correct the errors below.')
-    else:
-        form = QuoteForm()
-
+    # Fallback — should be unreachable when called from quote_create() since
+    # the caller only invokes us inside `if form.is_valid()`.  Returning the
+    # form re-render keeps mypy / linters happy.
     return render(request, 'uc1_roofing/quote_create.html', {
         'form': form,
         'rate_cards': rate_cards,
