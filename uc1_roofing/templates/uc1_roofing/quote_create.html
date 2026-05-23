@@ -1280,6 +1280,30 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           </div>
         </div>
 
+        <!-- Saved-correction banner — shown only when this address has a
+             previously-saved manual correction loaded into rdData.  The
+             Delete button removes the correction from the audit log AND
+             reverts the visible area on the main form to the original
+             Solar API value, so the user can start fresh. -->
+        <div id="rdSavedCorrectionBanner"
+             style="display:none;background:#e8f5e9;border:1px solid #66bb6a;border-radius:7px;
+                    padding:8px 10px;margin-bottom:12px;font-size:.72rem;color:#1b5e20;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div>
+              <span style="font-weight:600;">📐 Saved manual correction applied</span>
+              <div id="rdSavedCorrectionMeta" style="margin-top:2px;color:#33691e;font-size:.66rem;"></div>
+            </div>
+            <button type="button"
+                    id="rdDeleteCorrectionBtn"
+                    onclick="rdDeleteSavedCorrection()"
+                    style="background:#fff;border:1px solid #c62828;color:#c62828;
+                           border-radius:5px;padding:4px 9px;font-size:.66rem;
+                           font-weight:600;cursor:pointer;white-space:nowrap;">
+              🗑️ Delete correction
+            </button>
+          </div>
+        </div>
+
         <div class="rd-panel-title">Manual Correction</div>
         <div class="rd-correction-panel">
           <div class="rd-edit-panel">
@@ -5188,6 +5212,97 @@ function rdSyncCorrectionUi() {
   const readout = document.getElementById('rdNudgeReadout');
   if (readout) {
     readout.textContent = `Offset: ${Math.round(rdNum(rdOverlayOffset.x, 0))} image px, ${Math.round(rdNum(rdOverlayOffset.y, 0))} image px`;
+  }
+  // Show/hide the saved-correction banner depending on whether rdData
+  // was populated from a previously-saved correction.  Source flag is
+  // set by rdApplySavedCorrectionToData().
+  const banner = document.getElementById('rdSavedCorrectionBanner');
+  if (banner) {
+    const isSaved = !!(rdData && rdData.correction_source === 'saved_manual_correction');
+    banner.style.display = isSaved ? 'block' : 'none';
+    if (isSaved) {
+      const meta = document.getElementById('rdSavedCorrectionMeta');
+      if (meta) {
+        const total = rdNum(rdData.total_area_m2, 0);
+        const verts = Array.isArray(rdData.footprint) ? rdData.footprint.length : 0;
+        const secs  = Array.isArray(rdData.sections)  ? rdData.sections.length  : 0;
+        meta.textContent = (total > 0 ? `Area ${total.toFixed(1)} m² · ` : '')
+                         + `${verts} outline vertices · ${secs} sections`;
+      }
+    }
+  }
+}
+
+// Delete the saved manual correction for the current address.  Hits the
+// DELETE endpoint, clears the in-memory cache so it won't re-load until
+// the user makes a new correction, reverts the form's area to the original
+// Solar API value, and closes the AI Roof Drawing dialog so the user is
+// back on the main map ready to either proceed or re-correct.
+async function rdDeleteSavedCorrection() {
+  if (!confirm('Delete the saved manual correction for this address?\n\nThe form will revert to the original Solar API area. You can re-correct anytime.')) {
+    return;
+  }
+  const btn = document.getElementById('rdDeleteCorrectionBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '… deleting'; }
+  try {
+    const lat = estCenter ? estCenter[0] : (rdData && rdData.lat);
+    const lng = estCenter ? estCenter[1] : (rdData && rdData.lng);
+    const address = (rdData && rdData.address)
+                 || rdAddressText(lat || 0, lng || 0)
+                 || '';
+    const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || CSRF_TOKEN;
+    const r = await fetch('/uc1/api/roof-correction/', {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf},
+      body: JSON.stringify({ address, lat, lng }),
+    });
+    const data = await r.json();
+    if (!data.ok) {
+      alert('Delete failed: ' + (data.error || 'unknown error'));
+      return;
+    }
+
+    // Clear the local correction cache so subsequent dialog opens don't
+    // re-load the just-deleted correction from the in-memory hit.
+    if (typeof rdSavedCorrectionCache !== 'undefined' && rdSavedCorrectionCache.clear) {
+      rdSavedCorrectionCache.clear();
+    }
+    try { localStorage.removeItem('aeq:lastRoofCorrection'); } catch (e) {}
+
+    // Revert the visible form area to the original Solar API value.
+    // ridData (Solar API source) still holds the unmodified area — use
+    // that as the source of truth.  Fall back to the badge if missing.
+    const solarArea = (ridData && rdNum(ridData.total_area_m2, 0))
+                   || rdNum(document.getElementById('badgeArea')?.textContent, 0);
+    if (solarArea > 0) {
+      _applyCorrectedAreaToForm({ total_area_m2: solarArea, sections: [] });
+    }
+    detectionMethod = ridData && ridData.data_source ? ridData.data_source : 'Solar API';
+
+    // Mark rdData so the banner hides on the next rdSyncCorrectionUi call.
+    if (rdData) {
+      rdData.correction_source = '';
+      rdData._savedCorrectionId = null;
+    }
+    rdSyncCorrectionUi();
+
+    // Status feedback to both the dialog and the main map.
+    if (typeof rdSetStatus === 'function') {
+      rdSetStatus('Saved correction deleted — area reverted to ' + Math.round(solarArea) + ' m².', false);
+    }
+    try {
+      const sl = document.getElementById('statusLine');
+      if (sl) {
+        sl.innerHTML += ' <span class="text-danger small" style="margin-left:6px;">🗑️ Saved correction deleted</span>';
+      }
+    } catch (e) {}
+
+    // Close the dialog so the user is back on the map per the chosen UX.
+    if (typeof closeRoofDrawing === 'function') closeRoofDrawing();
+  } catch (e) {
+    alert('Delete failed: ' + (e && e.message ? e.message : e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Delete correction'; }
   }
 }
 

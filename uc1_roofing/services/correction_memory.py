@@ -176,6 +176,55 @@ def save_roof_correction(body: dict[str, Any]) -> int:
     return log.id
 
 
+def delete_roof_correction(
+    *,
+    address: str = "",
+    lat: float | None = None,
+    lng: float | None = None,
+    log_id: int | None = None,
+) -> int:
+    """Delete a saved roof correction (or all matching corrections for the
+    address / point).
+
+    Match strategy mirrors ``find_best_memory_match`` so the UI's "delete"
+    button removes whatever it would have loaded.  Returns the number of
+    rows actually deleted.
+
+    The ExecutionLog is otherwise append-only — we accept a hard delete
+    here because the user explicitly asked to forget the correction, and
+    keeping a tombstone row that ``find_best_memory_match`` would still
+    pick up defeats the purpose.
+    """
+    if log_id is not None:
+        try:
+            count, _ = ExecutionLog.objects.filter(
+                pk=int(log_id),
+                tool_name=ROOF_CORRECTION_TOOL,
+            ).delete()
+            return int(count)
+        except (TypeError, ValueError):
+            return 0
+
+    # Reuse the existing matcher so we delete exactly what the UI saw.
+    deleted = 0
+    while True:
+        match = find_best_memory_match(
+            tool_name=ROOF_CORRECTION_TOOL,
+            address=address,
+            lat=lat,
+            lng=lng,
+        )
+        if match is None:
+            break
+        count, _ = ExecutionLog.objects.filter(pk=match.log.pk).delete()
+        deleted += int(count)
+        if count == 0:
+            # Safety net — should never happen, but avoid an infinite loop
+            # if a query oddity keeps surfacing the same row.
+            break
+    return deleted
+
+
 def save_manual_ground_truth(body: dict[str, Any]) -> int:
     fields = body.get("fields") or {}
     if not isinstance(fields, dict):

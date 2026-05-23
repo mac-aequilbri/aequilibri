@@ -18,6 +18,7 @@ from uc1_roofing.models import PITCH_FACTORS, Quote, RoofLidarAnalysis, VendorMa
 from uc1_roofing.services.correction_memory import (
     MANUAL_GROUND_TRUTH_TOOL,
     ROOF_CORRECTION_TOOL,
+    delete_roof_correction,
     find_best_memory_match,
     match_response,
     save_manual_ground_truth,
@@ -111,7 +112,15 @@ def lidar_analyze(request):
 
 @csrf_exempt
 def roof_correction_save(request):
-    """Persist or retrieve a verified AI roof drawing correction."""
+    """Persist, retrieve, or delete a verified AI roof drawing correction.
+
+    GET    — find best matching correction by address / lat / lng
+    POST   — save a new correction
+    DELETE — remove the matching correction(s) so the user can start fresh
+             on an address.  Accepts the same address / lat / lng query
+             params as GET, or a JSON body with the same keys, or an
+             explicit ``id``.
+    """
     if request.method == "GET":
         match = find_best_memory_match(
             tool_name=ROOF_CORRECTION_TOOL,
@@ -120,6 +129,27 @@ def roof_correction_save(request):
             lng=to_float(request.GET.get("lng")),
         )
         return JsonResponse(match_response(match, "correction"))
+
+    if request.method == "DELETE":
+        # Pull params from the JSON body if present, otherwise the query string.
+        try:
+            body = _json_body(request) if request.body else {}
+        except (ValueError, TypeError, json.JSONDecodeError):
+            body = {}
+        address = str(body.get("address") or request.GET.get("address") or "")[:300]
+        lat = to_float(body.get("lat") if "lat" in body else request.GET.get("lat"))
+        lng = to_float(body.get("lng") if "lng" in body else request.GET.get("lng"))
+        log_id_raw = body.get("id") if "id" in body else request.GET.get("id")
+        try:
+            log_id = int(log_id_raw) if log_id_raw not in (None, "") else None
+        except (TypeError, ValueError):
+            log_id = None
+        try:
+            deleted = delete_roof_correction(
+                address=address, lat=lat, lng=lng, log_id=log_id)
+            return JsonResponse({"ok": True, "deleted": deleted})
+        except Exception as exc:
+            return JsonResponse({"ok": False, "error": str(exc)}, status=500)
 
     if request.method != "POST":
         return JsonResponse({"ok": False, "error": "Unsupported method"}, status=405)
