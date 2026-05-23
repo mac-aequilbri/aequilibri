@@ -915,8 +915,11 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         <input type="hidden" name="package_tier" id="packageTier" value="">
 
         <!-- ── PACKAGE TIER selector (only shown when mechanism='packages') ── -->
-        <div id="packageTierRow" class="d-flex w-100 mb-2" role="group"
-             style="border:1px solid #d8d8d8;border-radius:8px;overflow:hidden;display:none !important;">
+        <!-- NOTE: NOT using Bootstrap's 'd-flex' class because it carries
+             display:flex !important and would beat our JS-set 'none' hide.
+             Inline display:flex on the wrapper instead. -->
+        <div id="packageTierRow" class="w-100 mb-2" role="group"
+             style="border:1px solid #d8d8d8;border-radius:8px;overflow:hidden;display:none;">
           <button type="button" class="package-tier-btn active" data-tier="essential"
                   onclick="setPackageTier('essential')"
                   style="flex:1;padding:6px 4px;border:0;background:#fff;color:#444;
@@ -2523,8 +2526,10 @@ function setPricingMechanism(mechanism) {
   CURRENT_MECHANISM = mechanism;
   const cpRow  = document.getElementById('costPlusModeRow');
   const pkgRow = document.getElementById('packageTierRow');
-  if (cpRow)  cpRow.style.display  = (mechanism === 'cost_plus') ? '' : 'none';
-  if (pkgRow) pkgRow.style.display = (mechanism === 'packages')  ? 'flex' : 'none';
+  // Use 'flex' (not '') for visible state because the inner buttons are
+  // siblings that need flex layout to sit in one row.
+  if (cpRow)  cpRow.style.display  = (mechanism === 'cost_plus') ? 'block' : 'none';
+  if (pkgRow) pkgRow.style.display = (mechanism === 'packages')  ? 'flex'  : 'none';
   // For tapered/packages, override the badge label
   const badge = document.getElementById('pricingModeBadge');
   if (badge && mechanism === 'tapered') {
