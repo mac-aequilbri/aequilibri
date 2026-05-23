@@ -354,29 +354,29 @@
     </div>
   </div>
 
-  <!-- ── Pricing Mechanism banner (only when not the default cost-plus match) ─ -->
-  {% if quote.pricing_mechanism != "cost_plus" or quote.pricing_mode != "match" %}
+  <!-- ── Pricing Mechanism chip (customer-facing) ─────────────────────────
+       SHOW the chip ONLY for the Packages mechanism — because the customer
+       actively picked their tier (Essential / Shield / Summit) and wants
+       to see what they bought as a label on the quote.
+
+       HIDE for Cost-Plus + Tapered — those are INTERNAL pricing approaches.
+       The customer should never see markup %, "Optimal", "Premium", "Port
+       City Match", or anything that exposes how we calculated.  The price
+       speaks for itself.
+       ─────────────────────────────────────────────────────────────────── -->
+  {% if quote.pricing_mechanism == "packages" and quote.package_tier %}
   <div style="margin:8px 0 10px; padding:6px 10px; border-radius:4px;
               font-size:8pt; line-height:1.4;
-              {% if quote.pricing_mechanism == 'tapered' %}background:#e3f2fd;border:1px solid #64b5f6;color:#0d47a1;
-              {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'shield' %}background:#fff3e0;border:1px solid #ffb74d;color:#e65100;
-              {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'summit' %}background:#f3e5f5;border:1px solid #ce93d8;color:#6a1b9a;
+              {% if quote.package_tier == 'shield' %}background:#fff3e0;border:1px solid #ffb74d;color:#e65100;
+              {% elif quote.package_tier == 'summit' %}background:#f3e5f5;border:1px solid #ce93d8;color:#6a1b9a;
               {% else %}background:#e8f5e9;border:1px solid #66bb6a;color:#1b5e20;{% endif %}">
     <strong style="font-size:7.5pt;text-transform:uppercase;letter-spacing:.04em;">
-      {% if quote.pricing_mechanism == 'tapered' %}📉 Tapered $/m² pricing
-      {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'essential' %}🥉 Essential package
-      {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'shield' %}🥈 Shield package · Most popular
-      {% elif quote.pricing_mechanism == 'packages' and quote.package_tier == 'summit' %}🥇 Summit package · Premium
-      {% elif quote.pricing_mode == 'optimal' %}💰 Optimal pricing (18% markup)
-      {% elif quote.pricing_mode == 'premium' %}👑 Premium pricing (25% markup)
-      {% else %}🎯 Port City Match (10% markup)
+      {% if quote.package_tier == 'essential' %}🥉 Essential Package
+      {% elif quote.package_tier == 'shield' %}🥈 Shield Package
+      {% elif quote.package_tier == 'summit' %}🥇 Summit Package
       {% endif %}
     </strong>
-    {% if quote.pricing_mechanism == 'tapered' %}
-      — Banded per-m² rate: larger jobs benefit from economies of scale.
-    {% elif quote.pricing_mechanism == 'packages' %}
-      — Fixed inclusion package; the ★ items in the scope-of-works below are bundled at no extra line cost.
-    {% endif %}
+    — Fixed-inclusion package; bundled extras appear as ★ items in the scope of works.
   </div>
   {% endif %}
 
