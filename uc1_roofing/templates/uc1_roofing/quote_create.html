@@ -2888,13 +2888,53 @@ function haversine(a,b,c,d){const R=6378137,dA=(c-a)*Math.PI/180,dB=(d-b)*Math.P
 function setStatus(h){const el=document.getElementById('statusLine');if(el)el.innerHTML=h;}
 
 // ── Capture roof geometry into form before submit ───────────────────────────
+// IMPORTANT — priority order for what gets saved into the Quote (and thus
+// rendered on the printed PDF's "Roof Plan" block):
+//
+//   1. rdData.footprint  ← AI Roof Drawing's CORRECTED outline (user edits
+//                          like vertex drag / nudge / Save Correction update
+//                          this in place — most accurate truth available)
+//   2. ridPolygon         ← Solar API / LiDAR / Geoscape outline (used when
+//                          AI Roof Drawing not run, or user closed the
+//                          dialog without clicking "Use These Measurements")
+//   3. estPolyCoords      ← address-geocode fallback polygon
+//
+// Same priority applies to sections — rdData.sections wins over ridData.sections
+// when the AI Roof Drawing ran. We try to call rdSyncPlanToInspector() first
+// so sections get the bbox normalisation the PDF roof-plan SVG expects.
 document.getElementById('quoteForm').addEventListener('submit', function() {
-  // Building footprint polygon [[lat,lon],...]
-  document.getElementById('roofPolygonInput').value =
-    JSON.stringify(ridPolygon && ridPolygon.length >= 3 ? ridPolygon : (estPolyCoords || []));
-  // Solar API section data (facing, area, pitch, bbox)
-  const secs = (ridData && ridData.sections) ? ridData.sections : [];
-  document.getElementById('roofSectionsInput').value = JSON.stringify(secs);
+  // Sync the AI roof drawing data into the inspector format (adds bbox,
+  // facing colour, etc. expected by the PDF roof-plan SVG). Safe no-op
+  // when rdData is empty/missing.
+  try {
+    if (typeof rdSyncPlanToInspector === 'function'
+        && rdData && Array.isArray(rdData.sections) && rdData.sections.length > 0) {
+      rdSyncPlanToInspector();
+    }
+  } catch (e) { /* never block submit */ }
+
+  // 1. Outline — prefer corrected rdData.footprint when AI Roof Drawing ran
+  let outline = null;
+  if (rdData && Array.isArray(rdData.footprint) && rdData.footprint.length >= 3) {
+    outline = rdData.footprint;
+  } else if (ridPolygon && ridPolygon.length >= 3) {
+    outline = ridPolygon;
+  } else {
+    outline = estPolyCoords || [];
+  }
+  document.getElementById('roofPolygonInput').value = JSON.stringify(outline);
+
+  // 2. Sections — prefer rdData.sections (with corrected polygons + pitch_est)
+  //    when AI Roof Drawing ran. rdSyncPlanToInspector above already merged
+  //    them into ridData.sections in the right shape, but use rdData.sections
+  //    directly as a fallback in case sync didn't fire.
+  let sections = [];
+  if (ridData && Array.isArray(ridData.sections) && ridData.sections.length > 0) {
+    sections = ridData.sections;
+  } else if (rdData && Array.isArray(rdData.sections) && rdData.sections.length > 0) {
+    sections = rdData.sections;
+  }
+  document.getElementById('roofSectionsInput').value = JSON.stringify(sections);
 });
 
 // ── 3D Building Preview ────────────────────────────────────────────────────
