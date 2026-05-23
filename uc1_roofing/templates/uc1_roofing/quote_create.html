@@ -305,6 +305,12 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   {% csrf_token %}
   <input type="hidden" name="flat_area_sqm"      id="flatArea"          value="">
   <input type="hidden" name="property_address"  id="propAddrHidden"    value="">
+  <!-- Address coordinates — populated from estCenter on the client; the
+       backend uses these in _quote_create_post to look up any saved
+       correction for this property and prefer the corrected area over the
+       Solar API value, regardless of which client-side path set the form. -->
+  <input type="hidden" name="address_lat"        id="addressLat"        value="">
+  <input type="hidden" name="address_lng"        id="addressLng"        value="">
   <input type="hidden" name="roof_polygon_json"  id="roofPolygonInput"  value="">
   <input type="hidden" name="roof_sections_json" id="roofSectionsInput" value="">
   <input type="hidden" name="opt_remove"    id="optRemove"    value="1">
@@ -3011,6 +3017,20 @@ document.getElementById('quoteForm').addEventListener('submit', function() {
         flatEl.value = Math.round(correctedArea);
         confirmedArea = Math.round(correctedArea);
       }
+    }
+  } catch (e) { /* never block submit */ }
+
+  // 4. Address coordinates — backend uses these to look up any saved
+  //    correction for this address and prefer the corrected area over the
+  //    Solar API value.  No matter which client path populated estCenter
+  //    (autocomplete, marker click, search, map click), the lat/lng land
+  //    here so the server can apply the correction.
+  try {
+    if (estCenter && estCenter.length >= 2) {
+      const latEl = document.getElementById('addressLat');
+      const lngEl = document.getElementById('addressLng');
+      if (latEl) latEl.value = String(estCenter[0]);
+      if (lngEl) lngEl.value = String(estCenter[1]);
     }
   } catch (e) { /* never block submit */ }
 });

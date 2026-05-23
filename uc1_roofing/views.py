@@ -205,6 +205,57 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
             quote.roof_colour     = (request.POST.get('roof_colour') or '').strip()[:60]
             quote.detected_equipment_json = (request.POST.get('detected_equipment_json') or '')[:1000]
 
+            # ── Saved-correction override (server-side, bulletproof) ──────
+            # No matter what the client sent in flat_area_sqm, if a saved
+            # correction exists for this property (matched by address +
+            # lat/lng via the same scorer the GET endpoint uses), prefer
+            # the corrected area over the Solar / Geoscape value.  This
+            # closes the gap where the client-side auto-apply didn't fire
+            # (page reloaded, autocomplete path skipped the hook, user
+            # closed the dialog without clicking Use-These-Measurements,
+            # etc.) and the form would otherwise price on the original
+            # roof area while a corrected one was sitting in the database.
+            try:
+                import sys as _sys_corr
+                from .services.correction_memory import (
+                    find_best_memory_match, ROOF_CORRECTION_TOOL)
+                _addr_lat = _spec_f('address_lat')
+                _addr_lng = _spec_f('address_lng')
+                _match = find_best_memory_match(
+                    tool_name=ROOF_CORRECTION_TOOL,
+                    address=quote.property_address or '',
+                    lat=_addr_lat or None,
+                    lng=_addr_lng or None,
+                )
+                if _match and isinstance(_match.payload, dict):
+                    _corr_area = _match.payload.get('total_area_m2')
+                    try:
+                        _corr_area_f = float(_corr_area) if _corr_area else 0.0
+                    except (TypeError, ValueError):
+                        _corr_area_f = 0.0
+                    if _corr_area_f > 0:
+                        _form_area = _safe_float(
+                            request.POST.get('flat_area_sqm'), 0)
+                        # Only override if it actually differs (>1 m²) — and
+                        # only when the form value looks like the Solar/
+                        # Geoscape default (i.e. the client didn't already
+                        # apply the correction).  If the client already
+                        # pushed the corrected number, leave it alone.
+                        if abs(_corr_area_f - _form_area) > 1.0:
+                            from decimal import Decimal as _D
+                            quote.flat_area_sqm = _D(str(round(_corr_area_f, 2)))
+                            print(
+                                f"[quote_create] saved-correction override: "
+                                f"form sent {_form_area:.1f} m², saved "
+                                f"correction is {_corr_area_f:.1f} m² — "
+                                f"using corrected value (log id "
+                                f"{_match.log.pk}).",
+                                file=_sys_corr.stderr)
+            except Exception as _corr_exc:
+                # Correction lookup is best-effort — never let it block save.
+                print(f"[quote_create] correction override skipped: "
+                      f"{_corr_exc!r}", file=_sys_corr.stderr)
+
             quote.save()
 
             # ──────────────────────────────────────────────────────────────
