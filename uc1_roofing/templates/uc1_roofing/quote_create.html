@@ -897,10 +897,42 @@ dialog#roofInspDialog::backdrop { background:transparent; }
     <div class="col-md-5">
       <div class="sticky-sidebar">
       <div class="area-preview mb-4">
-        <div class="d-flex justify-content-between align-items-center mb-1">
-          <div class="text-muted fw-bold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">Port City Estimate</div>
-          <span style="font-size:.65rem;background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;border-radius:4px;padding:1px 6px;font-weight:600;">PORT CITY PRICING</span>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="text-muted fw-bold" style="font-size:.7rem;text-transform:uppercase;letter-spacing:.06em">Pricing Estimate</div>
+          <span id="pricingModeBadge" style="font-size:.65rem;background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;border-radius:4px;padding:1px 6px;font-weight:600;">PORT CITY MATCH</span>
         </div>
+
+        <!-- ── Pricing Mode toggle (3 modes) ─────────────────────────────── -->
+        <div class="d-flex w-100 mb-2" role="group" aria-label="Pricing mode"
+             style="border:1px solid #d8d8d8;border-radius:8px;overflow:hidden;">
+          <button type="button" class="pricing-mode-btn active" data-mode="match"
+                  onclick="setPricingMode('match')"
+                  style="flex:1;padding:6px 4px;border:0;background:#1b5e20;color:#fff;
+                         font-size:.7rem;font-weight:600;line-height:1.15;cursor:pointer;">
+            🎯 Match<br>
+            <span style="font-size:.55rem;opacity:.85;font-weight:500;">Port City · 10%</span>
+          </button>
+          <button type="button" class="pricing-mode-btn" data-mode="optimal"
+                  onclick="setPricingMode('optimal')"
+                  style="flex:1;padding:6px 4px;border:0;background:#fff;color:#444;
+                         border-left:1px solid #d8d8d8;border-right:1px solid #d8d8d8;
+                         font-size:.7rem;font-weight:600;line-height:1.15;cursor:pointer;">
+            💰 Optimal<br>
+            <span style="font-size:.55rem;opacity:.75;font-weight:500;">Industry · 18%</span>
+          </button>
+          <button type="button" class="pricing-mode-btn" data-mode="premium"
+                  onclick="setPricingMode('premium')"
+                  style="flex:1;padding:6px 4px;border:0;background:#fff;color:#444;
+                         font-size:.7rem;font-weight:600;line-height:1.15;cursor:pointer;">
+            👑 Premium<br>
+            <span style="font-size:.55rem;opacity:.75;font-weight:500;">Top-tier · 25%</span>
+          </button>
+        </div>
+        <div id="modeDelta" class="text-center mb-2"
+             style="font-size:.68rem;color:#555;display:none;">
+          <!-- Live "+$X (+Y%) vs Port City Match" annotation -->
+        </div>
+        <input type="hidden" name="pricing_mode" id="pricingMode" value="match">
         <div class="text-center mb-3 p-3" style="background:rgba(220,159,130,.15);border-radius:8px;border:1px solid rgba(220,159,130,.4)">
           <div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.05em">Total Tender Price (incl. GST)</div>
           <div id="p_total" style="font-size:2.2rem;font-weight:800;color:var(--ae-space);font-family:'Montserrat',sans-serif">$—</div>
@@ -2409,7 +2441,42 @@ const PC_GUTTER_PER_LM   = 100;
 const PC_DOWNPIPE_90     = 250;
 const PC_BIN_PER_200M2   = 1600;
 const PC_TRAVEL_RATES    = {ayr_ingham:600, charters:700, cairns_mackay:2000, local:0};
-const PC_MARKUP          = 0.10;
+// Pricing-mode markup table (matches uc1_roofing/pricing_port_city.py constants)
+const PRICING_MODE_MARKUP = {
+  match:   0.10,   // 🎯 Port City Match     — bidding head-to-head
+  optimal: 0.18,   // 💰 Optimal            — industry-mid-range, more profit
+  premium: 0.25,   // 👑 Premium positioning — top of market
+};
+let PC_MARKUP = PRICING_MODE_MARKUP.match;     // default
+
+function setPricingMode(mode) {
+  if (!(mode in PRICING_MODE_MARKUP)) return;
+  PC_MARKUP = PRICING_MODE_MARKUP[mode];
+  const hidden = document.getElementById('pricingMode');
+  if (hidden) hidden.value = mode;
+  const markupHidden = document.getElementById('markupPct');
+  if (markupHidden) markupHidden.value = String(PC_MARKUP);
+  // Visual button state
+  document.querySelectorAll('.pricing-mode-btn').forEach(btn => {
+    const active = btn.dataset.mode === mode;
+    btn.classList.toggle('active', active);
+    btn.style.background = active ? '#1b5e20' : '#fff';
+    btn.style.color      = active ? '#fff'    : '#444';
+  });
+  // Badge label
+  const badge = document.getElementById('pricingModeBadge');
+  if (badge) {
+    badge.textContent = {
+      match:   'PORT CITY MATCH',
+      optimal: 'OPTIMAL · INDUSTRY MID',
+      premium: 'PREMIUM POSITIONING',
+    }[mode];
+    badge.style.background = {match:'#e8f5e9', optimal:'#fff3e0', premium:'#f3e5f5'}[mode];
+    badge.style.color      = {match:'#1b5e20', optimal:'#e65100', premium:'#6a1b9a'}[mode];
+    badge.style.borderColor= {match:'#66bb6a', optimal:'#ffb74d', premium:'#ce93d8'}[mode];
+  }
+  if (typeof updatePreview === 'function') updatePreview();
+}
 const PC_GST             = 0.10;
 
 function _pcTravelZone(addrText) {
@@ -2567,6 +2634,27 @@ function updatePreview() {
   $set('p_gst_amt',    fmt(gst));
   $set('p_total',      fmt(totalInc));
   $set('p_gst_line',   `Subtotal ${fmt(subtotalEx)} + GST ${fmt(gst)}`);
+
+  // ── Delta vs Port City Match (informational annotation) ──
+  // When the user has switched to Optimal/Premium, show how much extra
+  // profit (vs the baseline Port-City-mirror price) the mode is yielding.
+  const mode = document.getElementById('pricingMode')?.value || 'match';
+  const matchQuoted = internal * (1 + PRICING_MODE_MARKUP.match);
+  const matchTotal  = (matchQuoted + gutterSub) * (1 + PC_GST);
+  const delta = totalInc - matchTotal;
+  const deltaEl = document.getElementById('modeDelta');
+  if (deltaEl) {
+    if (mode === 'match' || Math.abs(delta) < 1) {
+      deltaEl.style.display = 'none';
+    } else {
+      const pct = matchTotal > 0 ? (delta / matchTotal * 100) : 0;
+      deltaEl.style.display = '';
+      deltaEl.innerHTML =
+        `↑ <strong>${fmt(delta)}</strong> extra (${pct.toFixed(1)}%) ` +
+        `vs Port City Match price of <strong>${fmt(matchTotal)}</strong>`;
+      deltaEl.style.color = mode === 'premium' ? '#6a1b9a' : '#e65100';
+    }
+  }
 
   // Highset status indicator next to the Storeys dropdown — shows the user
   // EXACTLY which dollar amount the storeys selection is adding right now,
