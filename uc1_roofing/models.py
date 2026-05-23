@@ -269,9 +269,43 @@ class Quote(models.Model):
     def save(self, *args, **kwargs):
         if not self.ref_number:
             from datetime import date
+            from django.db import IntegrityError
             d = date.today().strftime('%Y%m%d')
-            last = Quote.objects.filter(ref_number__startswith=f'REF-{d}').count()
-            self.ref_number = f'REF-{d}-{last+1:04d}'
+            # Use the MAX existing suffix, not COUNT(*) — count() drops when
+            # quotes are deleted and produces collisions with refs that are
+            # still on the table.  Retry up to 25 times on the unlikely race
+            # where two concurrent saves pick the same MAX (Django's default
+            # SQLite/Postgres autocommit isolation doesn't lock the table
+            # between our SELECT-MAX and INSERT).
+            prefix = f'REF-{d}-'
+            for _attempt in range(25):
+                existing = (Quote.objects
+                            .filter(ref_number__startswith=prefix)
+                            .values_list('ref_number', flat=True))
+                max_suffix = 0
+                for ref in existing:
+                    try:
+                        suffix = int(str(ref).rsplit('-', 1)[-1])
+                        if suffix > max_suffix:
+                            max_suffix = suffix
+                    except (ValueError, IndexError):
+                        continue
+                self.ref_number = f'{prefix}{max_suffix + 1 + _attempt:04d}'
+                try:
+                    return super().save(*args, **kwargs)
+                except IntegrityError as _ie:
+                    # Another concurrent save grabbed the same number — loop
+                    # and pick the next slot.  Bump the suffix on each retry
+                    # so we don't keep hitting the same row in a tight race.
+                    if 'ref_number' not in str(_ie):
+                        raise   # unrelated integrity error — re-raise
+                    self.ref_number = ''   # force recompute on next loop
+            # Exhausted retries — extremely unlikely (would need 25 concurrent
+            # saves landing in the same millisecond).  Surface a clean error.
+            raise IntegrityError(
+                'Could not allocate a unique ref_number after 25 attempts. '
+                'Database may be under unusual contention.'
+            )
         super().save(*args, **kwargs)
 
     def __str__(self):
