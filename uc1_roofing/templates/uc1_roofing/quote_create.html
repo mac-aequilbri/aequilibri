@@ -1561,6 +1561,9 @@ let selMatIdx     = 0;
 let confirmedArea = 0;
 let detectionMethod = '';
 let roofOutlineSource = '';
+let savedCorrectionApplied = false;
+let savedCorrectionTotalArea = 0;
+let savedCorrectionPayload = null;
 let rdAiOutlinePromise = null;
 let rdAiOutlineKey = '';
 let rdAiOutlineCache = null;
@@ -1775,6 +1778,9 @@ async function clickEstimate(lat, lon) {
   btn.disabled = true;
   btn.textContent = '⏳ Analysing roof…';
   ridReady = false; ridData = null; ridPolygon = [];
+  savedCorrectionApplied = false;
+  savedCorrectionTotalArea = 0;
+  savedCorrectionPayload = null;
   rdData   = null;
   rdOverlayOffset = { x: 0, y: 0 };
   rdViewZoom = 1;
@@ -1800,7 +1806,7 @@ async function clickEstimate(lat, lon) {
         const sourceBadge = isGeoscape ? 'Geoscape' : 'Solar API';
         const sourceColor = isGeoscape ? '#12805c' : '#1565c0';
         const materialText = roofMaterialStatusText(data);
-        const materialTail = roofMaterialIsKnown(data) ? ` Â· ${materialText}` : '';
+        const materialTail = roofMaterialIsKnown(data) ? ` &middot; ${materialText}` : '';
         // Set state variables — green footprint polygon drawn after background fetch completes
         clearEstimate();
         estCenter     = [lat, lon];
@@ -1857,14 +1863,19 @@ async function clickEstimate(lat, lon) {
             detectionMethod = `Hybrid outline (${chosen.source})`;
             if (chosen.apiData) { rdData = rdBuildPlanData(chosen.apiData, lat, lon); rdRecomputeGeometry(); }
             _setFootprintOutline(ridPolygon, '#27ae60', 0.14, 4, false);
+            if (savedCorrectionApplied && savedCorrectionPayload) {
+              _applySavedCorrectionToRoofState(savedCorrectionPayload, lat, lon);
+            }
             // Respect a saved correction that may have already overwritten
             // #flatArea — only push roofArea back into the visible area
             // fields when no correction is in play, otherwise we'd undo
             // the corrected value and the quote would re-revert to the
-            // original area.  `detectionMethod` is the signal used by the
-            // saved-correction auto-apply path.
-            const _correctionInPlay = (typeof detectionMethod === 'string'
-                                       && detectionMethod.toLowerCase().includes('correction'));
+            // original area.  Use the explicit saved-correction flag here;
+            // detectionMethod is also changed by this hybrid-outline path.
+            const _correctionInPlay = !!savedCorrectionApplied
+              || (ridData && ridData.correction_source === 'saved_manual_correction')
+              || (typeof detectionMethod === 'string'
+                  && detectionMethod.toLowerCase().includes('correction'));
             if (!_correctionInPlay) {
               estArea = roofArea;
               document.getElementById('flatArea').value = roofArea;
@@ -1877,6 +1888,13 @@ async function clickEstimate(lat, lon) {
               `<span class="det-badge db-p1">${chosen.badge}</span> ` +
               `<span class="text-muted small">${chosen.confidence} confidence · outline ${Math.round(chosen.area)} m² · ${sourceBadge} ground ${groundArea} m² · roof area ${roofArea} m²${materialTail}</span>`
             );
+            if (_correctionInPlay) {
+              const corrected = Math.round(savedCorrectionTotalArea || rdNum(document.getElementById('flatArea')?.value, 0));
+              setStatus(
+                `<span class="det-badge db-p1">Saved correction</span> ` +
+                `<span class="text-muted small">Manual correction applied &middot; corrected roof area ${corrected} m&sup2; &middot; API roof area ${roofArea} m&sup2;${materialTail}</span>`
+              );
+            }
           } else {
             setStatus(
               `<span class="det-badge db-p1">${sourceBadge}</span> ` +
@@ -1910,6 +1928,7 @@ async function clickEstimate(lat, lon) {
   setStatus('<span class="det-badge db-err">Estimated</span> <span class="text-muted small">Using typical house size — adjust slider as needed</span>');
   detectionMethod = 'Default estimate';
   ridData = { total_area_m2: defaultArea, ground_area_m2: defaultArea, section_count: 0 };
+  _autoApplySavedCorrectionToForm(lat, lon);
   const fallbackAddrPromise = _ridGeocode(lat, lon);
   Promise.all([fallbackAddrPromise, fallbackAddrPromise.then(addr => _ridFootprint(lat, lon, addr))]).then(([addr, fp]) => {
     const ai = null;
@@ -1928,6 +1947,9 @@ async function clickEstimate(lat, lon) {
       detectionMethod = `Hybrid outline (${chosen.source})`;
       if (chosen.apiData) { rdData = rdBuildPlanData(chosen.apiData, lat, lon); rdRecomputeGeometry(); }
       _setFootprintOutline(ridPolygon, '#27ae60', 0.14, 4, false);
+      if (savedCorrectionApplied && savedCorrectionPayload) {
+        _applySavedCorrectionToRoofState(savedCorrectionPayload, lat, lon);
+      }
       setStatus(`<span class="det-badge db-p1">${chosen.badge}</span> <span class="text-muted small">${chosen.confidence} confidence outline</span>`);
     }
     ridReady = true;
@@ -4610,7 +4632,9 @@ function rdBuildPlanData(apiData, lat, lng) {
     : (apiData.solar_sections && apiData.solar_sections.length ? apiData.solar_sections : []);
   const solarSections = rdSolarSectionsToDrawing(_solarSource);
   const footprintArea = footprint.length >= 3 ? calcArea(footprint) : rdNum(ridData && ridData.ground_area_m2, 0);
-  const authoritativeTotal = rdNum(ridData && ridData.total_area_m2,
+  const authoritativeTotal = savedCorrectionApplied && savedCorrectionTotalArea > 0
+    ? savedCorrectionTotalArea
+    : rdNum(ridData && ridData.total_area_m2,
     rdNum(apiData.solar_total_area_m2, rdNum(estArea, footprintArea)));
 
   if (visionSections.length && authoritativeTotal > 0) {
@@ -5454,12 +5478,15 @@ async function rdDeleteSavedCorrection() {
     // Revert the visible form area to the original Solar API value.
     // ridData (Solar API source) still holds the unmodified area — use
     // that as the source of truth.  Fall back to the badge if missing.
-    const solarArea = (ridData && rdNum(ridData.total_area_m2, 0))
+    const solarArea = (ridData && (rdNum(ridData._api_total_area_m2, 0) || rdNum(ridData.total_area_m2, 0)))
                    || rdNum(document.getElementById('badgeArea')?.textContent, 0);
     if (solarArea > 0) {
       _applyCorrectedAreaToForm({ total_area_m2: solarArea, sections: [] });
     }
     detectionMethod = ridData && ridData.data_source ? ridData.data_source : 'Solar API';
+    savedCorrectionApplied = false;
+    savedCorrectionTotalArea = 0;
+    savedCorrectionPayload = null;
 
     // Mark rdData so the banner hides on the next rdSyncCorrectionUi call.
     if (rdData) {
@@ -5803,15 +5830,35 @@ function rdApplySavedCorrectionToData(correction, data=rdData) {
   const normalizedSections = savedSections
     .map((sec, idx) => rdNormalizeSavedSection(sec, idx, data))
     .filter(Boolean);
-  if (normalizedSections.length) data.sections = normalizedSections;
+  // Always overwrite sections from the correction when the correction
+  // was explicitly a manual edit (source flag set by rdSaveCorrection-
+  // Memory) — even if the saved sections array is empty.  Previously we
+  // only replaced when normalizedSections.length > 0, which meant a
+  // user who did "Redraw all → outline only → Save Correction" got the
+  // corrected outline but the OLD AI sections survived.  Those old
+  // sections fell outside the new outline, displayed as ghost edge
+  // measurements, and inflated total_area_m2 via the section-sum path.
+  const isManualCorrection = correction.source === 'ai_roof_drawing_manual_correction'
+                          || correction.source === 'ai_roof_drawing_manual_correction_save'
+                          || /manual.correction/i.test(String(correction.source || ''));
+  if (isManualCorrection || normalizedSections.length) {
+    data.sections = normalizedSections;
+  }
 
+  const correctedMetrics = {};
   ['footprint_area_m2', 'total_area_m2', 'perimeter_m', 'avg_pitch_deg'].forEach(key => {
     const val = rdNum(correction[key], NaN);
-    if (Number.isFinite(val) && val > 0) data[key] = val;
+    if (Number.isFinite(val) && val > 0) {
+      data[key] = val;
+      correctedMetrics[key] = val;
+    }
   });
   data.confidence = 'high';
   data.correction_source = 'saved_manual_correction';
   data._savedCorrectionId = correction.id || correction.log_id || correction._id || null;
+  savedCorrectionApplied = true;
+  savedCorrectionTotalArea = rdNum(data.total_area_m2, savedCorrectionTotalArea);
+  savedCorrectionPayload = correction;
   data.notes = data.notes && !String(data.notes).includes('Saved manual correction')
     ? `${data.notes} Saved manual correction applied.`
     : (data.notes || 'Saved manual correction applied.');
@@ -5819,22 +5866,32 @@ function rdApplySavedCorrectionToData(correction, data=rdData) {
   const oldData = rdData;
   rdData = data;
   rdRecomputeGeometry();
+  Object.entries(correctedMetrics).forEach(([key, val]) => {
+    if (key === 'total_area_m2' || key === 'footprint_area_m2' || key === 'perimeter_m') {
+      data[key] = val;
+    }
+  });
   if (oldData !== data) rdData = oldData;
   return true;
 }
 
 function rdAdoptSavedCorrectionOnMap(data=rdData) {
   if (!data || !data.footprint || data.footprint.length < 3) return;
+  savedCorrectionApplied = true;
+  savedCorrectionTotalArea = rdNum(data.total_area_m2, savedCorrectionTotalArea);
   ridPolygon = rdCleanGeoPolygon(data.footprint);
   roofOutlineSource = 'saved correction';
   if (typeof _setFootprintOutline === 'function') {
     _setFootprintOutline(ridPolygon, '#27ae60', 0.16, 4, false);
   }
   if (ridData) {
+    if (!ridData._api_total_area_m2) ridData._api_total_area_m2 = ridData.total_area_m2;
+    if (!ridData._api_ground_area_m2) ridData._api_ground_area_m2 = ridData.ground_area_m2;
     ridData.footprint = ridPolygon;
     ridData.ground_area_m2 = rdNum(data.footprint_area_m2, calcArea(ridPolygon));
     ridData.total_area_m2 = rdNum(data.total_area_m2, ridData.total_area_m2);
     ridData.data_source = ridData.data_source || 'ai_roof_drawing';
+    ridData.correction_source = 'saved_manual_correction';
   }
   rdSyncPlanToInspector();
 
@@ -5883,6 +5940,63 @@ function _applyCorrectedAreaToForm(rdLikeData) {
   return true;
 }
 
+function _applySavedCorrectionToRoofState(correction, lat, lng, { drawOutline=true } = {}) {
+  if (!correction) return false;
+  const footprint = rdCleanGeoPolygon(correction.footprint || []);
+  const sections = Array.isArray(correction.sections) ? correction.sections : [];
+  const sectionTotal = sections.reduce((s, sec) => s + rdNum(sec.area_m2, 0), 0);
+  const total = rdNum(correction.total_area_m2, sectionTotal);
+  const footprintArea = rdNum(
+    correction.footprint_area_m2,
+    footprint.length >= 3 ? calcArea(footprint) : 0
+  );
+  const perimeter = rdNum(
+    correction.perimeter_m,
+    footprint.length >= 3 ? rdPerimeter(footprint) : 0
+  );
+  const applied = _applyCorrectedAreaToForm({
+    total_area_m2: total,
+    sections,
+  });
+  if (!applied && footprint.length < 3) return false;
+
+  savedCorrectionApplied = true;
+  savedCorrectionTotalArea = total || rdNum(document.getElementById('flatArea')?.value, 0);
+  savedCorrectionPayload = correction;
+  detectionMethod = 'Saved manual correction';
+
+  if (ridData) {
+    if (!ridData._api_total_area_m2) ridData._api_total_area_m2 = ridData.total_area_m2;
+    if (!ridData._api_ground_area_m2) ridData._api_ground_area_m2 = ridData.ground_area_m2;
+    ridData = {
+      ...ridData,
+      correction_source: 'saved_manual_correction',
+      _savedCorrectionId: correction.id || correction.log_id || correction._id || null,
+      total_area_m2: total || ridData.total_area_m2,
+      ground_area_m2: footprintArea || ridData.ground_area_m2,
+      perimeter_m: perimeter || ridData.perimeter_m,
+      dominant_pitch_deg: rdNum(correction.avg_pitch_deg, ridData.dominant_pitch_deg),
+      data_source: 'saved_manual_correction',
+      lidar_coverage: 'saved_manual_correction',
+    };
+    if (footprint.length >= 3) ridData.footprint = footprint;
+    if (sections.length || /manual.correction/i.test(String(correction.source || ''))) {
+      ridData.sections = sections;
+      ridData.section_count = sections.length;
+    }
+  }
+
+  if (footprint.length >= 3) {
+    ridPolygon = footprint;
+    estPolyCoords = footprint;
+    roofOutlineSource = 'saved correction';
+    if (drawOutline && typeof _setFootprintOutline === 'function') {
+      _setFootprintOutline(footprint, '#27ae60', 0.16, 4, false);
+    }
+  }
+  return true;
+}
+
 // Address-click follow-up: check the saved-correction memory for this lat/lng
 // and, if a correction with a positive total_area_m2 exists, push it into the
 // visible form fields and the hidden #flatArea so the user proceeding to the
@@ -5893,14 +6007,8 @@ async function _autoApplySavedCorrectionToForm(lat, lng) {
   try {
     const correction = await rdLoadSavedCorrection(lat, lng);
     if (!correction) return;
-    // Synthesise a minimal rdLike object so _applyCorrectedAreaToForm
-    // can read total_area_m2 / sections without needing to mutate rdData.
-    const applied = _applyCorrectedAreaToForm({
-      total_area_m2: correction.total_area_m2,
-      sections:      Array.isArray(correction.sections) ? correction.sections : [],
-    });
+    const applied = _applySavedCorrectionToRoofState(correction, lat, lng);
     if (applied) {
-      detectionMethod = 'Saved manual correction';
       // Append a small note to the status line so the user sees the override.
       try {
         const sl = document.getElementById('statusLine');
@@ -6336,6 +6444,9 @@ function rdRedrawAllManual() {
   // a correction is applied while the user is actively redrawing.
   rdData.correction_source   = '';
   rdData._savedCorrectionId  = null;
+  savedCorrectionApplied     = false;
+  savedCorrectionTotalArea   = 0;
+  savedCorrectionPayload     = null;
   rdRecomputeGeometry();
   rdSyncCorrectionUi();
   rdSyncEditUi();
@@ -6836,6 +6947,9 @@ async function rdSaveCorrectionMemory(silent=false) {
         rdData.correction_source  = 'saved_manual_correction';
         rdData._savedCorrectionId = d.id;
       }
+      savedCorrectionApplied = true;
+      savedCorrectionTotalArea = rdNum(body.total_area_m2, 0);
+      savedCorrectionPayload = body;
       // ── CRITICAL: push the corrected area to the main form NOW ──
       // Previously, saving a correction left the form's #flatArea showing
       // the original Solar API value.  Closing the dialog or returning

@@ -833,8 +833,69 @@ def quote_detail(request, pk):
 
 # ─── Quote Print / PDF ────────────────────────────────────────────────────────
 
+def _infer_quote_roof_family(quote: Quote) -> str:
+    try:
+        text = ' '.join((item.description or '') for item in quote.items.all()).lower()
+    except Exception:
+        text = ''
+    if re.search(r'\b(ultra|complex)\b', text):
+        return 'complex'
+    if re.search(r'\bhip\b', text):
+        return 'hip'
+    if re.search(r'\bgable\b', text):
+        return 'gable'
+    return 'gable'
+
+
+def _apply_roof_line_display_estimates(quote: Quote) -> Quote:
+    """Populate missing PDF roof-line values from the saved polygon, without saving."""
+    try:
+        footprint = json.loads(quote.roof_polygon_json or '[]')
+    except Exception:
+        footprint = []
+    if not isinstance(footprint, list) or len(footprint) < 3:
+        return quote
+
+    try:
+        pitch = float(quote.pitch_deg_actual or 0) or 20.0
+    except Exception:
+        pitch = 20.0
+    try:
+        line_features = _estimate_roof_line_features_from_geo_outline(
+            footprint,
+            pitch_deg=pitch,
+            roof_shape=_infer_quote_roof_family(quote),
+        )
+        values = line_features.get('values') or {}
+        line_fields = {
+            'ridge': 'ridge_lm',
+            'valley': 'valley_lm',
+            'hip': 'hip_lm',
+            'rake': 'rake_lm',
+        }
+        existing_line_values = []
+        for field in line_fields.values():
+            try:
+                existing_line_values.append(float(getattr(quote, field) or 0))
+            except Exception:
+                existing_line_values.append(0.0)
+        # Only synthesize line lengths for older quotes where no classified
+        # line values were stored at all. If any line length already exists,
+        # preserve the quote exactly: zeros may mean "not applicable".
+        if not any(v > 0 for v in existing_line_values):
+            for kind, field in line_fields.items():
+                setattr(quote, field, round(float(values.get(kind, 0.0) or 0.0), 2))
+        if not float(quote.eave_lm or 0):
+            quote.eave_lm = round(_latlng_perimeter_m(footprint), 2)
+        quote.roof_line_display_basis = line_features
+    except Exception:
+        pass
+    return quote
+
+
 def quote_print(request, pk):
     quote = get_object_or_404(Quote.objects.prefetch_related('items'), pk=pk)
+    _apply_roof_line_display_estimates(quote)
     return render(request, 'uc1_roofing/quote_print.html', {'quote': quote})
 
 
@@ -1683,10 +1744,45 @@ def _geoscape_roof_analysis(
 
     roof_material = str(building.get('roof_material') or '').strip()
     roof_material_display, roof_material_note, roof_material_confidence = _roof_material_display(roof_material)
+    line_features = _estimate_roof_line_features_from_geo_outline(
+        footprint,
+        pitch_deg=pitch,
+        roof_shape=building.get('roof_shape') or 'gable',
+    )
+    line_values = line_features.get('values') or {}
+    line_status = {
+        kind: (
+            'estimated_from_footprint'
+            if float(line_values.get(kind, 0.0) or 0.0) > 0
+            else 'not_applicable'
+        )
+        for kind in ROOF_LINE_TYPES
+    }
+    line_features.update({
+        'status': line_status,
+        'details': [
+            {
+                'type': kind,
+                'length_m': round(float(line_values.get(kind, 0.0) or 0.0), 2),
+                'confidence': str(line_features.get('confidence') or 'LOW').lower(),
+                'source': 'footprint_geometry_estimate',
+                'notes': (
+                    'Estimated from footprint geometry, pitch, and roof family.'
+                    if float(line_values.get(kind, 0.0) or 0.0) > 0
+                    else f"Not applicable for {line_features.get('roof_family', 'this')} roof model."
+                ),
+            }
+            for kind in ROOF_LINE_TYPES
+        ],
+    })
 
     notes = [
         'Google Solar did not return usable roof sections; using Geoscape Buildings fallback',
-        'Geoscape provides roof outline and attributes, but not Google-style roofSegmentStats or solarPanelConfigs',
+        (
+            'Geoscape provides roof outline and attributes, but not Google-style '
+            'roofSegmentStats or solarPanelConfigs; roof-line lengths are estimated '
+            'from footprint geometry where classified lines are not supplied.'
+        ),
     ]
     if roof_material:
         notes.append(f'Roof material from Geoscape: {roof_material_display}')
@@ -1716,11 +1812,12 @@ def _geoscape_roof_analysis(
         'perimeter_m': round(perimeter, 2) if perimeter else None,
         'guttering_linear_m': round(perimeter, 2) if perimeter else None,
         'eave_lm': round(perimeter, 2) if perimeter else None,
-        'ridge_lm': 0.0,
-        'valley_lm': 0.0,
-        'hip_lm': 0.0,
-        'rake_lm': 0.0,
-        'boundary_confidence': 'MEDIUM',
+        'ridge_lm': round(float(line_values.get('ridge', 0.0) or 0.0), 2),
+        'valley_lm': round(float(line_values.get('valley', 0.0) or 0.0), 2),
+        'hip_lm': round(float(line_values.get('hip', 0.0) or 0.0), 2),
+        'rake_lm': round(float(line_values.get('rake', 0.0) or 0.0), 2),
+        'boundary_confidence': line_features.get('confidence', 'LOW'),
+        'line_features': line_features,
         'eave_height_m': round(eave_height, 2) if eave_height is not None else None,
         'ridge_height_m': round(ridge_height, 2) if ridge_height is not None else None,
         'roof_shape': building.get('roof_shape') or '',
@@ -1934,12 +2031,27 @@ Rules:
 - Return polygon vertices as PERCENTAGE coordinates: x% of width, y% of height (top-left origin)
 - Do not include adjacent roofs, neighbouring dwellings, carports, sheds, trees, pools, or roads
 - facing: the compass direction the slope DRAINS toward (N/NE/E/SE/S/SW/W/NW)
-- pitch_est: estimated pitch in degrees (typical QLD: 15–30°; flat metal: <5°)
+- pitch_est: estimated pitch in degrees (typical QLD: 15-30°; flat metal: <5°)
+- roof_lines: visible classified line features. Only include a line when you can trace it.
+  Do NOT return a line with length zero. If a feature is not visible, omit it.
+  Line types:
+    ridge = high horizontal/apex line where opposite roof planes meet
+    hip = outward diagonal line from ridge/apex down to roof corner
+    valley = inward drainage line where roof wings meet
+    rake = exposed sloping gable edge
 - If you cannot clearly see the roof sections, still return your best estimate
 
 Respond with ONLY valid JSON, no explanation, no markdown fences. Format:
 {
   "roof_outline": [[x1,y1],[x2,y2],[x3,y3],...],
+  "roof_lines": [
+    {
+      "type": "ridge|hip|valley|rake",
+      "points": [[x1,y1],[x2,y2]],
+      "confidence": "high|medium|low",
+      "notes": ""
+    }
+  ],
   "sections": [
     {
       "id": 1,
@@ -2573,6 +2685,436 @@ def _merge_weak_sections(parsed: dict, max_sections: int = 8) -> None:
         ).strip()
 
 
+ROOF_LINE_TYPES = ('ridge', 'valley', 'hip', 'rake')
+FACING_AZIMUTH_DEG = {
+    'N': 0.0, 'NE': 45.0, 'E': 90.0, 'SE': 135.0,
+    'S': 180.0, 'SW': 225.0, 'W': 270.0, 'NW': 315.0,
+}
+
+
+def _pct_to_px(point, width: int, height: int) -> tuple[float, float] | None:
+    try:
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            return None
+        x = float(point[0]) / 100.0 * width
+        y = float(point[1]) / 100.0 * height
+        if not (math.isfinite(x) and math.isfinite(y)):
+            return None
+        return x, y
+    except Exception:
+        return None
+
+
+def _segment_length_px(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.hypot(b[0] - a[0], b[1] - a[1])
+
+
+def _segment_angle_deg(a: tuple[float, float], b: tuple[float, float]) -> float:
+    return math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) % 180.0
+
+
+def _angle_delta_180(a: float, b: float) -> float:
+    diff = abs((a - b) % 180.0)
+    return min(diff, 180.0 - diff)
+
+
+def _facing_delta_deg(a: str, b: str) -> float | None:
+    if not a or not b:
+        return None
+    av = FACING_AZIMUTH_DEG.get(str(a).upper())
+    bv = FACING_AZIMUTH_DEG.get(str(b).upper())
+    if av is None or bv is None:
+        return None
+    diff = abs(av - bv) % 360.0
+    return min(diff, 360.0 - diff)
+
+
+def _min_rect_dimensions(points: list[tuple[float, float]]) -> tuple[float, float]:
+    """Return approximate long/short dimensions for a polygon in local units."""
+    pts = [(float(x), float(y)) for x, y in points
+           if math.isfinite(float(x)) and math.isfinite(float(y))]
+    if len(pts) < 2:
+        return 0.0, 0.0
+    angles = set()
+    for i, a in enumerate(pts):
+        b = pts[(i + 1) % len(pts)]
+        if _segment_length_px(a, b) > 0.01:
+            deg = math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) % 180.0
+            angles.add(round(deg, 1))
+    if not angles:
+        angles = {0.0}
+    best = None
+    for deg in angles:
+        rad = math.radians(deg)
+        ux = (math.cos(rad), math.sin(rad))
+        uy = (-math.sin(rad), math.cos(rad))
+        px = [p[0] * ux[0] + p[1] * ux[1] for p in pts]
+        py = [p[0] * uy[0] + p[1] * uy[1] for p in pts]
+        w = max(px) - min(px)
+        h = max(py) - min(py)
+        area = w * h
+        if best is None or area < best[0]:
+            best = (area, max(w, h), min(w, h))
+    return (best[1], best[2]) if best else (0.0, 0.0)
+
+
+def _roof_family(value: str = '', section_count: int = 0) -> str:
+    text = str(value or '').lower()
+    if 'gable' in text:
+        return 'gable'
+    if 'hip' in text:
+        return 'hip'
+    if 'flat' in text or 'skillion' in text or 'mono' in text:
+        return 'flat'
+    if 'complex' in text or 'ultra' in text or 'multi' in text:
+        return 'complex'
+    if section_count >= 6:
+        return 'complex'
+    if section_count >= 3:
+        return 'hip'
+    if section_count == 2:
+        return 'gable'
+    return 'gable'
+
+
+def _estimate_line_values_from_dims(
+    long_m: float,
+    short_m: float,
+    pitch_deg: float = 20.0,
+    roof_family: str = 'gable',
+) -> dict:
+    """Geometry fallback for ridge/valley/hip/rake when source APIs do not classify lines."""
+    long_m = max(0.0, float(long_m or 0))
+    short_m = max(0.0, float(short_m or 0))
+    pitch = max(0.0, min(float(pitch_deg or 20.0), 60.0))
+    slope = 1 / max(math.cos(math.radians(pitch)), 0.2)
+    family = _roof_family(roof_family)
+
+    values = {'ridge': 0.0, 'valley': 0.0, 'hip': 0.0, 'rake': 0.0}
+    if long_m <= 0 or short_m <= 0:
+        return values
+
+    if family == 'flat':
+        pass
+    elif family == 'gable':
+        values['ridge'] = long_m
+        values['rake'] = 2 * short_m * slope
+    elif family == 'hip':
+        values['ridge'] = max(0.0, long_m - short_m)
+        values['hip'] = 4 * (short_m / math.sqrt(2)) * slope
+    else:
+        # Conservative complex-roof fallback: provide numeric feature estimates
+        # for evidence-pack completeness, while downstream status says estimated.
+        values['ridge'] = long_m * 0.45
+        values['valley'] = short_m * 0.60
+        values['hip'] = short_m * 1.20 * slope
+        values['rake'] = short_m * 0.50 * slope
+
+    return {k: round(v, 2) for k, v in values.items()}
+
+
+def _estimate_roof_line_features_from_pct_outline(
+    parsed: dict,
+    width: int,
+    height: int,
+    meters_per_px: float,
+) -> dict:
+    outline = _clean_pct_polygon((parsed or {}).get('roof_outline') or [])
+    pts_px = []
+    for p in outline:
+        px = _pct_to_px(p, width, height)
+        if px:
+            pts_px.append(px)
+    pts_m = [(x * meters_per_px, y * meters_per_px) for x, y in pts_px]
+    long_m, short_m = _min_rect_dimensions(pts_m)
+    sections = parsed.get('sections') or []
+    section_count = len(sections) if isinstance(sections, list) else 0
+    pitches = []
+    if isinstance(sections, list):
+        for sec in sections:
+            if not isinstance(sec, dict):
+                continue
+            try:
+                p = float(sec.get('pitch_est', sec.get('pitch_deg', 0)) or 0)
+                if p > 1:
+                    pitches.append(p)
+            except Exception:
+                pass
+    pitch = sum(pitches) / len(pitches) if pitches else 20.0
+    family = _roof_family(parsed.get('roof_type'), section_count)
+    values = _estimate_line_values_from_dims(long_m, short_m, pitch, family)
+    return {
+        'source': 'footprint_geometry_estimate',
+        'confidence': 'MEDIUM' if long_m > 0 and short_m > 0 else 'LOW',
+        'roof_family': family,
+        'pitch_deg': round(pitch, 1),
+        'long_m': round(long_m, 2),
+        'short_m': round(short_m, 2),
+        'values': values,
+        'notes': [
+            f"Estimated from {family} roof model using footprint dimensions "
+            f"{long_m:.1f} m x {short_m:.1f} m and pitch {pitch:.1f}°."
+        ],
+    }
+
+
+def _estimate_roof_line_features_from_geo_outline(
+    footprint: list,
+    pitch_deg: float = 20.0,
+    roof_shape: str = '',
+) -> dict:
+    if not footprint:
+        values = _estimate_line_values_from_dims(0, 0, pitch_deg, roof_shape)
+        return {
+            'source': 'footprint_geometry_estimate',
+            'confidence': 'LOW',
+            'roof_family': _roof_family(roof_shape),
+            'values': values,
+            'notes': ['No footprint geometry available for roof-line estimate.'],
+        }
+    lat0 = sum(float(p[0]) for p in footprint) / len(footprint)
+    lon0 = sum(float(p[1]) for p in footprint) / len(footprint)
+    pts_m = []
+    for lat, lon in footprint:
+        x = (float(lon) - lon0) * 111320 * math.cos(math.radians(lat0))
+        y = (float(lat) - lat0) * 111320
+        pts_m.append((x, y))
+    long_m, short_m = _min_rect_dimensions(pts_m)
+    family = _roof_family(roof_shape)
+    values = _estimate_line_values_from_dims(long_m, short_m, pitch_deg, family)
+    return {
+        'source': 'footprint_geometry_estimate',
+        'confidence': 'MEDIUM' if long_m > 0 and short_m > 0 else 'LOW',
+        'roof_family': family,
+        'pitch_deg': round(float(pitch_deg or 0), 1),
+        'long_m': round(long_m, 2),
+        'short_m': round(short_m, 2),
+        'values': values,
+        'notes': [
+            f"Estimated from {family} roof model using footprint dimensions "
+            f"{long_m:.1f} m x {short_m:.1f} m and pitch {float(pitch_deg or 0):.1f}°."
+        ],
+    }
+
+
+def _line_overlap_px(
+    a1: tuple[float, float],
+    a2: tuple[float, float],
+    b1: tuple[float, float],
+    b2: tuple[float, float],
+    *,
+    tol_px: float = 8.0,
+) -> float:
+    """Approximate overlap between near-collinear section edges in pixels."""
+    la = _segment_length_px(a1, a2)
+    lb = _segment_length_px(b1, b2)
+    if la < 3 or lb < 3:
+        return 0.0
+
+    if _angle_delta_180(_segment_angle_deg(a1, a2), _segment_angle_deg(b1, b2)) > 12:
+        return 0.0
+
+    ux = (a2[0] - a1[0]) / la
+    uy = (a2[1] - a1[1]) / la
+    nx = -uy
+    ny = ux
+
+    # Both endpoints of B should be close to A's infinite line.
+    d1 = abs((b1[0] - a1[0]) * nx + (b1[1] - a1[1]) * ny)
+    d2 = abs((b2[0] - a1[0]) * nx + (b2[1] - a1[1]) * ny)
+    if max(d1, d2) > tol_px:
+        return 0.0
+
+    a_proj = sorted([0.0, la])
+    b_proj = sorted([
+        (b1[0] - a1[0]) * ux + (b1[1] - a1[1]) * uy,
+        (b2[0] - a1[0]) * ux + (b2[1] - a1[1]) * uy,
+    ])
+    overlap = min(a_proj[1], b_proj[1]) - max(a_proj[0], b_proj[0])
+    return max(0.0, overlap)
+
+
+def _classify_shared_section_edge(sec_a: dict, sec_b: dict) -> str | None:
+    """Classify a shared boundary using the section drain-facing directions."""
+    diff = _facing_delta_deg(sec_a.get('facing'), sec_b.get('facing'))
+    if diff is None:
+        return None
+    if diff >= 135:
+        return 'ridge'
+    if diff < 45:
+        return 'valley'
+    return 'hip'
+
+
+def _visible_roof_lines_from_model(
+    parsed: dict,
+    width: int,
+    height: int,
+    meters_per_px: float,
+) -> tuple[dict, list[dict]]:
+    totals = {k: 0.0 for k in ROOF_LINE_TYPES}
+    details: list[dict] = []
+    for raw in parsed.get('roof_lines') or []:
+        if not isinstance(raw, dict):
+            continue
+        line_type = str(raw.get('type') or '').strip().lower()
+        if line_type not in totals:
+            continue
+        points = raw.get('points') or raw.get('line') or []
+        if len(points) < 2:
+            continue
+        p1 = _pct_to_px(points[0], width, height)
+        p2 = _pct_to_px(points[1], width, height)
+        if not p1 or not p2:
+            continue
+        length_m = _segment_length_px(p1, p2) * meters_per_px
+        if length_m <= 0.3:
+            continue
+        confidence = str(raw.get('confidence') or parsed.get('confidence') or 'low').lower()
+        totals[line_type] += length_m
+        details.append({
+            'type': line_type,
+            'points': points[:2],
+            'length_m': round(length_m, 2),
+            'confidence': confidence if confidence in ('high', 'medium', 'low') else 'low',
+            'source': 'ai_visible_line',
+            'notes': str(raw.get('notes') or '')[:160],
+        })
+    return totals, details
+
+
+def _heuristic_roof_lines_from_sections(
+    parsed: dict,
+    width: int,
+    height: int,
+    meters_per_px: float,
+) -> tuple[dict, list[dict], list[str]]:
+    totals = {k: 0.0 for k in ROOF_LINE_TYPES}
+    details: list[dict] = []
+    notes: list[str] = []
+    sections = [s for s in (parsed.get('sections') or [])
+                if isinstance(s, dict) and len(s.get('polygon') or []) >= 3]
+    if len(sections) < 2:
+        notes.append('Using footprint geometry estimate because separate section boundaries were not supplied.')
+        return totals, details, notes
+
+    edges = []
+    for idx, sec in enumerate(sections):
+        pts = []
+        for p in sec.get('polygon') or []:
+            px = _pct_to_px(p, width, height)
+            if px:
+                pts.append(px)
+        if len(pts) < 3:
+            continue
+        for i, a in enumerate(pts):
+            b = pts[(i + 1) % len(pts)]
+            if _segment_length_px(a, b) >= 4:
+                edges.append({'section_index': idx, 'section': sec, 'a': a, 'b': b})
+
+    seen = set()
+    for i, ea in enumerate(edges):
+        for j in range(i + 1, len(edges)):
+            eb = edges[j]
+            if ea['section_index'] == eb['section_index']:
+                continue
+            overlap_px = _line_overlap_px(ea['a'], ea['b'], eb['a'], eb['b'])
+            if overlap_px <= 4:
+                continue
+            line_type = _classify_shared_section_edge(ea['section'], eb['section'])
+            if not line_type:
+                continue
+            length_m = overlap_px * meters_per_px
+            key = (
+                line_type,
+                min(ea['section_index'], eb['section_index']),
+                max(ea['section_index'], eb['section_index']),
+                round(length_m, 1),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            totals[line_type] += length_m
+            details.append({
+                'type': line_type,
+                'length_m': round(length_m, 2),
+                'confidence': 'low',
+                'source': 'section_boundary_heuristic',
+                'notes': (
+                    f"Derived from adjacent section polygons "
+                    f"{ea['section'].get('id', ea['section_index'] + 1)} and "
+                    f"{eb['section'].get('id', eb['section_index'] + 1)}."
+                ),
+            })
+
+    if details:
+        notes.append(
+            'Ridge/valley/hip lengths were derived from adjacent section polygons; '
+            'the derivation source is retained with each numeric value.'
+        )
+    else:
+        notes.append('Using footprint geometry estimate because shared section boundaries were not separately classified.')
+    return totals, details, notes
+
+
+def _derive_roof_line_features(
+    parsed: dict,
+    width: int,
+    height: int,
+    meters_per_px: float,
+) -> dict:
+    """Return classified ridge/valley/hip/rake line lengths and statuses."""
+    totals, details = _visible_roof_lines_from_model(parsed, width, height, meters_per_px)
+    estimate = _estimate_roof_line_features_from_pct_outline(parsed, width, height, meters_per_px)
+    notes: list[str] = list(estimate.get('notes', []))
+    source = 'ai_visible_line'
+    if not any(v > 0 for v in totals.values()):
+        totals, details, notes = _heuristic_roof_lines_from_sections(
+            parsed, width, height, meters_per_px)
+        source = 'section_boundary_heuristic' if details else 'not_available'
+        notes = list(notes) + list(estimate.get('notes', []))
+    if any(totals.get(kind, 0.0) > 0 for kind in ROOF_LINE_TYPES) and any(
+        float((estimate.get('values') or {}).get(kind, 0.0) or 0.0) > 0
+        for kind in ROOF_LINE_TYPES
+        if totals.get(kind, 0.0) <= 0
+    ):
+        source = f'{source}+footprint_geometry_estimate'
+
+    status = {}
+    output = {
+        'source': source,
+        'details': details,
+        'notes': notes,
+        'estimate_basis': estimate,
+    }
+    confidence_values = [d.get('confidence', 'low') for d in details]
+    if details and all(v == 'high' for v in confidence_values):
+        overall = 'HIGH'
+    elif details and any(v == 'medium' for v in confidence_values):
+        overall = 'MEDIUM'
+    elif details:
+        overall = 'LOW'
+    elif estimate.get('confidence') == 'MEDIUM':
+        overall = 'MEDIUM'
+        source = output['source'] = 'footprint_geometry_estimate'
+    else:
+        overall = 'LOW'
+    output['confidence'] = overall
+
+    estimated_values = estimate.get('values') or {}
+    for kind in ROOF_LINE_TYPES:
+        value = round(totals.get(kind, 0.0), 2)
+        if value > 0:
+            output[f'{kind}_lm'] = value
+            status[kind] = 'detected' if source.startswith('ai_visible_line') else 'estimated_from_sections'
+        else:
+            fallback = round(float(estimated_values.get(kind, 0.0) or 0.0), 2)
+            output[f'{kind}_lm'] = fallback
+            status[kind] = 'estimated_from_footprint' if fallback > 0 else 'not_applicable'
+    output['status'] = status
+    return output
+
+
 @csrf_exempt
 def roof_drawing_analyze(request):
     """
@@ -2597,7 +3139,7 @@ def roof_drawing_analyze(request):
     # template changes — older cache rows are simply skipped because
     # their key won't match.
     MODEL_VERSION  = 'claude-opus-4-7'
-    PROMPT_VERSION = 'v3-tight-outline'   # bump on prompt change
+    PROMPT_VERSION = 'v4-roof-lines'      # bump on prompt change
 
     force_refresh = request.GET.get('force_refresh', '').strip() in ('1', 'true', 'yes')
 
@@ -2978,6 +3520,12 @@ def roof_drawing_analyze(request):
         # Must run AFTER area_m2 is assigned above.
         _merge_weak_sections(parsed, max_sections=8)
 
+        line_features = _derive_roof_line_features(parsed, width, height, meters_per_px)
+        parsed['line_features'] = line_features
+        for _kind in ROOF_LINE_TYPES:
+            parsed[f'{_kind}_lm'] = line_features.get(f'{_kind}_lm')
+        parsed['boundary_confidence'] = line_features.get('confidence')
+
         # ── Task 2: quality scoring ───────────────────────────────────────────
         # Computes a 0..1 quality score from outline geometry + Geoscape
         # ground-truth area when available. UI uses `needs_review` to
@@ -3037,6 +3585,13 @@ def roof_drawing_analyze(request):
                 'zoom': zoom,
             },
             'sections': parsed.get('sections', []),
+            'roof_lines': parsed.get('roof_lines', []),
+            'line_features': line_features,
+            'ridge_lm': line_features.get('ridge_lm'),
+            'valley_lm': line_features.get('valley_lm'),
+            'hip_lm': line_features.get('hip_lm'),
+            'rake_lm': line_features.get('rake_lm'),
+            'boundary_confidence': line_features.get('confidence'),
             'roof_type': parsed.get('roof_type', 'unknown'),
             'confidence': parsed.get('confidence', 'low'),
             'notes': parsed.get('notes', ''),

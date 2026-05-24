@@ -381,6 +381,62 @@
   {% endif %}
 
   <!-- ── Roof Specifications grid ─────────────────────────────────────── -->
+  <table style="width:100%; border-collapse:collapse; margin:6px 0 10px;
+                font-size:8.5pt; border:1px solid #d8d8d8;">
+    <tr style="background:#f4f5f7;">
+      <td colspan="6" style="padding:4px 8px; font-weight:700; font-size:7.5pt;
+                              letter-spacing:.05em; text-transform:uppercase;
+                              color:#444; border-bottom:1px solid #d8d8d8;">
+        Roof Specifications
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:4px 8px; color:#777; width:15%;">Total roof area</td>
+      <td style="padding:4px 8px; font-weight:600; width:18%;">{{ quote.flat_area_sqm|floatformat:2 }} m&sup2;</td>
+      <td style="padding:4px 8px; color:#777; width:15%;">Pitch angle</td>
+      <td style="padding:4px 8px; font-weight:600; width:18%;">{{ quote.pitch_deg_actual|floatformat:0 }}&deg;</td>
+      <td style="padding:4px 8px; color:#777; width:15%;">Pitch factor</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.pitch_factor|floatformat:3 }}</td>
+    </tr>
+    <tr style="background:#fafafa;">
+      <td style="padding:4px 8px; color:#777;">Eave length</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.eave_lm|floatformat:1 }} lm</td>
+      <td style="padding:4px 8px; color:#777;">Ridge length</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.ridge_lm|floatformat:1 }} lm</td>
+      <td style="padding:4px 8px; color:#777;">Valley length</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.valley_lm|floatformat:1 }} lm</td>
+    </tr>
+    <tr>
+      <td style="padding:4px 8px; color:#777;">Hip length</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.hip_lm|floatformat:1 }} lm</td>
+      <td style="padding:4px 8px; color:#777;">Rake length</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.rake_lm|floatformat:1 }} lm</td>
+      <td style="padding:4px 8px; color:#777;">Storey count</td>
+      <td style="padding:4px 8px; font-weight:600;">{{ quote.storeys|default:1 }}</td>
+    </tr>
+    <tr style="background:#f0f7f0;">
+      <td style="padding:4px 8px; color:#777;">Equipment detected</td>
+      <td colspan="5" style="padding:4px 8px;">
+        {% if quote.detected_equipment %}
+        {% for eq in quote.detected_equipment %}
+          <span style="display:inline-block; background:#e8f5e9; color:#1b5e20;
+                       border:1px solid #a5d6a7; border-radius:8px;
+                       padding:1px 6px; margin:1px 4px 1px 0;
+                       font-size:7pt; font-weight:600;">{{ eq }}</span>
+        {% endfor %}
+        {% else %}
+          <span style="color:#555; font-weight:600;">None recorded</span>
+        {% endif %}
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:4px 8px; color:#777;">Material / Colour</td>
+      <td colspan="5" style="padding:4px 8px; font-weight:600;">
+        {{ quote.get_material_display }}{% if quote.roof_colour %} &middot; {{ quote.roof_colour }}{% endif %}
+      </td>
+    </tr>
+  </table>
+  {% comment %} Legacy roof-spec block replaced by the exact quote PDF specification list above.
   {% if quote.ridge_lm or quote.valley_lm or quote.hip_lm or quote.rake_lm or quote.eave_lm or quote.roof_colour or quote.detected_equipment %}
   <table style="width:100%; border-collapse:collapse; margin:6px 0 10px;
                 font-size:8.5pt; border:1px solid #d8d8d8;">
@@ -446,6 +502,7 @@
   {% endif %}
 
   <!-- ── Scope of works ───────────────────────────────────────────────── -->
+  {% endcomment %}
   <table class="scope-table">
     <thead>
       <tr>
