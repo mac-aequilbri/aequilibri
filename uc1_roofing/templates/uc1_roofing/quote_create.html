@@ -1711,6 +1711,35 @@ function drawMLPolygon(leafletCoords, areaSqm) {
 async function clickEstimate(lat, lon) {
   clearEstimate();
 
+  // Invalidate the in-memory correction cache for THIS point so the
+  // address-click flow re-fetches from the backend.  Without this the
+  // cache returned a stale snapshot (from before the user's most-recent
+  // Save Correction) and the re-search loaded the OLD area instead of
+  // the freshly-corrected one.  Belt-and-braces: rdSaveCorrectionMemory
+  // also updates the cache directly, but cache keys can drift when the
+  // address text differs between save-time and load-time, so blowing the
+  // cache for the point guarantees a fresh backend read.
+  try {
+    if (typeof rdSavedCorrectionCache !== 'undefined') {
+      // Drop any entries within ~10m of this lat/lng (covers minor
+      // geocode jitter when the same address is searched twice).
+      const toDelete = [];
+      for (const key of rdSavedCorrectionCache.keys()) {
+        const parts = String(key).split('|');
+        if (parts.length >= 3) {
+          const kLat = +parts[parts.length - 2];
+          const kLng = +parts[parts.length - 1];
+          if (Number.isFinite(kLat) && Number.isFinite(kLng)) {
+            const dLat = (kLat - lat) * 111320;
+            const dLng = (kLng - lon) * 111320 * Math.cos(lat * Math.PI / 180);
+            if (Math.hypot(dLat, dLng) < 25) toDelete.push(key);
+          }
+        }
+      }
+      toDelete.forEach(k => rdSavedCorrectionCache.delete(k));
+    }
+  } catch (e) { /* cache-invalidation is best-effort */ }
+
   // Initialise Roof Inspector button state
   const bar = document.getElementById('roofInspBar');
   const btn = document.getElementById('roofInspBtn');
@@ -6726,8 +6755,31 @@ async function rdSaveCorrectionMemory(silent=false) {
     if (d.ok) {
       body.id = d.id;
       rdSavedCorrectionCache.set(rdCorrectionLookupKey(body.lat, body.lng, body.address), body);
+      // Mark rdData as carrying this correction so closeRoofDrawing /
+      // rdSyncCorrectionUi can pick up the provenance.
+      if (rdData) {
+        rdData.correction_source  = 'saved_manual_correction';
+        rdData._savedCorrectionId = d.id;
+      }
+      // ── CRITICAL: push the corrected area to the main form NOW ──
+      // Previously, saving a correction left the form's #flatArea showing
+      // the original Solar API value.  Closing the dialog or returning
+      // to the quote view would then re-show the original area, and even
+      // re-searching the address would still load the stale form value
+      // first.  Apply the just-saved geometry to the form immediately so
+      // the visible area badge, slider, and hidden #flatArea all reflect
+      // what the estimator just drew/saved.
+      try {
+        if (typeof _applyCorrectedAreaToForm === 'function') {
+          _applyCorrectedAreaToForm({
+            total_area_m2: body.total_area_m2,
+            sections: Array.isArray(body.sections) ? body.sections : [],
+          });
+          detectionMethod = 'Saved manual correction';
+        }
+      } catch (e) { /* never block save flow */ }
     }
-    if (!silent) rdSetStatus(d.ok ? `Correction saved to knowledge memory #${d.id}.` : `Correction save failed: ${d.error || 'unknown error'}`, false);
+    if (!silent) rdSetStatus(d.ok ? `Correction saved to knowledge memory #${d.id}. Quote area updated to ${Math.round(+body.total_area_m2 || 0)} m².` : `Correction save failed: ${d.error || 'unknown error'}`, false);
     return d;
   } catch(e) {
     if (!silent) rdSetStatus('Correction saved locally; server save failed: ' + e.message, false);
@@ -7956,6 +8008,18 @@ function openRoofDrawing() {
   if (!rdData) rdRerun();
 }
 function closeRoofDrawing() {
+  // Belt-and-braces: if the user closes the dialog after editing geometry
+  // but BEFORE clicking Save Correction or Use These Measurements, still
+  // push the current rdData.total_area_m2 to the main form so the
+  // visible area badge and #flatArea match what the user just drew.
+  // Idempotent — if the form already has the value, _applyCorrectedAreaToForm
+  // is a no-op-equivalent (writes the same numbers).
+  try {
+    if (typeof _applyCorrectedAreaToForm === 'function'
+        && rdData && +rdData.total_area_m2 > 0) {
+      _applyCorrectedAreaToForm(rdData);
+    }
+  } catch (e) { /* never block close */ }
   document.getElementById('roofDrawDialog').close();
   _unlockBodyScroll();
   document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
