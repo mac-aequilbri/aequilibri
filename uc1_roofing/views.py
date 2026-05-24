@@ -323,16 +323,71 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
                     # If user only filled the adjusted area, back it out
                     base_area = _safe_float(quote.adjusted_area_sqm, 0)
 
-                # Complexity factor → Port City roof type.  Use string keys so
-                # IEEE-754 representation of 1.20 / 1.35 cannot break lookup.
-                cx_raw = str(request.POST.get('complexity_factor', '1.10')).strip()
+                # Complexity factor → Port City roof type.  Default changed
+                # from 1.10 (Hip) to 1.00 (Gable) — gable is the more common
+                # simple case and under-quoting is the safer error mode.
+                cx_raw = str(request.POST.get('complexity_factor', '1.00')).strip()
                 st     = _safe_float(request.POST.get('storey_factor', '1.10'), 1.10)
                 roof_type_map = {'1.00': 'gable', '1.10': 'hip',
                                  '1.20': 'ultra', '1.35': 'ultra'}
                 # Normalise to 2 decimal places, e.g. '1.1' → '1.10'
                 try: cx_key = f"{float(cx_raw):.2f}"
-                except (TypeError, ValueError): cx_key = '1.10'
-                pc_roof_type = roof_type_map.get(cx_key, 'hip')
+                except (TypeError, ValueError): cx_key = '1.00'
+                pc_roof_type = roof_type_map.get(cx_key, 'gable')
+
+                # ── Server-side roof-type override from saved correction ──
+                # If the form value is the default Gable but a saved
+                # correction has hip_lm > 5 or section count > 2, the AI
+                # actually saw a hip / complex roof — bump the roof_type
+                # so we don't under-quote when the estimator never opened
+                # AI Roof Drawing.  Symmetric: if form is Hip but a
+                # correction shows a clean gable (ridge > 0, hip = 0), we
+                # demote to Gable.  Only intervenes on conflict.
+                try:
+                    _addr_lat2 = _spec_f('address_lat')
+                    _addr_lng2 = _spec_f('address_lng')
+                    from .services.correction_memory import (
+                        find_best_memory_match as _fbmm,
+                        ROOF_CORRECTION_TOOL as _RCT)
+                    _m2 = _fbmm(tool_name=_RCT,
+                                address=quote.property_address or '',
+                                lat=_addr_lat2 or None,
+                                lng=_addr_lng2 or None)
+                    _pl = (_m2.payload if _m2 else {}) or {}
+                    _hip   = float(_pl.get('hip_lm')   or 0)
+                    _ridge = float(_pl.get('ridge_lm') or 0)
+                    _n_sec = len(_pl.get('sections') or []) if isinstance(
+                                 _pl.get('sections'), list) else 0
+                    _inferred = None
+                    if _hip >= 5:
+                        _inferred = 'ultra' if _n_sec >= 6 else 'hip'
+                    elif _ridge > 0 and _hip < 1:
+                        _inferred = 'gable'
+                    elif _n_sec >= 6:
+                        _inferred = 'ultra'
+                    elif _n_sec >= 3:
+                        _inferred = 'hip'
+                    elif _n_sec > 0:
+                        _inferred = 'gable'
+                    # Only override when (a) form is at its default and
+                    # (b) inferred differs, OR (c) the AI saw a clear hip
+                    # and the form is below it (under-quote risk).
+                    if _inferred and _inferred != pc_roof_type:
+                        _PRICE_ORDER = {'gable': 0, 'hip': 1, 'ultra': 2}
+                        form_was_default = (cx_key == '1.00')
+                        ai_says_higher = (_PRICE_ORDER.get(_inferred, 0)
+                                         > _PRICE_ORDER.get(pc_roof_type, 0))
+                        if form_was_default or ai_says_higher:
+                            import sys as _sys_rt
+                            print(f"[quote_create] roof-type override: form"
+                                  f" sent {pc_roof_type!r}, saved correction"
+                                  f" indicates {_inferred!r} (hip={_hip:.0f}m,"
+                                  f" ridge={_ridge:.0f}m, {_n_sec} sections)"
+                                  f" — using {_inferred!r}.",
+                                  file=_sys_rt.stderr)
+                            pc_roof_type = _inferred
+                except Exception:
+                    pass
 
                 # Eave length — prefer measured value from AI Roof Drawing
                 # (#eaveLm hidden field).  Fallback uses 0.25 × roof area —

@@ -596,8 +596,13 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <div class="col-md-6">
             <label class="form-label">Roof Type</label>
             <select id="complexSel" name="complexity_factor" class="form-select" onchange="updatePreview()">
-              <option value="1.00">Gable — $120/m² (simple, single ridge)</option>
-              <option value="1.10" selected>Hip — $130/m² (standard QLD residential)</option>
+              <!-- Default Gable: the more common simple-roof case across
+                   Port City worksheets.  Hip costs $10/m² more so we
+                   prefer to under-quote than over-quote when geometry is
+                   unknown.  AI Roof Drawing auto-promotes to Hip / Ultra
+                   when hip_lm, ridge_lm, or section count indicate so. -->
+              <option value="1.00" selected>Gable — $120/m² (simple, single ridge)</option>
+              <option value="1.10">Hip — $130/m² (standard QLD residential)</option>
               <option value="1.20">Ultra — $140/m² (complex multi-wing)</option>
               <option value="1.35">Ultra — $140/m² (very complex)</option>
             </select>
@@ -8592,6 +8597,34 @@ function _rdComplexityFromSectionCount(n) {
   if (n <= 8)       return '1.20';   // Complex  (L-shaped / multi-wing)
   return '1.35';                      // Very Complex
 }
+
+// Three-tier roof-type resolution from the AI Roof Drawing payload.
+// Hip-line length is the most reliable signal when present; otherwise we
+// fall back to ridge_lm vs hip_lm, then section count, then default to
+// Gable (the more common simple QLD residential case — better default
+// than Hip, which over-prices at $130/m² instead of $120/m²).
+function _rdRoofTypeFromAi(data) {
+  if (!data) return '1.00';
+  const hip   = +data.hip_lm   || 0;
+  const ridge = +data.ridge_lm || 0;
+  // Tier 1: hip-line measurement (strongest signal)
+  if (hip >= 5) {
+    // Heavy hip detail → could also be ultra complex
+    const n = Array.isArray(data.sections) ? data.sections.length : 0;
+    if (n >= 6) return n >= 9 ? '1.35' : '1.20';
+    return '1.10';
+  }
+  if (ridge > 0 && hip < 1) {
+    // Ridge present but no hip line → gable
+    return '1.00';
+  }
+  // Tier 2: section-count heuristic
+  if (Array.isArray(data.sections) && data.sections.length > 0) {
+    return _rdComplexityFromSectionCount(data.sections.length);
+  }
+  // Tier 3: nothing useful from the AI → default to Gable (was Hip)
+  return '1.00';
+}
 function _rdStoreyFactorFromCount(s) {
   if (s == null) return null;
   if (s <= 1) return '1.00';
@@ -8668,9 +8701,15 @@ rdUseResults = function() {
   _rdSetSelect('pitchSel', _rdPitchTypeFromDegrees(avgPitch),
                avgPitch ? `${avgPitch.toFixed(1)}°` : '');
 
-  // Complexity — derived from section count.
-  _rdSetSelect('complexSel', _rdComplexityFromSectionCount(sections.length),
-               `${sections.length} sections`);
+  // Roof-type / complexity — three-tier resolution: hip_lm, then ridge
+  // vs hip, then section count.  Falls back to Gable when nothing useful
+  // is known.  See _rdRoofTypeFromAi() for the exact rules.
+  const _rt = _rdRoofTypeFromAi(rdData);
+  const _rtLabel = ({'1.00':'Gable','1.10':'Hip','1.20':'Ultra','1.35':'Very Complex'})[_rt] || _rt;
+  _rdSetSelect('complexSel', _rt,
+               `${_rtLabel} · ${sections.length} sections`
+               + (rdData.hip_lm ? ` · hip ${(+rdData.hip_lm).toFixed(0)}m` : '')
+               + (rdData.ridge_lm ? ` · ridge ${(+rdData.ridge_lm).toFixed(0)}m` : ''));
 
   // Storeys — from feature detection (rdLastFeatures.storeys) if available.
   if (rdLastFeatures && rdLastFeatures.storeys != null) {
