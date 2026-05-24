@@ -5699,9 +5699,20 @@ function rdLocalCorrectionMatch(correction, address, lat, lng) {
 
 function rdNormalizeSavedSection(sec, idx, data) {
   const copy = rdDeepClone(sec || {});
-  let pct = rdCleanPctPolygon(copy.polygon);
+  const savedPct = rdCleanPctPolygon(copy.polygon);
   const geo = rdCleanGeoPolygon(copy.geo_polygon);
-  if (pct.length < 3 && geo.length >= 3) pct = rdGeoToPctPolygonForData(geo, data);
+  // ALWAYS prefer geo → re-projected pct when geo is present.  Saved pct
+  // coordinates are pinned to the satellite image active at save-time;
+  // if the dialog re-opens with a freshly cropped image the saved pct
+  // points to the wrong pixels.  Geo (lat/lng) is image-independent so
+  // re-deriving pct against `data` keeps the polygon anchored to the
+  // real-world building no matter how the new image is cropped.
+  let pct;
+  if (geo.length >= 3) {
+    pct = rdGeoToPctPolygonForData(geo, data);
+  } else {
+    pct = savedPct;
+  }
   copy.id = copy.id || idx + 1;
   copy.label = copy.label || `Section ${idx + 1}`;
   copy.pitch_est = rdNum(copy.pitch_est, rdNum(copy.pitch_deg, 22));
@@ -5717,12 +5728,18 @@ function rdApplySavedCorrectionToData(correction, data=rdData) {
   if (!correction || !data) return false;
   const outlinePct = rdCleanPctPolygon(correction.drawing_boundary_pct || []);
   const footprint = rdCleanGeoPolygon(correction.footprint || []);
-  if (outlinePct.length >= 3) {
-    data.drawing_boundary_pct = outlinePct;
-  } else if (footprint.length >= 3) {
+  // ALWAYS prefer the geo footprint over the saved pct outline.  Saved
+  // pct coords are pinned to the image active at save-time; a fresh
+  // dialog open re-fetches the satellite image and the crop / center
+  // can differ.  Geo coords are absolute (lat/lng) so re-projecting
+  // them against `data` keeps the outline anchored to the real-world
+  // building.  Only fall back to saved pct when no geo is available.
+  if (footprint.length >= 3) {
+    data.footprint = footprint;
     data.drawing_boundary_pct = rdGeoToPctPolygonForData(footprint, data);
+  } else if (outlinePct.length >= 3) {
+    data.drawing_boundary_pct = outlinePct;
   }
-  if (footprint.length >= 3) data.footprint = footprint;
 
   const savedSections = Array.isArray(correction.sections) ? correction.sections : [];
   const normalizedSections = savedSections
