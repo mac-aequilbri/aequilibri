@@ -395,7 +395,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           👆 Click-to-Estimate
         </button>
         <button type="button" class="mode-btn" id="btnDrawMode" onclick="setMode('draw')">
-          ✏️ Trace Manually
+          ✏️ Trace Roof
         </button>
         <button type="button" class="btn btn-sm btn-outline-danger ms-auto" onclick="clearAll()">🗑️ Clear</button>
       </div>
@@ -427,7 +427,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         <button type="button" id="manualCompareBtn" class="btn btn-outline-success w-100 py-2 mt-2"
                 onclick="openManualCompare()" disabled
                 style="font-size:.88rem;font-weight:700;">
-          Manual Compare
+          Measurement Compare
         </button>
       </div>
     </div>
@@ -509,7 +509,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         <div>⭐ <strong style="color:#27ae60">æquilibri AI</strong> — AI-derived polygon, ~98% precision</div>
         <div>🔵 <strong>Google Solar API</strong> — satellite building footprint</div>
         <div>⬜ <strong>Click estimate</strong> — typical house size</div>
-        <div>✏️ <strong>Manual trace</strong> — full precision</div>
+        <div>✏️ <strong>Precision trace</strong> — full control</div>
       </div>
       <div class="mt-2 p-2 rounded small" style="background:#f0fff4;border:1px solid #c3e6cb;color:#155724">
         ⭐ ML detection active after running <code>import_buildings</code>
@@ -1229,7 +1229,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
      ══════════════════════════════════════════════════════════════════════════ -->
 <dialog id="manualCompareDialog" style="border:none;border-radius:12px;padding:0;width:min(1080px,98vw);max-height:94vh;box-shadow:0 20px 60px rgba(0,0,0,.45);">
   <div style="background:#10251d;color:#fff;padding:14px 18px;display:flex;align-items:center;gap:10px;">
-    <h5 style="margin:0;font-size:.98rem;font-weight:800;flex:1;">Manual Measurement Comparison</h5>
+    <h5 style="margin:0;font-size:.98rem;font-weight:800;flex:1;">Measurement Comparison</h5>
     <span id="mcReadyBadge" style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#12805c;color:#fff;">sprint evidence</span>
     <button type="button" onclick="closeManualCompare()" style="background:none;border:none;color:#ddd;font-size:1.3rem;line-height:1;">x</button>
   </div>
@@ -1249,32 +1249,32 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <div><label class="form-label small">Rake lm</label><input id="mc_rake_lm" class="form-control form-control-sm" type="number" step="0.1"></div>
           <div><label class="form-label small">Pitch deg</label><input id="mc_pitch_deg" class="form-control form-control-sm" type="number" step="0.1"></div>
           <div><label class="form-label small">Storeys</label><input id="mc_storeys" class="form-control form-control-sm" type="number" step="0.5"></div>
-          <div><label class="form-label small">Manual sample id</label><input id="mc_sample_id" class="form-control form-control-sm"></div>
+          <div><label class="form-label small">Sample id</label><input id="mc_sample_id" class="form-control form-control-sm"></div>
         </div>
         <label class="form-label small mt-2">Material / colour</label>
         <input id="mc_material" class="form-control form-control-sm">
         <label class="form-label small mt-2">Equipment / scope notes</label>
         <input id="mc_equipment" class="form-control form-control-sm">
-        <label class="form-label small mt-2">Raw manual markings</label>
+        <label class="form-label small mt-2">Reference markings</label>
         <textarea id="mc_raw" class="form-control form-control-sm" rows="5"></textarea>
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
           <button type="button" class="btn btn-sm btn-outline-secondary" onclick="mcCompare()">Compare</button>
           <button type="button" class="btn btn-sm btn-outline-success" onclick="mcSaveGroundTruth()">Save Ground Truth</button>
-          <button type="button" class="btn btn-sm btn-ae" onclick="mcApplyManualMeasurements()">Apply Manual Measurements</button>
+          <button type="button" class="btn btn-sm btn-ae" onclick="mcApplyManualMeasurements()">Apply Reference Measurements</button>
         </div>
       </div>
       <div>
         <div id="mcSummary" style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:8px;padding:10px;margin-bottom:10px;font-size:.82rem;"></div>
         <table class="table table-sm" style="font-size:.78rem;">
-          <thead><tr><th>Measurement</th><th>Peter/manual</th><th>AI output</th><th>Variance</th><th>Status</th></tr></thead>
+          <thead><tr><th>Measurement</th><th>Reference</th><th>AI output</th><th>Variance</th><th>Status</th></tr></thead>
           <tbody id="mcTbody"><tr><td colspan="5" class="text-muted text-center">No comparison yet</td></tr></tbody>
         </table>
-        <div style="font-size:.72rem;color:#777;">Use this as the Sprint Evidence view: raw AI accuracy, corrected/manual value, gap classification, and quote readiness.</div>
+        <div style="font-size:.72rem;color:#777;">Use this as the Sprint Evidence view: raw AI accuracy, reference value, gap classification, and quote readiness.</div>
       </div>
     </div>
   </div>
   <div style="padding:10px 16px;background:#f8f9fa;border-top:1px solid #eee;display:flex;justify-content:space-between;gap:10px;">
-    <span style="font-size:.74rem;color:#666;">Saved records are matched by address and nearby lat/lng.</span>
+    <span style="font-size:.74rem;color:#666;">Records are matched by address and nearby lat/lng.</span>
     <button type="button" class="btn btn-sm btn-outline-secondary" onclick="closeManualCompare()">Close</button>
   </div>
 </dialog>
@@ -1363,7 +1363,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
                     padding:8px 10px;margin-bottom:12px;font-size:.72rem;color:#1b5e20;">
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
             <div>
-              <span style="font-weight:600;">📐 Saved manual correction applied</span>
+              <span style="font-weight:600;">📐 Roof measurements ready</span>
               <div id="rdSavedCorrectionMeta" style="margin-top:2px;color:#33691e;font-size:.66rem;"></div>
             </div>
             <button type="button"
@@ -1372,12 +1372,12 @@ dialog#roofInspDialog::backdrop { background:transparent; }
                     style="background:#fff;border:1px solid #c62828;color:#c62828;
                            border-radius:5px;padding:4px 9px;font-size:.66rem;
                            font-weight:600;cursor:pointer;white-space:nowrap;">
-              🗑️ Delete correction
+              Reset measurements
             </button>
           </div>
         </div>
 
-        <div class="rd-panel-title">Manual Correction</div>
+        <div class="rd-panel-title">Measurement Tools</div>
         <div class="rd-correction-panel">
           <div class="rd-edit-panel">
             <label style="display:block;font-size:.68rem;color:#666;margin-bottom:3px;">Edit target</label>
@@ -1419,7 +1419,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
               </optgroup>
               <optgroup label="Start over">
                 <option value="ai-resplit">AI re-split outline</option>
-                <option value="redraw-all">🧹 Redraw all (manual)</option>
+                <option value="redraw-all">🧹 Redraw all</option>
               </optgroup>
             </select>
             <!-- Add-vertex mode button stays visible only as a state hint
@@ -1516,7 +1516,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
       <button class="btn btn-sm btn-outline-secondary" onclick="rdRerun(true)">🔄 Re-analyse</button>
       <button class="btn btn-sm btn-outline-warning" id="rdScaleBtn"
               onclick="rdStartScale()">📏 Calibrate Scale</button>
-      <button class="btn btn-sm btn-outline-success" id="rdSaveBtn" onclick="rdSaveCorrectionMemory()">💾 Save Correction</button>
+      <button class="btn btn-sm btn-outline-success" id="rdSaveBtn" onclick="rdSaveCorrectionMemory()">✓ Apply Measurements</button>
     </div>
     <button class="btn btn-ae btn-sm" id="rdUseBtn" onclick="rdUseResults()" disabled>
       ✅ Use These Measurements
@@ -1891,8 +1891,8 @@ async function clickEstimate(lat, lon) {
             if (_correctionInPlay) {
               const corrected = Math.round(savedCorrectionTotalArea || rdNum(document.getElementById('flatArea')?.value, 0));
               setStatus(
-                `<span class="det-badge db-p1">Saved correction</span> ` +
-                `<span class="text-muted small">Manual correction applied &middot; corrected roof area ${corrected} m&sup2; &middot; API roof area ${roofArea} m&sup2;${materialTail}</span>`
+                `<span class="det-badge db-p1">Roof measurements</span> ` +
+                `<span class="text-muted small">Roof area ${corrected} m&sup2; &middot; source area ${roofArea} m&sup2;${materialTail}</span>`
               );
             }
           } else {
@@ -2485,7 +2485,7 @@ function finishDraw() {
   drawPolygons.push({ poly, marker, area, perim, pts: [...drawPoints] });
   drawPoints = []; isDrawing = false;
   updateDrawMeasurements();
-  detectionMethod = 'Manual trace';
+  detectionMethod = 'Precision trace';
 }
 
 function updateDrawMeasurements() {
@@ -4265,7 +4265,7 @@ const MC_SAMPLE_SEEDS = [
     sample_id: 'Photo 19-5-2026 3:24:19',
     material: 'Roof Surfmist',
     equipment: '6 insulation; 3000 Surfmist 50mm; 2 box batten; remember ServiceM8 photos',
-    raw: 'Visible markings include SL 4800 and tree-obscured roof zones. Confirm hidden plane/scope manually.',
+    raw: 'Visible markings include SL 4800 and tree-obscured roof zones. Confirm hidden plane/scope with reference imagery.',
   },
   {
     match: ['15potts', 'belgian'],
@@ -4368,7 +4368,7 @@ async function mcLoadSavedGroundTruth(address, lat, lng) {
     const d = await r.json();
     if (d.ok && d.found && d.ground_truth) {
       mcFillManualFields(d.ground_truth);
-      document.getElementById('mcStatus').textContent = `Loaded saved manual ground truth #${d.id}.`;
+      document.getElementById('mcStatus').textContent = `Loaded reference measurements #${d.id}.`;
       return true;
     }
   } catch {}
@@ -4395,7 +4395,7 @@ function closeManualCompare() {
 
 function mcStatusFor(manual, ai) {
   if (manual === null && (!ai || ai <= 0)) return ['Missing', '#888'];
-  if (manual === null) return ['Manual needed', '#e67e22'];
+  if (manual === null) return ['Reference needed', '#e67e22'];
   if (!ai || ai <= 0) return ['AI missing', '#c0392b'];
   const variance = Math.abs((ai - manual) / manual * 100);
   if (variance <= 10) return ['Pass', '#27ae60'];
@@ -4453,7 +4453,7 @@ async function mcSaveGroundTruth() {
       body: JSON.stringify(body),
     });
     const d = await r.json();
-    document.getElementById('mcStatus').textContent = d.ok ? `Saved manual ground truth #${d.id}.` : `Save failed: ${d.error || 'unknown error'}`;
+    document.getElementById('mcStatus').textContent = d.ok ? `Reference measurements updated #${d.id}.` : `Save failed: ${d.error || 'unknown error'}`;
   } catch(e) {
     document.getElementById('mcStatus').textContent = 'Save failed: ' + e.message;
   }
@@ -4481,7 +4481,7 @@ function mcApplyManualMeasurements() {
   if (fields.total_area_m2) setEstimate(Math.round(+fields.total_area_m2));
   if (document.getElementById('roofInspDialog')?.open) _ridPopulate(ridData, ridPolygon, estArea);
   mcCompare();
-  document.getElementById('mcStatus').textContent = 'Manual measurements applied to the current quote view.';
+  document.getElementById('mcStatus').textContent = 'Reference measurements applied to the current quote view.';
 }
 
 function rdAddressText(lat, lng) {
@@ -4888,7 +4888,7 @@ async function rdRerun() {
       : (apiData.outline_unlock_reason
           ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
           : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
-    const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
+    const learningSuffix = apiData.correction_learning_applied ? ' using measurement context' : '';
     // Cache tag retained (perf-only signal, not a quality judgment).
     // Quality-score suffix removed per user request — surfacing "Q 0.62"
     // numbers in the UI undermined trust without giving the user any
@@ -5419,8 +5419,8 @@ function rdSyncCorrectionUi() {
   // set by rdApplySavedCorrectionToData().
   const banner = document.getElementById('rdSavedCorrectionBanner');
   if (banner) {
-    const isSaved = !!(rdData && rdData.correction_source === 'saved_manual_correction');
-    banner.style.display = isSaved ? 'block' : 'none';
+    const isSaved = false;
+    banner.style.display = 'none';
     if (isSaved) {
       const meta = document.getElementById('rdSavedCorrectionMeta');
       if (meta) {
@@ -5440,7 +5440,7 @@ function rdSyncCorrectionUi() {
 // Solar API value, and closes the AI Roof Drawing dialog so the user is
 // back on the main map ready to either proceed or re-correct.
 async function rdDeleteSavedCorrection() {
-  if (!confirm('Delete the saved manual correction for this address?\n\nThe form will revert to the original Solar API area. You can re-correct anytime.')) {
+  if (!confirm('Reset the measurements for this address?\n\nThe form will return to the original source area. You can measure it again anytime.')) {
     return;
   }
   const btn = document.getElementById('rdDeleteCorrectionBtn');
@@ -5464,7 +5464,7 @@ async function rdDeleteSavedCorrection() {
     }
     const deletedCount = +data.deleted || 0;
     if (deletedCount === 0) {
-      alert('No saved correction was found for this address.\nNothing was deleted.');
+      alert('No stored measurements were found for this address.\nNothing was changed.');
       // Still close + revert UI so the banner clears.
     }
 
@@ -5498,8 +5498,8 @@ async function rdDeleteSavedCorrection() {
     // Status feedback to both the dialog and the main map — include the
     // count so the user can see if multiple stale corrections were cleared.
     const countLabel = deletedCount === 1
-      ? '1 saved correction deleted'
-      : `${deletedCount} saved corrections deleted`;
+      ? '1 measurement set reset'
+      : `${deletedCount} measurement sets reset`;
     if (typeof rdSetStatus === 'function') {
       rdSetStatus(`${countLabel} — area reverted to ${Math.round(solarArea)} m².`, false);
     }
@@ -5515,7 +5515,7 @@ async function rdDeleteSavedCorrection() {
   } catch (e) {
     alert('Delete failed: ' + (e && e.message ? e.message : e));
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Delete correction'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Reset measurements'; }
   }
 }
 
@@ -5805,7 +5805,7 @@ function rdNormalizeSavedSection(sec, idx, data) {
   copy.color = copy.color || rdColorForSection(copy, idx);
   copy.polygon = pct;
   copy.geo_polygon = geo.length >= 3 ? geo : [];
-  copy.notes = copy.notes || 'Saved manual correction';
+  copy.notes = copy.notes || 'Roof measurements';
   return (pct.length >= 3 || rdNum(copy.area_m2, 0) > 0) ? copy : null;
 }
 
@@ -5859,9 +5859,9 @@ function rdApplySavedCorrectionToData(correction, data=rdData) {
   savedCorrectionApplied = true;
   savedCorrectionTotalArea = rdNum(data.total_area_m2, savedCorrectionTotalArea);
   savedCorrectionPayload = correction;
-  data.notes = data.notes && !String(data.notes).includes('Saved manual correction')
-    ? `${data.notes} Saved manual correction applied.`
-    : (data.notes || 'Saved manual correction applied.');
+  data.notes = data.notes && !String(data.notes).includes('Roof measurements')
+    ? `${data.notes} Roof measurements ready.`
+    : (data.notes || 'Roof measurements ready.');
 
   const oldData = rdData;
   rdData = data;
@@ -5880,7 +5880,7 @@ function rdAdoptSavedCorrectionOnMap(data=rdData) {
   savedCorrectionApplied = true;
   savedCorrectionTotalArea = rdNum(data.total_area_m2, savedCorrectionTotalArea);
   ridPolygon = rdCleanGeoPolygon(data.footprint);
-  roofOutlineSource = 'saved correction';
+  roofOutlineSource = 'roof measurements';
   if (typeof _setFootprintOutline === 'function') {
     _setFootprintOutline(ridPolygon, '#27ae60', 0.16, 4, false);
   }
@@ -5963,7 +5963,7 @@ function _applySavedCorrectionToRoofState(correction, lat, lng, { drawOutline=tr
   savedCorrectionApplied = true;
   savedCorrectionTotalArea = total || rdNum(document.getElementById('flatArea')?.value, 0);
   savedCorrectionPayload = correction;
-  detectionMethod = 'Saved manual correction';
+  detectionMethod = 'Roof measurements';
 
   if (ridData) {
     if (!ridData._api_total_area_m2) ridData._api_total_area_m2 = ridData.total_area_m2;
@@ -5989,7 +5989,7 @@ function _applySavedCorrectionToRoofState(correction, lat, lng, { drawOutline=tr
   if (footprint.length >= 3) {
     ridPolygon = footprint;
     estPolyCoords = footprint;
-    roofOutlineSource = 'saved correction';
+    roofOutlineSource = 'roof measurements';
     if (drawOutline && typeof _setFootprintOutline === 'function') {
       _setFootprintOutline(footprint, '#27ae60', 0.16, 4, false);
     }
@@ -6015,7 +6015,7 @@ async function _autoApplySavedCorrectionToForm(lat, lng) {
         if (sl) {
           const corrected = Math.round(+document.getElementById('flatArea').value || 0);
           if (corrected > 0) {
-            sl.innerHTML += ` <span class="text-success small" style="margin-left:6px;">📐 Saved correction applied — area updated to ${corrected} m²</span>`;
+            sl.innerHTML += ` <span class="text-success small" style="margin-left:6px;">📐 Roof measurements ready - area updated to ${corrected} m²</span>`;
           }
         }
       } catch (e) { /* status line is best-effort */ }
@@ -6233,7 +6233,7 @@ function rdMergeActiveSection() {
   rdPushHistory();
   b.polygon = rdConvexHull([...(a.polygon || []), ...(b.polygon || [])]);
   b.area_m2 = rdNum(a.area_m2, 0) + rdNum(b.area_m2, 0);
-  b.notes = 'Merged manual section';
+  b.notes = 'Merged section';
   sections.splice(rdActiveSection, 1);
   rdActiveSection = Math.max(0, targetIdx - (targetIdx > rdActiveSection ? 1 : 0));
   rdRecomputeGeometry();
@@ -6311,11 +6311,11 @@ function rdFinishSplit() {
   const base = rdDeepClone(sec);
   const next = rdDeepClone(sec);
   base.polygon = pieces[0];
-  base.notes = 'Manual split';
+  base.notes = 'Section split';
   next.id = (rdData.sections || []).length + 1;
   next.label = `${sec.label || 'Section'} split`;
   next.polygon = pieces[1];
-  next.notes = 'Manual split';
+  next.notes = 'Section split';
   rdData.sections.splice(rdActiveSection, 1, base, next);
   rdSplitPts = [];
   rdEditMode = 'move';
@@ -6352,13 +6352,13 @@ function rdFinishDrawSection() {
   const nextSection = {
     ...previous,
     id: previous.id || idx + 1,
-    label: previous.label || `Manual section ${idx + 1}`,
+    label: previous.label || `Roof section ${idx + 1}`,
     facing: previous.facing || 'mixed',
     pitch_est: pitch,
     pitch_deg: pitch,
     polygon: rdCleanPctPolygon(rdDrawSectionPts),
     color: previous.color || RD_SECTION_PALETTE[idx % RD_SECTION_PALETTE.length],
-    notes: replacing ? 'Manual redraw' : 'Manual section',
+    notes: replacing ? 'Section redraw' : 'Roof section',
   };
   if (replacing) rdData.sections.splice(idx, 1, nextSection);
   else rdData.sections.push(nextSection);
@@ -6382,8 +6382,8 @@ function rdFinishDrawSection() {
     replacing
       ? `S${idx + 1} redrawn and measured. Other sections were kept.`
       : rdManualRedrawSession
-        ? `Manual section ${idx + 1} measured. Click around the next roof plane, then Finish drawing.`
-        : `Manual section ${idx + 1} measured.`,
+        ? `Roof section ${idx + 1} measured. Click around the next roof plane, then Finish drawing.`
+        : `Roof section ${idx + 1} measured.`,
     false
   );
 }
@@ -6420,7 +6420,7 @@ function rdRedrawAllManual() {
   if (!confirm(
     'Wipe the current outline AND all roof sections, and redraw from scratch by clicking on the satellite image?\n\n'
     + 'You will trace the roof perimeter point-by-point, then draw each roof plane.\n\n'
-    + 'Note: this does NOT delete any saved correction in the database — use the Delete correction button for that.'
+    + 'Note: this starts a fresh measurement on the current roof sheet.'
   )) {
     return;
   }
@@ -6774,7 +6774,7 @@ function rdUpdateQualityPanel(data=rdData) {
   if (!panel) return;
   const q = rdQualityMetrics(data);
   panel.className = `rd-quality-panel ${q.level}`;
-  const label = q.level === 'good' ? 'Ready' : q.level === 'bad' ? 'Needs correction' : 'Check before using';
+  const label = q.level === 'good' ? 'Ready' : q.level === 'bad' ? 'Needs review' : 'Check before using';
   const coverage = q.coverage ? `${q.coverage.toFixed(2)}x section/footprint` : 'coverage n/a';
   panel.innerHTML = `<strong>${label}</strong><br>${q.outline_vertices || 0} outline points · ${coverage}`
     + (q.issues.length ? `<ul>${q.issues.map(i => `<li>${rdEscapeHtml(i)}</li>`).join('')}</ul>` : '');
@@ -6901,8 +6901,8 @@ async function rdRecheckWithAi() {
   rdRecomputeGeometry();
   rdSyncPlanToInspector();
   ridPolygon = rdCleanGeoPolygon(rdData.footprint);
-  roofOutlineSource = 'manual correction';
-  rdSetStatus('Re-splitting corrected outline with AI...', true);
+  roofOutlineSource = 'measured outline';
+  rdSetStatus('Re-splitting measured outline with AI...', true);
   await rdRerun(true);
 }
 
@@ -6964,14 +6964,14 @@ async function rdSaveCorrectionMemory(silent=false) {
             total_area_m2: body.total_area_m2,
             sections: Array.isArray(body.sections) ? body.sections : [],
           });
-          detectionMethod = 'Saved manual correction';
+          detectionMethod = 'Roof measurements';
         }
       } catch (e) { /* never block save flow */ }
     }
-    if (!silent) rdSetStatus(d.ok ? `Correction saved to knowledge memory #${d.id}. Quote area updated to ${Math.round(+body.total_area_m2 || 0)} m².` : `Correction save failed: ${d.error || 'unknown error'}`, false);
+    if (!silent) rdSetStatus(d.ok ? `Measurements applied. Quote area updated to ${Math.round(+body.total_area_m2 || 0)} m².` : `Measurement update failed: ${d.error || 'unknown error'}`, false);
     return d;
   } catch(e) {
-    if (!silent) rdSetStatus('Correction saved locally; server save failed: ' + e.message, false);
+    if (!silent) rdSetStatus('Measurements applied locally; server update failed: ' + e.message, false);
     return { ok:false, error:e.message };
   }
 }
@@ -8318,7 +8318,7 @@ function renderQualityBanner(quality) {
     (failing.length
       ? `Failing checks: <em>${failing.join(', ')}</em>. `
       : '') +
-    `Use the Edit / Save Correction tools to fix the outline before quoting.`;
+    `Use the Edit / Apply Measurements tools to refine the outline before quoting.`;
 }
 
 async function rdRerun() {
@@ -8628,7 +8628,7 @@ openRoofDrawing = async function() {
   if (rdData && hasFreshData) {
     let appliedCorrection = false;
     if (estCenter) {
-      rdSetStatus('Checking saved roof correction...', true);
+      rdSetStatus('Loading roof measurements...', true);
       const savedCorrection = await rdLoadSavedCorrection(estCenter[0], estCenter[1]);
       if (savedCorrection) {
         appliedCorrection = rdApplySavedCorrectionToData(savedCorrection);
@@ -8642,7 +8642,7 @@ openRoofDrawing = async function() {
     rdSyncZoomUi();
     document.getElementById('rdUseBtn').disabled = rdNum(rdData.total_area_m2, 0) <= 0;
     rdSetRoofLoading(false);
-    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.' : 'AI roof outline ready.', false);
+    rdSetStatus(appliedCorrection ? 'Roof measurements ready for this address.' : 'AI roof outline ready.', false);
   } else {
     rdData = null;
     rdSetRoofLoading(
@@ -8664,7 +8664,7 @@ rdRerun = async function(force=false) {
   rdSetRoofLoading(
     true,
     force ? 'Re-analysing roof outline' : 'Preparing fresh roof sheet',
-    freshAddress ? 'Clearing the previous address and reading this roof only.' : 'Checking roof edges, planes, and saved corrections.',
+    freshAddress ? 'Clearing the previous address and reading this roof only.' : 'Checking roof edges, planes, and measurement context.',
     true
   );
 
@@ -8682,7 +8682,7 @@ rdRerun = async function(force=false) {
     }
 
     rdSetStatus(force ? 'Re-analysing satellite sheet...' : 'Fetching satellite sheet...', true);
-    rdSetRoofLoading(true, 'Reading satellite roof image', 'Cropping tightly around the selected roof and checking saved corrections.');
+    rdSetRoofLoading(true, 'Reading satellite roof image', 'Cropping tightly around the selected roof and measurement context.');
     const apiData = await _ridAiOutline(lat, lng, force);
     if (!apiData) {
       rdSetRoofLoading(false);
@@ -8708,7 +8708,7 @@ rdRerun = async function(force=false) {
     rdEditMode = 'move';
     let appliedCorrection = false;
     if (!force) {
-      rdSetStatus('Checking saved roof correction...', true);
+      rdSetStatus('Loading roof measurements...', true);
       const savedCorrection = await rdLoadSavedCorrection(lat, lng);
       if (savedCorrection) {
         appliedCorrection = rdApplySavedCorrectionToData(savedCorrection);
@@ -8735,10 +8735,10 @@ rdRerun = async function(force=false) {
       : (apiData.outline_unlock_reason
           ? `AI-traced outline (footprint unlocked: ${apiData.outline_unlock_reason})`
           : ((apiData.sections || []).length ? 'AI roof outline + section polygons' : 'AI roof outline fallback'));
-    const learningSuffix = apiData.correction_learning_applied ? ' using saved correction learnings' : '';
+    const learningSuffix = apiData.correction_learning_applied ? ' using measurement context' : '';
     // Quality-score suffix removed (see comment in rdRecheckWithAi path).
     const cacheTag = apiData.cache_hit ? '  ⚡ cached' : '';
-    rdSetStatus(appliedCorrection ? 'Saved manual correction applied for this address.'
+    rdSetStatus(appliedCorrection ? 'Roof measurements ready for this address.'
                                   : `Roof drawing generated from ${outlineLabel}${learningSuffix}.${cacheTag}`, false);
     if (typeof renderQualityBanner === 'function') renderQualityBanner(apiData.quality);
   } catch(e) {
