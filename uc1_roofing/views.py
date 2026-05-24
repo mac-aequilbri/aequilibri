@@ -34,6 +34,23 @@ from .pricing_port_city import (build_port_city_quote, detect_travel_zone,
                                 tapered_roof_breakdown, PACKAGE_TIERS)
 # Markup percentages used per cost-plus pricing mode.
 PRICING_MODE_MARKUP = {'match': 0.10, 'optimal': 0.18, 'premium': 0.25}
+
+
+def _default_gutter_travel_days(address: str, suburb: str, postcode: str) -> float:
+    """Default `gutter_travel_days` when the estimator hasn't set one.
+
+    Port City's worksheets bill 1 extra travel day for the gutter sub-
+    contractor whenever the main job is in a non-local travel zone (Ayr/
+    Ingham/Charters/etc.). Local Townsville-metro jobs get 0 by default.
+    Re-uses `detect_travel_zone` so the suburb/postcode/address fallback
+    chain matches the main-job travel calculation.
+    """
+    try:
+        zone, days, _rate = detect_travel_zone(
+            address=address or '', suburb=suburb or '', postcode=postcode or '')
+        return 1.0 if days > 0 else 0.0
+    except Exception:
+        return 0.0
 from .services.paid_api_cache import SHORT_TTL_SECONDS, get_cached, set_cached
 
 
@@ -329,12 +346,16 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
                 solar_panel_count = int(_safe_float(
                     request.POST.get('solar_panel_count'), 0))
 
-                # Downpipe count fallback — same heuristic as the JS preview
-                # (~1 downpipe per 10 lm of gutter, minimum 2).
-                _dp_explicit = int(_safe_float(
+                # Downpipe count — explicit opt-in only.  Port City quotes
+                # downpipes as a $250/each line item, NOT bundled into the
+                # gutter sub-quote.  The previous auto-formula
+                # `max(2, round(eave_lm / 10))` inflated quotes by ~$1,500
+                # on a 57 lm eave (Condron Place case: 6 downpipes auto-
+                # added vs 0 on the worksheet).  Now defaults to 0 — the
+                # estimator must explicitly enter `downpipe_count_90mm` to
+                # bill for them.
+                _dp_count = int(_safe_float(
                     request.POST.get('downpipe_count_90mm'), 0))
-                _dp_count = (_dp_explicit if _dp_explicit > 0
-                             else max(2, round(eave_lm / 10)))
 
                 # Batten replacement — when toggled, auto-compute lm at the
                 # Port City rule of 2 lm per m² of roof (matches the
@@ -388,10 +409,34 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
                     suburb           = request.POST.get('address_suburb', '') or '',
                     postcode         = request.POST.get('address_postcode', '') or '',
                     include_gutters  = on('opt_gutter'),
-                    gutter_lm        = eave_lm if on('opt_gutter') else 0,
+                    # Gutter LM defaults to 50% of eave when no explicit
+                    # value is given — across the 5 Port City reference
+                    # workbooks the actual gutter run averages ~60% of
+                    # eave (Condron 66%, Toomulla 103%, West End 111%,
+                    # Oonoonba 144%, Mt Louisa 0%) but the high outliers
+                    # are multi-wing roofs where the AI-measured eave is
+                    # ALSO inflated.  50% is the safer default: gives
+                    # under-quotes for complex roofs (estimator catches
+                    # at review) and matches simple roofs closely.
+                    # Estimator can override via the `gutter_lm` form field.
+                    gutter_lm        = _safe_float(
+                        request.POST.get('gutter_lm'), 0)
+                        or (round(eave_lm * 0.5, 1) if on('opt_gutter') else 0),
                     downpipe_90mm    = _dp_count if on('opt_gutter') else 0,
+                    # Gutter travel days — when the suburb triggers a
+                    # travel zone (Ayr / Ingham / Charters / etc.) Port
+                    # City quotes 1 extra travel day for the gutter sub-
+                    # contractor on top of the main-job travel.  Detected
+                    # by reusing pricing_port_city.detect_travel_zone.
+                    # Estimator can override via `gutter_travel_days` form.
                     gutter_travel_days = _safe_float(
-                        request.POST.get('gutter_travel_days'), 0),
+                        request.POST.get('gutter_travel_days'),
+                        _default_gutter_travel_days(
+                            quote.property_address or '',
+                            request.POST.get('address_suburb', ''),
+                            request.POST.get('address_postcode', ''),
+                        )
+                    ),
                     markup_pct       = final_markup,
                 )
 
