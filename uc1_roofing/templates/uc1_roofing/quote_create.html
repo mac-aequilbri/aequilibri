@@ -822,6 +822,34 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           </span>
           <button type="button" class="tog-btn on" id="tog-gutter" onclick="toggleOpt('gutter')"></button>
         </div>
+        <!-- Gutter LM + downpipe count overrides — surfaced as explicit
+             inputs because the previous defaults (gutter = full eave,
+             downpipes = max(2, eave/10)) were inflating Port City quotes
+             by ~$1,500-$3,000.  Now both default to a safer minimum
+             and the estimator opts in to higher numbers. -->
+        <div id="gutterDetailRow"
+             style="display:flex;gap:8px;align-items:center;padding:6px 10px 10px 22px;font-size:.74rem;color:#555;flex-wrap:wrap;">
+          <label style="display:flex;align-items:center;gap:6px;margin:0;">
+            Gutter LM
+            <input type="number" name="gutter_lm" id="gutterLm"
+                   min="0" step="0.5" value=""
+                   placeholder="auto"
+                   onchange="updatePreview()"
+                   style="width:72px;padding:3px 6px;border:1px solid #d0d0d0;border-radius:4px;font-size:.74rem;">
+            <span class="text-muted" style="font-size:.66rem;">leave blank → 50% of eave</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;margin:0;margin-left:6px;">
+            Downpipes (90 mm)
+            <!-- No `name` attribute — this is a UI proxy that syncs into
+                 the hidden #downpipeCount90mm form field on input.
+                 Duplicate names would post twice and confuse Django. -->
+            <input type="number" id="downpipeCount90mmInput"
+                   min="0" step="1" value="0"
+                   oninput="document.getElementById('downpipeCount90mm').value=this.value;updatePreview();"
+                   style="width:56px;padding:3px 6px;border:1px solid #d0d0d0;border-radius:4px;font-size:.74rem;">
+            <span class="text-muted" style="font-size:.66rem;">$250 ea — opt-in</span>
+          </label>
+        </div>
         <div class="toggle-row">
           <span>
             <strong>Asbestos roof removal</strong>
@@ -2619,6 +2647,13 @@ function toggleOpt(k) {
     const el = document.getElementById(hidMap[k]);
     if (el) el.value = options[k] ? '1' : '0';
   }
+  // Show/hide the Gutter LM + downpipe count detail row alongside the
+  // main Guttering toggle so the inputs aren't sitting visible when the
+  // toggle is off.
+  if (k === 'gutter') {
+    const det = document.getElementById('gutterDetailRow');
+    if (det) det.style.display = options.gutter ? 'flex' : 'none';
+  }
   updatePreview();
 }
 
@@ -2898,15 +2933,38 @@ function updatePreview() {
   const internal = items.reduce((s,it) => s + (it.q || 0) * (it.r || 0), 0);
   const quoted   = internal * (1 + PC_MARKUP);
 
-  // Gutter sub-quote (only if toggle on)
+  // Gutter sub-quote (only if toggle on) — mirrors backend defaults
+  // exactly so the indicative price matches the saved quote.
+  //  - Gutter LM: explicit form value if > 0, else 50% of eave (was 100%)
+  //  - Downpipes: explicit count from #downpipeCount90mm hidden field,
+  //    defaults to 0 (was auto max(2, eave/10)).  Estimator opts in.
+  //  - Gutter travel days: 1 for non-local zones (Ayr/Ingham/etc), 0 local
   let gutterSub = 0;
   if (options.gutter) {
-    const gLm = eaveLm;                // gutters run along the eave
-    const dpCount = Math.max(2, Math.round(gLm / 10));
-    gutterSub = gLm * PC_GUTTER_PER_LM + dpCount * PC_DOWNPIPE_90;
+    const explicitGutterLm = parseFloat(
+      document.getElementById('gutterLm')?.value || 0) || 0;
+    const gLm = explicitGutterLm > 0
+              ? explicitGutterLm
+              : Math.round(eaveLm * 0.5);
+    const dpCount = parseInt(
+      document.getElementById('downpipeCount90mm')?.value || 0, 10) || 0;
+    const gutterTravelDays = (tz.days > 0) ? 1 : 0;
+    gutterSub = gLm * PC_GUTTER_PER_LM
+              + dpCount * PC_DOWNPIPE_90
+              + gutterTravelDays * travelRate;
     items.push({d:'──── Gutter sub-quote (separate) ────', q:'', u:'', r:NaN, head:true});
-    items.push({d:'Guttering — 150mm quad', q:gLm, u:'lm', r:PC_GUTTER_PER_LM});
-    items.push({d:'Downpipes — 90mm PVC',   q:dpCount, u:'ea', r:PC_DOWNPIPE_90});
+    items.push({d:'Guttering — 150mm quad',
+                q:gLm, u:'lm', r:PC_GUTTER_PER_LM,
+                note: explicitGutterLm > 0
+                  ? 'estimator override'
+                  : `default (50% of ${eaveLm} lm eave — adjust above for actual run)`});
+    if (dpCount > 0) {
+      items.push({d:'Downpipes — 90mm PVC', q:dpCount, u:'ea', r:PC_DOWNPIPE_90});
+    }
+    if (gutterTravelDays > 0) {
+      items.push({d:`Gutter Travel — ${tz.key.replace('_','/').replace(/^./, c=>c.toUpperCase())}`,
+                  q:gutterTravelDays, u:'day', r:travelRate});
+    }
   }
 
   const subtotalEx = quoted + gutterSub;
