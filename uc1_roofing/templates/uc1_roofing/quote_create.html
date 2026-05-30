@@ -35,6 +35,18 @@
            padding:16px 20px;margin-top:12px}
 .est-area-big{font-size:2.8rem;font-weight:800;color:var(--ae-space);
               font-family:'Montserrat',sans-serif;line-height:1}
+.sidebar-est-panel{margin-top:0;padding:14px}
+.sidebar-est-panel .est-area-big{font-size:2.35rem}
+.sidebar-est-panel .btn{width:100%}
+.quote-side-stack{display:flex;flex-direction:column;gap:12px}
+.quote-side-stack .quote-side-panel,
+.quote-side-stack .quote-compact-card,
+.quote-side-stack .est-panel{margin-bottom:0}
+.sidebar-address-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px}
+.sidebar-address-card label{font-size:.78rem}
+.quote-cancel-link{border:1px solid #b42318!important;color:#b42318!important;background:#fff!important;
+                   font-weight:800;border-radius:8px;padding:10px 12px}
+.quote-cancel-link:hover{background:#fff4f2!important;color:#8f1d12!important;border-color:#8f1d12!important}
 .est-tag{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;
          border-radius:20px;font-size:.72rem;font-weight:600;color:#fff}
 .conf-high{background:#27ae60}.conf-med{background:#e67e22}.conf-low{background:#888}
@@ -71,11 +83,40 @@ dialog#roofDrawDialog {
 dialog#roofDrawDialog[open] { display:flex; flex-direction:column; animation:pageSlideIn .18s ease; }
 @keyframes pageSlideIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
 dialog#roofDrawDialog::backdrop { background:transparent; }
-#rdHeader { background:#1a1a2e; color:#fff; padding:14px 18px; flex-shrink:0;
-            display:flex; align-items:center; gap:10px; }
-#rdHeader h5 { margin:0; font-size:.95rem; font-weight:700; flex:1; }
-#rdClose { background:none; border:1px solid rgba(255,255,255,.25); color:#ccc; font-size:.78rem; font-weight:600; cursor:pointer; border-radius:6px; padding:4px 10px; }
-#rdClose:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.5); }
+#rdHeader { background:#1a1a2e; color:#fff; padding:12px 18px; flex-shrink:0;
+            display:flex; align-items:center; gap:14px; border-bottom:1px solid rgba(255,255,255,.08); }
+.rd-title-mark,
+#rdHeader > span:first-child { width:34px; height:34px; border-radius:8px; background:rgba(220,159,130,.18);
+                 border:1px solid rgba(220,159,130,.45); display:flex; align-items:center; justify-content:center;
+                 color:#fff; font-size:0!important; font-weight:950; letter-spacing:.04em; flex-shrink:0; }
+#rdHeader > span:first-child::after { content:"RM"; font-size:.74rem; }
+#rdHeader h5 { margin:0 auto 0 0; font-size:.98rem; font-weight:900; line-height:1.1; min-width:210px; }
+#rdHeader h5::after { content:"Review outline, sections and pitch"; display:block; margin-top:2px; font-size:.66rem;
+                      color:rgba(255,255,255,.58); font-weight:700; }
+.rd-conf-badge,
+#rdConfBadge { display:inline-flex!important; align-items:center; justify-content:center; min-width:76px; height:24px;
+               border-radius:999px!important; background:#2563eb; color:#fff!important; padding:0 10px!important;
+               font-size:.66rem!important; font-weight:900; text-transform:capitalize; }
+.rd-view-toggle,
+#rdViewToggle { display:flex!important; align-items:center; gap:3px!important; padding:3px; border-radius:10px;
+                margin-left:0!important; margin-right:0!important;
+                background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14); }
+.rd-view-btn,
+#rdViewToggle button { min-height:30px; border:0!important; border-radius:7px!important; background:transparent!important;
+                       color:rgba(255,255,255,.62)!important; padding:5px 12px!important; font-size:0!important;
+                       font-weight:850!important; cursor:pointer; white-space:nowrap; box-shadow:none!important; }
+#rdViewToggle button::after { font-size:.72rem; }
+#rdViewEditBtn::after { content:"Edit"; }
+#rdView2dBtn::after { content:"2D Plan"; }
+#rdView3dBtn::after { content:"3D Model"; }
+.rd-view-btn:hover,
+#rdViewToggle button:hover { background:rgba(255,255,255,.08)!important; color:#fff!important; }
+.rd-view-btn.active,
+#rdViewToggle button.active { background:var(--ae-space)!important; color:#fff!important; box-shadow:0 4px 10px rgba(220,159,130,.18)!important; }
+#rdClose { display:none!important; }
+.rd-close-safe { min-height:34px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.2);
+                 color:#fff; font-size:.76rem; font-weight:900; cursor:pointer; border-radius:9px; padding:6px 13px; white-space:nowrap; }
+.rd-close-safe:hover { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.38); }
 /* #rdBody is the positioning root; #rdSide and #rdCanvasWrap are absolutely
    positioned inside it so their scroll regions have explicit pixel rectangles
    that DO NOT depend on grid/flex min-height behaviour (which is unreliable
@@ -129,6 +170,26 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
 #rdOverlay { position:absolute; top:0; left:0; width:100%; height:100%;
              pointer-events:none; }
 .rd-correction-panel { background:#fff; border:1px solid #e7e7e7; border-radius:8px; padding:9px; margin-bottom:12px; }
+.rd-fast-panel { border:1px solid #b7e3cf; background:#f3fbf7; border-radius:8px; padding:10px; margin-bottom:12px; }
+.rd-fast-panel strong { display:block; color:#0f5132; font-size:.86rem; margin-bottom:3px; }
+.rd-fast-panel span { display:block; color:#3f5f51; font-size:.7rem; line-height:1.35; }
+.rd-fast-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; }
+.rd-fast-actions button { min-height:34px; border-radius:6px; border:1px solid #b7c7bd; background:#fff; color:#1a1a2e; font-size:.7rem; font-weight:800; }
+.rd-fast-actions button:hover { border-color:#12805c; background:#eef9f3; color:#0f5132; }
+.rd-fast-actions .primary { grid-column:1 / -1; background:#12805c; border-color:#12805c; color:#fff; }
+.rd-fast-actions .primary:hover { background:#0f684c; color:#fff; }
+.rd-fast-actions button:disabled { opacity:.48; cursor:not-allowed; }
+.rd-fast-actions button:disabled:hover { background:#fff; border-color:#b7c7bd; color:#1a1a2e; }
+.rd-fast-actions .primary:disabled:hover { background:#12805c; color:#fff; border-color:#12805c; }
+.rd-advanced-tools { border:1px solid #e5e7eb; border-radius:8px; background:#fff; padding:9px; margin-bottom:12px; }
+.rd-advanced-tools summary { cursor:pointer; font-size:.76rem; font-weight:800; color:#1a1a2e; }
+.rd-advanced-tools[open] summary { margin-bottom:9px; }
+#rdVertexDeletePopup {
+  position:absolute; z-index:6; display:none; min-height:30px; padding:5px 10px;
+  border:1px solid #b42318; border-radius:6px; background:#fff; color:#b42318;
+  font-size:.7rem; font-weight:800; box-shadow:0 8px 18px rgba(0,0,0,.22);
+}
+#rdVertexDeletePopup:hover { background:#fff4f2; }
 .rd-nudge-grid { display:grid; grid-template-columns:repeat(3, 34px); gap:5px; justify-content:center; margin:6px 0; }
 .rd-nudge-grid button { width:34px; height:30px; border:1px solid #d5d7dc; background:#fff; border-radius:5px; font-weight:700; color:#1a1a2e; }
 .rd-nudge-grid button:hover { background:#f3f5f8; border-color:#9aa1ad; }
@@ -178,6 +239,11 @@ dialog#roofDrawDialog::backdrop { background:transparent; }
 #rdScaleInput { width:80px; padding:3px 6px; border:1px solid #ccc; border-radius:4px;
                 font-size:.78rem; }
 @media (max-width: 900px) {
+  #rdHeader { align-items:stretch; flex-wrap:wrap; gap:10px; }
+  .rd-header-title { min-width:0; flex:1 1 100%; }
+  .rd-view-toggle { flex:1 1 auto; }
+  .rd-view-btn { flex:1; }
+  #rdClose { flex:0 0 auto; }
   #rdBody { overflow-y:auto; }
   #rdWorkArea { position:static; height:auto; }
   #rdSide       { position:static; width:auto; border-right:none;
@@ -206,6 +272,8 @@ dialog#roofInspDialog::backdrop { background:transparent; }
 #ridCoords { font-size:.67rem; color:#9fa; margin-top:3px; }
 #ridClose { background:none; border:1px solid rgba(255,255,255,.25); color:#ccc; font-size:.78rem; font-weight:600; cursor:pointer; border-radius:6px; padding:4px 10px; flex-shrink:0; }
 #ridClose:hover { background:rgba(255,255,255,.1); color:#fff; border-color:rgba(255,255,255,.5); }
+.rid-measure-back { background:var(--ae-space); border:1px solid var(--ae-space); color:#fff; font-size:.78rem; font-weight:900; cursor:pointer; border-radius:7px; padding:5px 12px; flex-shrink:0; }
+.rid-measure-back:hover { background:#c8896d; border-color:#c8896d; color:#fff; }
 #ridBody   { flex:1; overflow:hidden; padding:0; display:flex; flex-direction:column; }
 #ridResults { flex:1; min-height:0; overflow:hidden; flex-direction:row; }
 .rid-data-col { width:480px; min-width:280px; flex-shrink:0; overflow-y:auto; min-height:0; padding:16px 18px; border-right:1px solid #eee; }
@@ -290,14 +358,93 @@ dialog#roofInspDialog::backdrop { background:transparent; }
                display:flex;align-items:center;gap:24px;flex-wrap:wrap}
 .s-label{color:#888;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;display:block}
 .s-val{font-weight:600;color:#2c2c2c;font-size:.85rem}
+.journey-shell{background:rgba(255,255,255,.84);border:1px solid #e5e7eb;border-radius:8px;
+               padding:12px;margin-bottom:14px;box-shadow:0 6px 18px rgba(26,26,46,.05)}
+.journey-shell-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:10px}
+.journey-eyebrow{font-size:.64rem;color:#777;text-transform:uppercase;letter-spacing:.08em;font-weight:900}
+.journey-shell-title{font-size:.9rem;font-weight:900;color:#1a1a2e;margin-top:1px}
+.journey-progress-copy{font-size:.72rem;font-weight:900;color:#8f4b2d;background:rgba(220,159,130,.16);
+                       border-radius:999px;padding:5px 10px;white-space:nowrap}
+.journey-progress-track{height:8px;background:#eef0f3;border-radius:999px;overflow:hidden;margin-bottom:12px}
+.journey-progress-fill{height:100%;width:25%;background:var(--ae-space);border-radius:999px}
+.quote-journey{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:0}
+.qj-step{border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:12px 12px 12px 50px;
+         min-height:92px;position:relative;opacity:.7}
+.qj-step::before{content:attr(data-step);position:absolute;left:13px;top:14px;width:26px;height:26px;
+                 border-radius:50%;display:flex;align-items:center;justify-content:center;
+                 background:#eef0f3;color:#6b7280;font-size:.78rem;font-weight:900}
+.qj-step.active{border:2px solid var(--ae-space);background:#fffaf7;box-shadow:0 10px 22px rgba(220,159,130,.16);opacity:1}
+.qj-step.active::before{background:var(--ae-space);color:#fff}
+.qj-step.complete{border-color:#27ae60;background:#f3fbf6;opacity:1}
+.qj-step.complete::before{background:#27ae60;color:#fff}
+.qj-kicker{font-size:.64rem;color:#888;text-transform:uppercase;letter-spacing:.06em;font-weight:700}
+.qj-title{font-size:.84rem;font-weight:800;color:#1a1a2e;margin-top:2px}
+.qj-note{font-size:.68rem;color:#777;margin-top:1px;line-height:1.35}
+.qj-status{display:inline-flex;align-items:center;margin-top:8px;border-radius:999px;
+           padding:3px 8px;font-size:.62rem;font-weight:800;background:#f3f4f6;color:#6b7280}
+.qj-step.active .qj-status{background:rgba(220,159,130,.18);color:#8f4b2d}
+.qj-step.complete .qj-status{background:#dff4e7;color:#155724}
+.journey-action{display:flex;align-items:center;justify-content:space-between;gap:16px;
+                border:2px solid var(--ae-space);border-left-width:7px;background:#fffaf7;border-radius:8px;
+                padding:16px 18px;margin:-6px 0 18px;position:relative;z-index:1;
+                box-shadow:0 8px 18px rgba(26,26,46,.08)}
+.journey-action-title{font-size:.96rem;font-weight:900;color:#1a1a2e}
+.journey-action-note{font-size:.78rem;color:#555;line-height:1.35;margin-top:2px}
+.journey-action button{white-space:nowrap;font-weight:900;padding:10px 28px}
+.journey-primary-cta{box-shadow:0 0 0 4px rgba(220,159,130,.24),0 8px 18px rgba(220,159,130,.2)!important}
+.journey-target-highlight{position:relative;z-index:2;box-shadow:0 0 0 3px rgba(220,159,130,.18)!important;
+                          border-color:var(--ae-space)!important}
+.roof-plan-review-btn{border:2px solid var(--ae-space)!important;background:#fffaf7!important;color:#1a1a2e!important;
+                      border-radius:8px!important;padding:14px 18px!important;text-align:left;
+                      box-shadow:0 8px 18px rgba(220,159,130,.14);
+                      display:flex!important;align-items:center;justify-content:space-between;gap:16px;min-height:76px}
+.roof-plan-review-btn .rp-copy{display:block;min-width:0}
+.roof-plan-review-btn .rp-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+                                font-size:1.02rem;font-weight:950;line-height:1.15}
+.roof-plan-review-btn .rp-badge{border-radius:999px;background:rgba(220,159,130,.22);color:#8f4b2d;
+                                padding:3px 8px;font-size:.62rem;font-weight:900;white-space:nowrap}
+.roof-plan-review-btn .rp-note{display:block;margin-top:7px;font-size:.76rem;font-weight:800;color:#4b5563;line-height:1.28}
+.roof-plan-review-btn .rp-cta{display:inline-flex;align-items:center;justify-content:center;min-width:112px;
+                              border-radius:8px;background:var(--ae-space);color:#fff;padding:9px 12px;
+                              font-size:.78rem;font-weight:950;white-space:nowrap;box-shadow:0 5px 12px rgba(220,159,130,.24)}
+.roof-plan-review-btn.reviewed{border-color:#27ae60!important;background:#f3fbf6!important;box-shadow:none}
+.roof-plan-review-btn.reviewed .rp-badge{background:#dff4e7;color:#155724}
+.roof-plan-review-btn.reviewed .rp-cta{background:#27ae60;box-shadow:none}
+.quote-side-panel{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px}
+.quote-side-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid #f0f1f3}
+.quote-side-row:last-child{border-bottom:0}
+.quote-side-dot{width:9px;height:9px;border-radius:50%;background:#d1d5db;flex-shrink:0;margin-top:5px}
+.quote-side-row.ready .quote-side-dot{background:#27ae60}
+.quote-side-row strong{display:block;color:#1a1a2e;font-size:.84rem}
+.quote-side-row span{display:block;color:#777;font-size:.72rem;line-height:1.35}
+.quote-compact-card{background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:16px}
+.quote-compact-card h6{font-size:.92rem}
+.advanced-details{border:1px solid #e5e7eb;border-radius:8px;background:#fff;padding:10px 12px;margin-bottom:14px}
+.advanced-details summary{cursor:pointer;font-size:.78rem;font-weight:800;color:#1a1a2e}
+.advanced-details[open] summary{margin-bottom:10px}
+.scope-picker{display:grid;grid-template-columns:minmax(220px,1fr) minmax(180px,.55fr);gap:10px;align-items:end;margin-bottom:12px}
+.scope-summary{display:flex;gap:6px;flex-wrap:wrap;min-height:30px}
+.scope-chip{border:1px solid #d9eadf;background:#f3fbf6;color:#155724;border-radius:999px;padding:5px 10px;font-size:.72rem;font-weight:700}
+.client-path-hidden{display:none!important}
+@media (max-width: 900px){
+  .quote-journey{grid-template-columns:1fr 1fr}
+  .scope-picker{grid-template-columns:1fr}
+}
+@media (max-width: 560px){
+  .quote-journey{grid-template-columns:1fr}
+  .journey-action{align-items:stretch;flex-direction:column}
+  .journey-action button{width:100%}
+  .roof-plan-review-btn{align-items:stretch;flex-direction:column;gap:10px}
+  .roof-plan-review-btn .rp-cta{width:100%}
+}
 </style>
 <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&v=weekly&libraries=places"></script>
 {% endblock %}
 
 {% block uc1_content %}
 <div class="page-header">
-  <h4 class="mb-0">New Roofing Quote</h4>
-  <small class="text-muted">Search address → click the roof to estimate → refine → materials &amp; pricing</small>
+  <h4 class="mb-0">Create Roofing Quote</h4>
+  <small class="text-muted">A focused journey from property measurement to generated quote.</small>
 </div>
 
 <div class="px-4 pb-5">
@@ -346,10 +493,58 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   <input type="hidden" name="address_postcode"     id="addressPostcode"    value="">
   <input type="hidden" name="markup_pct"           id="markupPct"          value="0.10">
 
-  <div class="wizard-bar">
-    <div class="wz-step active" id="wz1"><div class="wz-num">1</div><span>Roof Area Detection</span></div>
+  <div class="journey-shell" aria-label="Quote journey">
+    <div class="journey-shell-head">
+      <div>
+        <div class="journey-eyebrow">Quote journey</div>
+        <div class="journey-shell-title" id="journeyProgressSummary">Step 1 of 4: Find Property</div>
+      </div>
+      <div class="journey-progress-copy" id="journeyProgressText">Step 1 of 4</div>
+    </div>
+    <div class="journey-progress-track" aria-hidden="true">
+      <div class="journey-progress-fill" id="journeyProgressFill"></div>
+    </div>
+  <div class="quote-journey">
+    <div class="qj-step active" id="qjProperty" data-step="1">
+      <div class="qj-kicker">Step 1</div>
+      <div class="qj-title">Find Property</div>
+      <div class="qj-note">Address and satellite view</div>
+      <div class="qj-status" id="qjPropertyState">You are here</div>
+    </div>
+    <div class="qj-step" id="qjMeasure" data-step="2">
+      <div class="qj-kicker">Step 2</div>
+      <div class="qj-title">Confirm Roof Area</div>
+      <div class="qj-note">Approve measurement</div>
+      <div class="qj-status" id="qjMeasureState">Next up</div>
+    </div>
+    <div class="qj-step" id="qjOptions" data-step="3">
+      <div class="qj-kicker">Step 3</div>
+      <div class="qj-title">Quote Options</div>
+      <div class="qj-note">Client, roof type, inclusions</div>
+      <div class="qj-status" id="qjOptionsState">Later</div>
+    </div>
+    <div class="qj-step" id="qjGenerate" data-step="4">
+      <div class="qj-kicker">Step 4</div>
+      <div class="qj-title">Generate Quote</div>
+      <div class="qj-note">Review price and save</div>
+      <div class="qj-status" id="qjGenerateState">Later</div>
+    </div>
+  </div>
+  </div>
+  <div class="journey-action" id="journeyAction">
+    <div>
+      <div class="journey-action-title" id="journeyActionTitle">Step 1: find the property</div>
+      <div class="journey-action-note" id="journeyActionNote">Enter an address, then click Search.</div>
+    </div>
+    <button type="button" class="btn btn-ae px-4" id="journeyNextBtn" data-action="search" onclick="handleJourneyNext()">
+      Search address
+    </button>
+  </div>
+
+  <div class="wizard-bar client-path-hidden">
+    <div class="wz-step active" id="wz1"><div class="wz-num">1</div><span>Property &amp; Measurement</span></div>
     <div class="wz-line" id="wz-line1"></div>
-    <div class="wz-step" id="wz2"><div class="wz-num">2</div><span>Client, Materials &amp; Quote</span></div>
+    <div class="wz-step" id="wz2"><div class="wz-num">2</div><span>Quote Details</span></div>
   </div>
 
   <!-- ════ STEP 1 ════════════════════════════════════════════════════════ -->
@@ -362,11 +557,11 @@ dialog#roofInspDialog::backdrop { background:transparent; }
       <div style="position:relative" class="mb-2">
         <div class="d-flex gap-2">
           <input type="text" id="addrIn" class="form-control form-control-lg"
-                 placeholder="Search address — then click the roof on the satellite image"
+                 placeholder="Search property address"
                  value="{{ request.GET.address|default:'' }}"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();searchAddress();}">
-          <button type="button" class="btn btn-ae px-4" id="detectBtn" onclick="searchAddress()">🔍 Search</button>
-          <button type="button" class="btn btn-outline-secondary px-3" onclick="toggleLayer()" title="Toggle satellite/street">🛰️</button>
+          <button type="button" class="btn btn-ae px-4" id="detectBtn" onclick="searchAddress()">Search</button>
+          <button type="button" class="btn btn-outline-secondary px-3" onclick="toggleLayer()" title="Toggle satellite/street">Map</button>
         </div>
         <div id="searchResults"></div>
       </div>
@@ -389,16 +584,6 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         </div>
       </div>
 
-      <!-- Mode toggle -->
-      <div class="d-flex gap-2 mt-3 align-items-center">
-        <button type="button" class="mode-btn active" id="btnEstMode" onclick="setMode('estimate')">
-          👆 Click-to-Estimate
-        </button>
-        <button type="button" class="mode-btn" id="btnDrawMode" onclick="setMode('draw')">
-          ✏️ Trace Roof
-        </button>
-        <button type="button" class="btn btn-sm btn-outline-danger ms-auto" onclick="clearAll()">🗑️ Clear</button>
-      </div>
       <div id="drawHint" class="small text-muted mt-1" style="display:none">
         Click map points to trace the roof outline — double-click to finish
       </div>
@@ -416,17 +601,23 @@ dialog#roofInspDialog::backdrop { background:transparent; }
                 aria-hidden="true">
           📍 Click a roof on the map to enable analysis
         </button>
-        <button type="button" id="roofDrawBtn" class="btn btn-outline-primary w-100 py-2"
+        <button type="button" id="roofDrawBtn" class="btn roof-plan-review-btn w-100 py-2"
                 onclick="openRoofDrawing()" disabled
                 style="font-size:.88rem;font-weight:700;">
-          🛰️ AI Roof Drawing
-          <span style="display:block;font-size:.66rem;font-weight:500;opacity:.85;margin-top:1px;">
-            edit · 2D plan · 3D model
+          <span class="rp-copy">
+            <span class="rp-title">
+              Open Roof Plan Review
+              <span class="rp-badge" id="roofPlanReviewBadge">Required Step 2</span>
+            </span>
+          <span class="rp-note" id="roofPlanReviewNote">
+            roof plan · 2D view · 3D view
           </span>
+          </span>
+          <span class="rp-cta" id="roofPlanReviewCta">Review now</span>
         </button>
         <button type="button" id="manualCompareBtn" class="btn btn-outline-success w-100 py-2 mt-2"
                 onclick="openManualCompare()" disabled
-                style="font-size:.88rem;font-weight:700;">
+                style="display:none;font-size:.88rem;font-weight:700;">
           Measurement Compare
         </button>
       </div>
@@ -466,25 +657,16 @@ dialog#roofInspDialog::backdrop { background:transparent; }
                oninput="onRotSlider(this.value)">
       </div>
 
-      <!-- Common presets -->
       <div class="mb-3">
-        <div class="small fw-bold mb-2 text-muted">Quick presets:</div>
-        <div class="d-flex flex-wrap gap-1">
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setEstimate(90)">Small unit ~90m²</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setEstimate(140)">Small house ~140m²</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setEstimate(180)">Medium house ~180m²</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setEstimate(240)">Large house ~240m²</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setEstimate(320)">XL/acreage ~320m²</button>
-        </div>
-      </div>
-
-      <div class="d-flex gap-2">
-        <button type="button" class="btn btn-ae flex-grow-1 py-2" onclick="confirmEstimate()">
-          ✅ Use this estimate — proceed
-        </button>
-        <button type="button" class="btn btn-outline-secondary" onclick="setMode('draw')">
-          ✏️ Trace instead
-        </button>
+        <label class="form-label small fw-bold mb-1">Area preset</label>
+        <select class="form-select form-select-sm" onchange="applyAreaPreset(this.value);this.value='';">
+          <option value="">Select only if needed</option>
+          <option value="90">Small unit - 90 m2</option>
+          <option value="140">Small house - 140 m2</option>
+          <option value="180">Medium house - 180 m2</option>
+          <option value="240">Large house - 240 m2</option>
+          <option value="320">XL / acreage - 320 m2</option>
+        </select>
       </div>
 
     </div>
@@ -492,60 +674,46 @@ dialog#roofInspDialog::backdrop { background:transparent; }
 
   <!-- Sidebar -->
   <div class="col-md-4">
-    <div class="card p-4 mb-3">
-      <h6 class="fw-bold mb-2">How it works</h6>
-      <ol class="small text-muted ps-3 mb-0" style="line-height:2">
-        <li>Search the property address</li>
-        <li>View it on <strong>satellite</strong> 🛰️</li>
-        <li><strong>Click the roof</strong> to auto-estimate</li>
-        <li>Adjust the sliders to refine</li>
-        <li>Or switch to <strong>Trace</strong> for precision</li>
-      </ol>
-    </div>
-
-    <div class="card p-4 mb-3">
-      <h6 class="fw-bold mb-2">📐 Detection Sources</h6>
-      <div class="small text-muted" style="line-height:2">
-        <div>⭐ <strong style="color:#27ae60">æquilibri AI</strong> — AI-derived polygon, ~98% precision</div>
-        <div>🔵 <strong>Google Solar API</strong> — satellite building footprint</div>
-        <div>⬜ <strong>Click estimate</strong> — typical house size</div>
-        <div>✏️ <strong>Precision trace</strong> — full control</div>
+    <div class="quote-side-stack sticky-sidebar" id="quoteOutputStack">
+    <div class="quote-side-panel">
+      <div class="qj-kicker">Quote output</div>
+      <div class="quote-side-row ready">
+        <div class="quote-side-dot"></div>
+        <div>
+          <strong>Property</strong>
+          <span id="journeyPropertyStatus">Waiting for address</span>
+        </div>
       </div>
-      <div class="mt-2 p-2 rounded small" style="background:#f0fff4;border:1px solid #c3e6cb;color:#155724">
-        ⭐ ML detection active after running <code>import_buildings</code>
+      <div class="quote-side-row" id="journeyMeasureRow">
+        <div class="quote-side-dot"></div>
+        <div>
+          <strong>Roof measurement</strong>
+          <span id="journeyMeasureStatus">Area not selected</span>
+        </div>
+      </div>
+      <div class="quote-side-row" id="journeyQuoteRow">
+        <div class="quote-side-dot"></div>
+        <div>
+          <strong>Quote</strong>
+          <span>Client details and options appear after measurement.</span>
+        </div>
       </div>
     </div>
-
-    <div class="card p-4">
-      <h6 class="fw-bold mb-2">⚡ Typical BCR by lot size</h6>
-      <table class="table table-sm small mb-0">
-        <thead><tr><th>Lot size</th><th>Est. BCR</th><th>Example</th></tr></thead>
-        <tbody>
-          <tr><td>&lt; 300m²</td><td>~55%</td><td>~165m²</td></tr>
-          <tr><td>300–500m²</td><td>~45%</td><td>~180m²</td></tr>
-          <tr><td>500–800m²</td><td>~38%</td><td>~228m²</td></tr>
-          <tr><td>&gt; 800m²</td><td>~30%</td><td>~280m²</td></tr>
-          <tr><td>Acreage</td><td>~15%</td><td>est. only</td></tr>
-        </tbody>
-      </table>
     </div>
   </div>
   </div>
 
   <!-- Address + Next -->
-  <div class="row mt-3">
+  <div class="row mt-3" id="propertyAddressRow">
     <div class="col-md-8">
-      <div class="card p-3">
-        <label class="form-label fw-bold mb-1">📍 Property Address (for quote document)</label>
+      <div class="card p-3" id="propertyAddressCard">
+        <label class="form-label fw-bold mb-1">Property address for quote</label>
         <input type="text" id="propAddrDisplay" class="form-control"
-               placeholder="Auto-filled from search — edit if needed">
+               placeholder="Auto-filled from search - edit if needed">
       </div>
     </div>
-    <div class="col-md-4 d-flex flex-column justify-content-center gap-2 pt-3 pt-md-0">
-      <button type="button" class="btn btn-ae py-2" onclick="goStep2()">
-        Next: Materials &amp; Pricing →
-      </button>
-      <a href="{% url 'uc1:quote_list' %}" class="btn btn-outline-secondary">Cancel</a>
+    <div class="col-md-4 d-flex align-items-end justify-content-md-end pt-3 pt-md-0">
+      <a href="{% url 'uc1:quote_list' %}" class="btn quote-cancel-link" id="quoteCancelLink">Cancel quote</a>
     </div>
   </div>
   </div><!-- /step1 -->
@@ -554,7 +722,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   <div id="step2" style="display:none">
     <div class="summary-strip">
       <div><span class="s-label">Address</span><span class="s-val" id="sum_addr">—</span></div>
-      <div><span class="s-label">Flat Area</span><span class="s-val" id="sum_area">—</span></div>
+      <div><span class="s-label">Roof Area</span><span class="s-val" id="sum_area">—</span></div>
       <div><span class="s-label">Method</span><span class="s-val" id="sum_method">—</span></div>
       <div><span class="s-label">Roof Material</span><span class="s-val" id="sum_roof_material">—</span></div>
       <div class="ms-auto">
@@ -567,7 +735,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
 
       <!-- Client -->
       <div class="card p-4 mb-4">
-        <h6 class="fw-bold mb-3">👤 Client Details</h6>
+        <h6 class="fw-bold mb-3">Client Details</h6>
         <div class="row g-3">
           <div class="col-md-6"><label class="form-label">Client Name *</label>
             <input type="text" name="client_name" id="clientName" class="form-control" required></div>
@@ -583,7 +751,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
       <!-- Roof Type & Storeys — drive the Port City roof rate -->
       <div class="card p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="fw-bold mb-0">⚙️ Roof Type & Storeys</h6>
+          <h6 class="fw-bold mb-0">Roof Type & Storeys</h6>
           <span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;
                        border:1px solid #66bb6a;border-radius:3px;
                        padding:1px 6px;font-weight:600">DRIVES PRICE</span>
@@ -655,7 +823,8 @@ dialog#roofInspDialog::backdrop { background:transparent; }
            to keep the LEFT side as 'roof facts' and the RIGHT side as
            'pricing'.  Includes live measurements, detected features and
            any scaffolding/structural alerts. -->
-      <div id="lidarPanel" class="mb-4" style="display:none;">
+      <details id="lidarPanel" class="advanced-details mb-4" style="display:none;">
+        <summary>Roof measurements</summary>
         <div style="border:2px solid #27ae60;border-radius:10px;padding:16px;background:#f0fff4;">
           <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-bold mb-0" style="color:#155724;">📡 Roof Analysis</h6>
@@ -783,38 +952,54 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             ⚠️ LiDAR data unavailable — using storey-based estimates.
           </div>
         </div>
-      </div>
+      </details>
 
       <!-- Material -->
       <div class="card p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="fw-bold mb-0">🏗️ Roofing Material</h6>
+          <h6 class="fw-bold mb-0">Material / Colour</h6>
           <span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;
                        border:1px solid #66bb6a;border-radius:3px;
                        padding:1px 6px;font-weight:600">SCOPE WORDING ONLY</span>
         </div>
-        <div class="small text-muted mb-3" style="font-size:.74rem;line-height:1.45;">
-          Affects the scope text shown on the quote PDF (e.g. "Trimdek" vs "Custom Orb").
-          <strong>Pricing follows the Port City per-roof-type rate</strong> (Gable $120 /
-          Hip $130 / Ultra $140 per m²) regardless of profile.  Non-Colorbond materials
-          fall outside Port City's published rates and require a custom quote.
-        </div>
         <input type="hidden" name="material" id="matHidden" value="colorbond">
-        <div id="materialGrid" class="d-flex flex-column gap-2"></div>
+        <select id="materialSelect" class="form-select" onchange="selectMat(parseInt(this.value,10))"></select>
+        <details class="advanced-details mt-3 mb-0">
+          <summary>Material details</summary>
+          <div id="materialGrid" class="d-flex flex-column gap-2"></div>
+        </details>
       </div>
 
       <!-- Toggles — Port City pricing items -->
       <div class="card p-4 mb-4">
         <div class="d-flex align-items-center justify-content-between mb-2">
-          <h6 class="fw-bold mb-0">💰 Pricing Inclusions</h6>
+          <h6 class="fw-bold mb-0">Quote Inclusions</h6>
           <span style="font-size:.6rem;background:#e8f5e9;color:#1b5e20;
                        border:1px solid #66bb6a;border-radius:3px;
                        padding:1px 6px;font-weight:600">EACH TOGGLE = REAL $$</span>
         </div>
-        <div class="small text-muted mb-3" style="font-size:.74rem;line-height:1.45;">
-          Toggle items that should be priced into this quote. Each is a line
-          item from Port City's estimating sheet.
+        <div class="scope-picker">
+          <div>
+            <label class="form-label small fw-bold mb-1">Add or remove optional item</label>
+            <select id="scopeActionMenu" class="form-select form-select-sm" onchange="scopeDropdownAction(this)">
+              <option value="">Select an item</option>
+              <option value="gutter">Guttering &amp; downpipes</option>
+              <option value="asbestos">Asbestos roof removal</option>
+              <option value="decromastic">Decromastic tile removal</option>
+              <option value="solar_rr">Solar panels - remove &amp; reinstall</option>
+              <option value="solar_hw">Solar hot water - remove &amp; reinstall</option>
+              <option value="fuse_pull">Fuse pull / disconnection</option>
+              <option value="bins">Skip bins</option>
+              <option value="batten">Batten replacement</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label small fw-bold mb-1">Included in quote</label>
+            <div id="scopeSummary" class="scope-summary"></div>
+          </div>
         </div>
+        <details class="advanced-details mb-0">
+          <summary>Line item controls</summary>
         <div class="toggle-row">
           <span>
             <strong>Guttering &amp; downpipes</strong>
@@ -903,25 +1088,24 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           </span>
           <button type="button" class="tog-btn" id="tog-batten" onclick="toggleOpt('batten')"></button>
         </div>
+        </details>
       </div>
 
       <!-- Always-included automatic items -->
-      <div class="card p-3 mb-4" style="background:#f8f9fa">
-        <div class="small fw-bold mb-2" style="color:#1565c0">
-          🤖 Automatically applied (no toggle needed)
-        </div>
+      <details class="advanced-details">
+        <summary>Included automatically</summary>
         <div class="small text-muted" style="font-size:.72rem;line-height:1.6;">
           • <strong>Edge protection / safety rail</strong> — $19/lm, computed from eave length<br>
           • <strong>Travel allowance</strong> — auto-detected from suburb/postcode
             ($600/day Ayr–Ingham · $700/day Charters · $2,000/day Cairns/Mackay)<br>
           • <strong>10% markup</strong> on internal cost, then <strong>10% GST</strong>
         </div>
-      </div>
+      </details>
 
       <!-- Items that DO NOT affect the Port City price -->
       <details class="card p-3 mb-4" style="background:#fffaf3">
         <summary class="small fw-bold" style="cursor:pointer;color:#856404">
-          🛈 Other scope items (not priced separately by Port City)
+          Other scope items
         </summary>
         <div class="small text-muted mt-2 mb-2" style="font-size:.72rem;line-height:1.5;">
           These are included in the per-m² roof rate and don't move the
@@ -951,6 +1135,8 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           <span id="pricingModeBadge" style="font-size:.65rem;background:#e8f5e9;color:#1b5e20;border:1px solid #66bb6a;border-radius:4px;padding:1px 6px;font-weight:600;">PORT CITY MATCH</span>
         </div>
 
+        <details class="advanced-details mb-3">
+        <summary>Pricing model</summary>
         <!-- ── Pricing MECHANISM selector (the BIG choice) ───────────────── -->
         <label class="form-label small text-muted mb-1" style="font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">
           Pricing mechanism
@@ -1027,6 +1213,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         </div>
         <input type="hidden" name="pricing_mode" id="pricingMode" value="match">
         </div><!-- /costPlusModeRow -->
+        </details>
         <div class="text-center mb-3 p-3" style="background:rgba(220,159,130,.15);border-radius:8px;border:1px solid rgba(220,159,130,.4)">
           <div style="font-size:.72rem;color:#888;text-transform:uppercase;letter-spacing:.05em">Total Tender Price (incl. GST)</div>
           <div id="p_total" style="font-size:2.2rem;font-weight:800;color:var(--ae-space);font-family:'Montserrat',sans-serif">$—</div>
@@ -1044,22 +1231,22 @@ dialog#roofInspDialog::backdrop { background:transparent; }
         <div class="d-flex justify-content-between mb-1 small fw-bold"><span>Subtotal ex GST</span><span id="p_subtotal_x">—</span></div>
         <div class="d-flex justify-content-between mb-1 small"><span class="text-muted">+ GST (10%)</span><span id="p_gst_amt">—</span></div>
 
-        <div class="mt-3 p-2 rounded" style="background:#fff8f0;border:1px solid #f0d5b8;font-size:.7rem;color:#7a5c3a;line-height:1.5;">
-          🎯 <strong>Aligned with Port City's pricing matrix.</strong><br>
-          Uses the same per-roof-type rate, edge protection, travel zone and
-          markup formula as the 5 reference Estimating Calculation worksheets.
-        </div>
+        <details class="advanced-details mt-3 mb-0">
+          <summary>Pricing basis</summary>
+          <div class="small text-muted">
+            Uses per-roof-type rate, edge protection, travel zone, markup and GST.
+          </div>
+        </details>
 
-        <button type="button" class="btn btn-outline-secondary w-100 mt-3" onclick="previewPDF()">🖨️ Print Indicative Estimate</button>
+        <button type="button" class="btn btn-outline-secondary w-100 mt-3" onclick="previewPDF()">Preview Quote PDF</button>
       </div>
 
       </div><!-- /sticky-sidebar -->
     </div>
     </div>
 
-    <div class="d-flex justify-content-between align-items-center mt-2 pt-3 border-top">
+    <div class="d-flex justify-content-start align-items-center mt-2 pt-3 border-top">
       <button type="button" class="btn btn-outline-secondary px-4" onclick="goStep1()">← Back</button>
-      <button type="submit" class="btn btn-ae px-5 py-2" style="font-size:1.05rem">Save Quote to System →</button>
     </div>
   </div><!-- /step2 -->
 
@@ -1072,6 +1259,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
       <div id="ridAddr">Loading…</div>
       <div id="ridCoords"></div>
     </div>
+    <button type="button" id="ridBackToMeasurements" class="rid-measure-back" onclick="backToRoofMeasurements()">Back to Measurements</button>
     <button type="button" id="ridClose" onclick="closeRoofInspector()">← Back to Quote</button>
   </div>
   <div id="ridBody">
@@ -1282,35 +1470,35 @@ dialog#roofInspDialog::backdrop { background:transparent; }
 <dialog id="roofDrawDialog">
   <div id="rdHeader">
     <span style="font-size:1.3rem;">🛰️</span>
-    <h5>AI Roof Drawing</h5>
-    <span id="rdConfBadge" style="font-size:.7rem;padding:2px 8px;border-radius:10px;background:#1565c0;color:#fff;"></span>
+    <h5>Roof Measurements</h5>
+    <span id="rdConfBadge" class="rd-conf-badge"></span>
 
     <!-- View toggle — merges the former View Roof Analysis dialog into
          this one.  Edit shows the satellite-image editing canvas (default).
          2D plan + 3D model launch the inspector dialog pre-set to the
          right view, since the heavy rendering machinery already lives
          there.  Quick visual switch, single entry point for the user. -->
-    <div id="rdViewToggle" style="display:flex;gap:4px;margin-left:auto;margin-right:8px;">
+    <div id="rdViewToggle" class="rd-view-toggle" role="tablist" aria-label="Roof measurement views">
       <button type="button"
               id="rdViewEditBtn"
-              class="btn btn-ae btn-sm"
+              class="rd-view-btn active"
               onclick="rdSwitchView('edit')"
               style="font-size:.66rem;padding:3px 9px;">✏️ Edit</button>
       <button type="button"
               id="rdView2dBtn"
-              class="btn btn-outline-secondary btn-sm"
+              class="rd-view-btn"
               onclick="rdSwitchView('plan')"
               style="font-size:.66rem;padding:3px 9px;">📐 2D plan</button>
       <button type="button"
               id="rdView3dBtn"
-              class="btn btn-outline-secondary btn-sm"
+              class="rd-view-btn"
               onclick="rdSwitchView('3d')"
               style="font-size:.66rem;padding:3px 9px;">🏠 3D model</button>
     </div>
 
     <button id="rdClose" onclick="closeRoofDrawing()">← Back to Quote</button>
+    <button type="button" class="rd-close-safe" onclick="closeRoofDrawing()">Back to Quote</button>
   </div>
-
   <div id="rdStatus">
     <span class="spin" id="rdSpin" style="display:none;width:16px;height:16px;border:2px solid #ddd;border-top-color:#1565c0;border-radius:50%;animation:sp .7s linear infinite;flex-shrink:0;"></span>
     <span id="rdStatusTxt">Ready</span>
@@ -1377,10 +1565,23 @@ dialog#roofInspDialog::backdrop { background:transparent; }
           </div>
         </div>
 
-        <div class="rd-panel-title">Measurement Tools</div>
-        <div class="rd-correction-panel">
+        <div class="rd-panel-title">Review measurements</div>
+        <div class="rd-fast-panel">
+          <strong>Touch what looks wrong</strong>
+          <span>Drag a green point, click an edge to add a point, or drag inside the outline to move the roof shape.</span>
+          <div class="rd-fast-actions">
+            <button type="button" id="rdQuickUseBtn" class="primary" onclick="rdUseResults(event)" disabled>Use these measurements</button>
+            <button type="button" id="rdUndoBtn" onclick="rdUndo()">Undo</button>
+            <button type="button" id="rdRedoBtn" onclick="rdRedo()">Redo</button>
+            <button type="button" onclick="rdAutoFixMeasurements()">Auto-fix</button>
+            <button type="button" onclick="rdMakeSingleSection()">Single section</button>
+          </div>
+        </div>
+
+        <details class="rd-advanced-tools">
+          <summary>Advanced editing</summary>
           <div class="rd-edit-panel">
-            <label style="display:block;font-size:.68rem;color:#666;margin-bottom:3px;">Edit target</label>
+            <label style="display:block;font-size:.68rem;color:#666;margin-bottom:3px;">Target</label>
             <select id="rdEditTarget" class="rd-select" onchange="rdSetEditTarget(this.value)">
               <option value="outline">Green outline vertices</option>
               <option value="section">Selected roof section</option>
@@ -1389,21 +1590,11 @@ dialog#roofInspDialog::backdrop { background:transparent; }
             <label style="display:block;font-size:.68rem;color:#666;margin:7px 0 3px;">Active section</label>
             <select id="rdSectionSelect" class="rd-select" onchange="rdSetActiveSection(this.value)"></select>
 
-            <!-- Undo / Redo stay as quick-access buttons (most common ops). -->
-            <div class="rd-edit-grid" style="grid-template-columns:1fr 1fr;">
-              <button type="button" id="rdUndoBtn" onclick="rdUndo()">↶ Undo</button>
-              <button type="button" id="rdRedoBtn" onclick="rdRedo()">↷ Redo</button>
-            </div>
-
-            <!-- All other editing actions consolidate into a single Action
-                 dropdown to keep the sidebar uncluttered.  onchange routes
-                 to the existing handler, then resets the select so the
-                 same action can be picked again. -->
             <label style="display:block;font-size:.68rem;color:#666;margin:9px 0 3px;">Action</label>
             <select id="rdActionMenu" class="rd-select" onchange="rdDispatchAction(this)">
-              <option value="">— pick an action —</option>
+              <option value="">Select action</option>
               <optgroup label="Vertex">
-                <option value="add-vertex">Add vertex (click on edge)</option>
+                <option value="add-vertex">Add vertex</option>
                 <option value="delete-vertex">Delete selected vertex</option>
               </optgroup>
               <optgroup label="Section">
@@ -1415,33 +1606,41 @@ dialog#roofInspDialog::backdrop { background:transparent; }
               </optgroup>
               <optgroup label="Drawing">
                 <option value="finish-drawing">Finish drawing current shape</option>
-                <option value="clear-sections">Clear sections &amp; redraw</option>
+                <option value="clear-sections">Clear sections and redraw</option>
               </optgroup>
               <optgroup label="Start over">
                 <option value="ai-resplit">AI re-split outline</option>
-                <option value="redraw-all">🧹 Redraw all</option>
+                <option value="redraw-all">Redraw all</option>
               </optgroup>
             </select>
-            <!-- Add-vertex mode button stays visible only as a state hint
-                 (highlighted when active) — the dropdown is the entry. -->
             <button type="button" id="rdAddVertexBtn"
                     onclick="rdSetEditMode('add')"
                     style="display:none;"></button>
+
+            <div class="rd-edit-grid" style="grid-template-columns:1fr 1fr;margin-top:9px;">
+              <button type="button" onclick="rdRerun(true)">Re-analyse</button>
+              <button type="button" id="rdScaleBtn" onclick="rdStartScale()">Calibrate</button>
+              <button type="button" id="rdSaveBtn" onclick="rdSaveCorrectionMemory()">Apply</button>
+              <button type="button" onclick="rdResetCorrections()">Reset position</button>
+            </div>
+
+            <details class="advanced-details mt-2 mb-0">
+            <summary>Positioning</summary>
+            <div class="rd-nudge-step">
+              <span>Move layout</span>
+              <label>Step <input id="rdNudgeStep" type="number" min="1" max="80" step="1" value="8"> image px</label>
+            </div>
+            <div class="rd-nudge-grid">
+              <span></span><button type="button" title="Move up" onclick="rdNudge(0,-1)">Up</button><span></span>
+              <button type="button" title="Move left" onclick="rdNudge(-1,0)">Left</button>
+              <button type="button" title="Reset layout position" onclick="rdResetCorrections()">Reset</button>
+              <button type="button" title="Move right" onclick="rdNudge(1,0)">Right</button>
+              <span></span><button type="button" title="Move down" onclick="rdNudge(0,1)">Down</button><span></span>
+            </div>
+            <div id="rdNudgeReadout">Offset: 0 px, 0 px</div>
+            </details>
           </div>
-          <hr style="border:none;border-top:1px solid #eee;margin:9px 0;">
-          <div class="rd-nudge-step">
-            <span>Move layout</span>
-            <label>Step <input id="rdNudgeStep" type="number" min="1" max="80" step="1" value="8"> image px</label>
-          </div>
-          <div class="rd-nudge-grid">
-            <span></span><button type="button" title="Move up" onclick="rdNudge(0,-1)">Up</button><span></span>
-            <button type="button" title="Move left" onclick="rdNudge(-1,0)">Left</button>
-            <button type="button" title="Reset layout position" onclick="rdResetCorrections()">Reset</button>
-            <button type="button" title="Move right" onclick="rdNudge(1,0)">Right</button>
-            <span></span><button type="button" title="Move down" onclick="rdNudge(0,1)">Down</button><span></span>
-          </div>
-          <div id="rdNudgeReadout">Offset: 0 px, 0 px</div>
-        </div>
+        </details>
 
         <!-- Quality Check panel hidden per user request — the score is
              still computed server-side and emitted in the JSON payload so
@@ -1500,6 +1699,7 @@ dialog#roofInspDialog::backdrop { background:transparent; }
       <!-- ── Satellite drawing canvas (col 2 / right) ── -->
       <div id="rdCanvasWrap">
         <canvas id="rdCanvas"></canvas>
+        <button type="button" id="rdVertexDeletePopup" onclick="rdDeleteSelectedVertex();rdHideVertexDeletePopup();">Delete point</button>
         <div id="rdLoadingOverlay" aria-live="polite">
           <div class="rd-loading-panel">
             <div class="rd-loading-spinner"></div>
@@ -1512,14 +1712,9 @@ dialog#roofInspDialog::backdrop { background:transparent; }
   </div>
 
   <div id="rdFooter">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn btn-sm btn-outline-secondary" onclick="rdRerun(true)">🔄 Re-analyse</button>
-      <button class="btn btn-sm btn-outline-warning" id="rdScaleBtn"
-              onclick="rdStartScale()">📏 Calibrate Scale</button>
-      <button class="btn btn-sm btn-outline-success" id="rdSaveBtn" onclick="rdSaveCorrectionMemory()">✓ Apply Measurements</button>
-    </div>
-    <button class="btn btn-ae btn-sm" id="rdUseBtn" onclick="rdUseResults()" disabled>
-      ✅ Use These Measurements
+    <div style="font-size:.74rem;color:#555;">Review the outline and sections, then use the measurements for the quote.</div>
+    <button type="button" class="btn btn-ae btn-sm" id="rdUseBtn" onclick="rdUseResults(event)" disabled>
+      Use These Measurements
     </button>
   </div>
 </dialog>
@@ -1564,6 +1759,8 @@ let roofOutlineSource = '';
 let savedCorrectionApplied = false;
 let savedCorrectionTotalArea = 0;
 let savedCorrectionPayload = null;
+let currentJourneyStage = 'qjProperty';
+let roofPlanReviewed = false;
 let rdAiOutlinePromise = null;
 let rdAiOutlineKey = '';
 let rdAiOutlineCache = null;
@@ -1616,6 +1813,16 @@ const options = {
   asbestos:false, decromastic:false,
   solar_rr:false, solar_hw:false,
 };
+const SCOPE_LABELS = {
+  gutter: 'Guttering',
+  fuse_pull: 'Fuse pull',
+  asbestos: 'Asbestos removal',
+  decromastic: 'Decromastic removal',
+  solar_rr: 'Solar R&R',
+  solar_hw: 'Solar hot water',
+  bins: 'Skip bins',
+  batten: 'Batten replacement',
+};
 const COLORS  = ['#DC9F82','#27ae60','#3498db','#9b59b6'];
 
 // ── Map init ───────────────────────────────────────────────────────────────
@@ -1653,6 +1860,7 @@ function initMap() {
     const addr = place.formatted_address || document.getElementById('addrIn').value;
     document.getElementById('propAddrDisplay').value = addr;
     document.getElementById('propAddrHidden').value  = addr;
+    updateJourneyStatus();
     gMap.setCenter({ lat, lng });
     gMap.setZoom(19);
     clickEstimate(lat, lng);
@@ -1669,9 +1877,14 @@ function toggleLayer() {
 // ── Mode ───────────────────────────────────────────────────────────────────
 function setMode(m) {
   mode = m;
-  document.getElementById('btnEstMode').classList.toggle('active', m==='estimate');
-  document.getElementById('btnDrawMode').classList.toggle('active', m==='draw');
-  document.getElementById('drawHint').style.display   = m==='draw' ? 'block' : 'none';
+  const estBtn = document.getElementById('btnEstMode');
+  const drawBtn = document.getElementById('btnDrawMode');
+  if (estBtn) estBtn.classList.toggle('active', m==='estimate');
+  if (drawBtn) drawBtn.classList.toggle('active', m==='draw');
+  const modeSel = document.getElementById('measurementModeSelect');
+  if (modeSel && modeSel.value !== m) modeSel.value = m;
+  const drawHint = document.getElementById('drawHint');
+  if (drawHint) drawHint.style.display = 'none';
   document.getElementById('modeOverlay').textContent  =
     m==='estimate' ? '👆 Click anywhere on the roof to estimate area'
                    : '✏️ Click map points — double-click to finish section';
@@ -1832,6 +2045,7 @@ async function clickEstimate(lat, lon) {
         document.getElementById('areaBadge').style.display = 'block';
         document.getElementById('badgeArea').textContent = roofArea;
         document.getElementById('flatArea').value = roofArea;
+        updateJourneyStatus();
 
         // ── Saved-correction auto-apply ────────────────────────────────
         // If this address has a previously-saved manual correction, fetch
@@ -1907,6 +2121,8 @@ async function clickEstimate(lat, lon) {
           btn.textContent = '🔍 View Roof Analysis';
           document.getElementById('roofDrawBtn').disabled = false;
           document.getElementById('manualCompareBtn').disabled = false;
+          syncRoofPlanReviewUi();
+          updateJourneyStatus();
           const dlg = document.getElementById('roofInspDialog');
           if (dlg.open) {
             document.getElementById('ridAddr').textContent = addr;
@@ -1928,6 +2144,8 @@ async function clickEstimate(lat, lon) {
   setStatus('<span class="det-badge db-err">Estimated</span> <span class="text-muted small">Using typical house size — adjust slider as needed</span>');
   detectionMethod = 'Default estimate';
   ridData = { total_area_m2: defaultArea, ground_area_m2: defaultArea, section_count: 0 };
+  document.getElementById('flatArea').value = defaultArea;
+  updateJourneyStatus();
   _autoApplySavedCorrectionToForm(lat, lon);
   const fallbackAddrPromise = _ridGeocode(lat, lon);
   Promise.all([fallbackAddrPromise, fallbackAddrPromise.then(addr => _ridFootprint(lat, lon, addr))]).then(([addr, fp]) => {
@@ -1957,6 +2175,8 @@ async function clickEstimate(lat, lon) {
     btn.textContent = '🔍 View Roof Analysis';
     document.getElementById('roofDrawBtn').disabled = false;
     document.getElementById('manualCompareBtn').disabled = false;
+    syncRoofPlanReviewUi();
+    updateJourneyStatus();
   });
 }
 
@@ -2274,6 +2494,7 @@ function rotatePoint(pt, center, deg) {
 }
 
 function clearEstimate() {
+  resetRoofPlanReview();
   estLayers.forEach(l => removeGLayer(l));
   estLayers = [];
   footprintOutlineLayer = null;
@@ -2387,6 +2608,7 @@ function _sectionSvgIcon(num, areaM2, pitchDeg, facing, color) {
 }
 
 function showEstimatePanel(area, confText, confCls, lotText, bcrText, color) {
+  resetRoofPlanReview();
   estArea = area;
   document.getElementById('estPanel').style.display = 'block';
   document.getElementById('estAreaDisplay').textContent = Math.round(area);
@@ -2404,11 +2626,13 @@ function showEstimatePanel(area, confText, confCls, lotText, bcrText, color) {
 }
 
 function onAreaSlider(val) {
+  resetRoofPlanReview();
   estArea = parseFloat(val);
   document.getElementById('areaSliderVal').textContent = Math.round(estArea);
   document.getElementById('estAreaDisplay').textContent = Math.round(estArea);
   document.getElementById('badgeArea').textContent = Math.round(estArea);
   document.getElementById('flatArea').value = Math.round(estArea);
+  updateJourneyStatus();
   if (isMLPolygon) return;
   if (ridPolygon && ridPolygon.length > 0) return;  // green footprint shown — no blue rect
   if (estCenter) drawSmartRect(estCenter[0], estCenter[1], estArea, estRot, estLayerColor);
@@ -2422,6 +2646,7 @@ function onRotSlider(val) {
 }
 
 function setEstimate(area) {
+  resetRoofPlanReview();
   estArea = area;
   document.getElementById('areaSlider').value = area;
   document.getElementById('areaSlider').min   = Math.max(20, area*0.4);
@@ -2433,6 +2658,13 @@ function setEstimate(area) {
   document.getElementById('estPanel').style.display = 'block';
   updateEstimateRoofMaterial(null);
   detectionMethod = 'Preset estimate';
+  updateJourneyStatus();
+}
+
+function applyAreaPreset(value) {
+  const area = parseFloat(value);
+  if (!area) return;
+  setEstimate(area);
 }
 
 
@@ -2489,15 +2721,18 @@ function finishDraw() {
 }
 
 function updateDrawMeasurements() {
+  resetRoofPlanReview();
   const totalArea = drawPolygons.reduce((s,p)=>s+p.area, 0);
   estArea = totalArea;
   confirmedArea = Math.round(totalArea);
   document.getElementById('flatArea').value = confirmedArea;
   document.getElementById('badgeArea').textContent = totalArea.toFixed(1);
   document.getElementById('areaBadge').style.display = totalArea > 0 ? 'block' : 'none';
+  updateJourneyStatus();
 }
 
 function clearAll() {
+  resetRoofPlanReview();
   clearEstimate();
   drawPolygons.forEach(p => { removeGLayer(p.poly); removeGLayer(p.marker); });
   drawPolygons = [];
@@ -2508,7 +2743,35 @@ function clearAll() {
   document.getElementById('flatArea').value = '';
   confirmedArea = 0; estArea = 0;
   setStatus('');
+  updateJourneyStatus();
 }
+
+function arrangeStepOneSidebar() {
+  const stack = document.getElementById('quoteOutputStack');
+  if (!stack) return;
+  const addressCard = document.getElementById('propertyAddressCard');
+  const estPanelEl = document.getElementById('estPanel');
+  const cancelLink = document.getElementById('quoteCancelLink');
+  const addressRow = document.getElementById('propertyAddressRow');
+  if (addressCard && addressCard.parentElement !== stack) {
+    addressCard.classList.add('sidebar-address-card');
+    stack.appendChild(addressCard);
+  }
+  if (estPanelEl && estPanelEl.parentElement !== stack) {
+    estPanelEl.classList.add('sidebar-est-panel');
+    stack.appendChild(estPanelEl);
+  }
+  if (cancelLink && cancelLink.parentElement !== stack) {
+    cancelLink.classList.add('w-100');
+    cancelLink.classList.remove('btn-outline-secondary');
+    cancelLink.classList.add('quote-cancel-link');
+    cancelLink.textContent = 'Cancel quote';
+    stack.appendChild(cancelLink);
+  }
+  if (addressRow) addressRow.style.display = 'none';
+}
+
+window.addEventListener('DOMContentLoaded', arrangeStepOneSidebar);
 
 // ── Address search — Google Geocoding API (Search button fallback) ────────
 // Primary: Places Autocomplete (wired in initMap — handles suggestions inline)
@@ -2550,6 +2813,7 @@ async function searchAddress() {
     document.getElementById('addrIn').value            = addr;
     document.getElementById('propAddrDisplay').value   = addr;
     document.getElementById('propAddrHidden').value    = addr;
+    updateJourneyStatus();
     gMap.setCenter({ lat, lng });
     gMap.setZoom(19);
     clickEstimate(lat, lng);
@@ -2560,6 +2824,194 @@ async function searchAddress() {
 }
 
 // ── Wizard navigation ──────────────────────────────────────────────────────
+function setJourneyStage(stage) {
+  const order = ['qjProperty', 'qjMeasure', 'qjOptions', 'qjGenerate'];
+  const labels = ['Find Property', 'Confirm Roof Area', 'Quote Options', 'Generate Quote'];
+  const activeIdx = order.indexOf(stage);
+  currentJourneyStage = activeIdx >= 0 ? stage : 'qjProperty';
+  order.forEach((id, idx) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('active', idx === activeIdx);
+    el.classList.toggle('complete', activeIdx > idx);
+    const state = document.getElementById(id + 'State');
+    if (state) {
+      state.textContent = idx < activeIdx ? 'Done'
+        : idx === activeIdx ? 'You are here'
+        : idx === activeIdx + 1 ? 'Next up'
+        : 'Later';
+    }
+  });
+  const safeIdx = Math.max(0, activeIdx);
+  const progressFill = document.getElementById('journeyProgressFill');
+  const progressText = document.getElementById('journeyProgressText');
+  const progressSummary = document.getElementById('journeyProgressSummary');
+  if (progressFill) progressFill.style.width = `${((safeIdx + 1) / order.length) * 100}%`;
+  if (progressText) progressText.textContent = `Step ${safeIdx + 1} of ${order.length}`;
+  if (progressSummary) progressSummary.textContent = `Step ${safeIdx + 1} of ${order.length}: ${labels[safeIdx]}`;
+  syncJourneyAction();
+}
+
+function updateJourneyStatus() {
+  const addr = (document.getElementById('propAddrDisplay')?.value || '').trim();
+  const area = parseFloat(document.getElementById('flatArea')?.value || estArea || 0);
+  const propertyStatus = document.getElementById('journeyPropertyStatus');
+  const measureStatus = document.getElementById('journeyMeasureStatus');
+  const measureRow = document.getElementById('journeyMeasureRow');
+  const quoteRow = document.getElementById('journeyQuoteRow');
+  if (propertyStatus) propertyStatus.textContent = addr ? addr.split(',').slice(0,2).join(',') : 'Waiting for address';
+  if (measureStatus) {
+    measureStatus.textContent = area
+      ? `${Math.round(area)} m2 roof area selected - ${roofPlanReviewed ? 'roof plan reviewed' : 'review roof plan next'}`
+      : 'Area not selected';
+  }
+  if (measureRow) measureRow.classList.toggle('ready', !!area);
+  if (quoteRow) quoteRow.classList.toggle('ready', !!area && !!addr);
+  const step2Visible = document.getElementById('step2')?.style.display !== 'none';
+  if (step2Visible) {
+    const clientReady = !!(document.getElementById('clientName')?.value || '').trim();
+    setJourneyStage(clientReady ? 'qjGenerate' : 'qjOptions');
+  } else {
+    setJourneyStage((addr || area) ? 'qjMeasure' : 'qjProperty');
+  }
+}
+
+function clearJourneyHighlights() {
+  document.querySelectorAll('.journey-primary-cta,.journey-target-highlight').forEach(el => {
+    el.classList.remove('journey-primary-cta', 'journey-target-highlight');
+  });
+}
+
+function removeJourneyCue() {
+  document.getElementById('journeyClickCue')?.remove();
+}
+
+function syncRoofPlanReviewUi() {
+  const btn = document.getElementById('roofDrawBtn');
+  if (!btn) return;
+  btn.classList.toggle('reviewed', !!roofPlanReviewed);
+  const badge = document.getElementById('roofPlanReviewBadge');
+  const note = document.getElementById('roofPlanReviewNote');
+  const cta = document.getElementById('roofPlanReviewCta');
+  if (badge) badge.textContent = roofPlanReviewed ? 'Reviewed' : 'Required Step 2';
+  if (note) note.textContent = roofPlanReviewed
+    ? 'Checked - ready to confirm roof measurement'
+    : 'Check and approve outline, sections, pitch and measurements';
+  if (cta) cta.textContent = roofPlanReviewed ? 'Reviewed' : 'Review now';
+}
+
+function resetRoofPlanReview() {
+  roofPlanReviewed = false;
+  syncRoofPlanReviewUi();
+}
+
+function markRoofPlanReviewed() {
+  roofPlanReviewed = true;
+  syncRoofPlanReviewUi();
+  updateJourneyStatus();
+}
+
+function setJourneyHighlight(action) {
+  clearJourneyHighlights();
+  const nextBtn = document.getElementById('journeyNextBtn');
+  if (nextBtn) nextBtn.classList.add('journey-primary-cta');
+  const targets = {
+    search: '#detectBtn',
+    map: '#map',
+    review: '#roofDrawBtn',
+    review_wait: '#roofDrawBtn',
+    confirm: '#journeyNextBtn',
+    client: '#clientName',
+    submit: '#journeyNextBtn',
+  };
+  const selector = targets[action];
+  const target = selector ? document.querySelector(selector) : null;
+  if (target) target.classList.add('journey-target-highlight');
+  removeJourneyCue();
+}
+
+function syncJourneyAction() {
+  const title = document.getElementById('journeyActionTitle');
+  const note = document.getElementById('journeyActionNote');
+  const btn = document.getElementById('journeyNextBtn');
+  if (!title || !note || !btn) return;
+  const step2Visible = document.getElementById('step2')?.style.display !== 'none';
+  const addr = (document.getElementById('propAddrDisplay')?.value || '').trim();
+  const area = parseFloat(document.getElementById('flatArea')?.value || estArea || 0);
+  const clientReady = !!(document.getElementById('clientName')?.value || '').trim();
+  const roofPlanBtn = document.getElementById('roofDrawBtn');
+  const roofPlanReady = !!roofPlanBtn && !roofPlanBtn.disabled;
+
+  let action = 'search';
+  let label = 'Search address';
+  let heading = 'Step 1: find the property';
+  let helper = 'Enter an address, then click Search.';
+
+  if (!step2Visible) {
+    if (!addr) {
+      action = 'search';
+      label = 'Search address';
+    } else if (!area) {
+      action = 'map';
+      label = 'Go to map';
+      heading = 'Step 2: select the roof';
+      helper = 'Click the roof on the satellite map to calculate the area.';
+    } else {
+      if (!roofPlanReviewed) {
+        action = roofPlanReady ? 'review' : 'review_wait';
+        label = roofPlanReady ? 'Review roof plan' : 'Preparing roof plan';
+        heading = 'Step 2: review roof plan';
+        helper = roofPlanReady
+          ? 'Open the roof plan and check the outline, sections, pitch and measurements.'
+          : 'The roof plan is being prepared. It will be available in a moment.';
+      } else {
+        action = 'confirm';
+        label = 'Confirm roof measurement';
+        heading = 'Step 2: confirm roof measurement';
+        helper = 'This confirms the selected roof area and opens quote details.';
+      }
+    }
+  } else if (!clientReady) {
+    action = 'client';
+    label = 'Enter client details';
+    heading = 'Step 3: complete quote options';
+    helper = 'Start with the client name, then confirm roof type and inclusions.';
+  } else {
+    action = 'submit';
+    label = 'Generate quote';
+    heading = 'Step 4: generate quote';
+    helper = 'Review the price summary, then generate the quote.';
+  }
+
+  title.textContent = heading;
+  note.textContent = helper;
+  btn.textContent = label;
+  btn.dataset.action = action;
+  btn.disabled = action === 'review_wait';
+  setJourneyHighlight(action);
+}
+
+function handleJourneyNext() {
+  const action = document.getElementById('journeyNextBtn')?.dataset.action || 'search';
+  if (action === 'search') {
+    const input = document.getElementById('addrIn');
+    if (!input.value.trim()) { input.focus(); return; }
+    searchAddress();
+  } else if (action === 'map') {
+    document.getElementById('map')?.scrollIntoView({behavior:'smooth', block:'center'});
+  } else if (action === 'review') {
+    openRoofDrawing();
+  } else if (action === 'review_wait') {
+    document.getElementById('roofDrawBtn')?.scrollIntoView({behavior:'smooth', block:'center'});
+  } else if (action === 'confirm') {
+    confirmEstimate();
+  } else if (action === 'client') {
+    document.getElementById('clientName')?.focus();
+  } else if (action === 'submit') {
+    document.getElementById('quoteForm')?.requestSubmit();
+  }
+}
+
 function goStep2() {
   const area = parseInt(document.getElementById('flatArea').value) || Math.round(estArea);
   if (!area || area < 10) { alert('Please click the roof or use a preset to estimate the area first.'); return; }
@@ -2583,6 +3035,7 @@ function goStep2() {
   document.getElementById('wz2').classList.add('active');
   document.getElementById('wz-line1').classList.add('done');
   window.scrollTo({top:0,behavior:'smooth'});
+  updateJourneyStatus();
   updatePreview();
   // Kick off LiDAR roof analysis in the background (non-blocking)
   fetchLidarAnalysis();
@@ -2596,6 +3049,7 @@ function goStep1() {
   document.getElementById('wz2').classList.remove('active');
   document.getElementById('wz-line1').classList.remove('done');
   window.scrollTo({top:0,behavior:'smooth'});
+  setJourneyStage('qjProperty');
   setTimeout(()=>google.maps.event.trigger(gMap,'resize'),100);
   lidarFetched = false;   // allow re-run when user steps forward again
 }
@@ -2607,7 +3061,16 @@ function goStep1() {
 // they fall outside Port City's published per-m² bands.
 function renderMaterials() {
   const PORT_CITY_NATIVE = {colorbond:true};   // materials priced by Port City
-  document.getElementById('materialGrid').innerHTML = MATERIALS.map((m,i)=>{
+  const materialSelect = document.getElementById('materialSelect');
+  if (materialSelect) {
+    materialSelect.innerHTML = MATERIALS.map((m,i)=>{
+      const suffix = PORT_CITY_NATIVE[m.id] ? '' : ' - custom quote';
+      return `<option value="${i}" ${i===selMatIdx?'selected':''}>${m.name}${suffix}</option>`;
+    }).join('');
+  }
+  const materialGrid = document.getElementById('materialGrid');
+  if (!materialGrid) return;
+  materialGrid.innerHTML = MATERIALS.map((m,i)=>{
     const isNative = !!PORT_CITY_NATIVE[m.id];
     const sel = (i===selMatIdx);
     return `
@@ -2676,10 +3139,27 @@ function toggleOpt(k) {
     const det = document.getElementById('gutterDetailRow');
     if (det) det.style.display = options.gutter ? 'flex' : 'none';
   }
+  renderScopeSummary();
   updatePreview();
 }
 
 // ── Preview ────────────────────────────────────────────────────────────────
+function scopeDropdownAction(select) {
+  const key = select.value;
+  if (!key) return;
+  toggleOpt(key);
+  select.value = '';
+}
+
+function renderScopeSummary() {
+  const summary = document.getElementById('scopeSummary');
+  if (!summary) return;
+  const active = Object.keys(SCOPE_LABELS).filter(key => options[key]);
+  summary.innerHTML = active.length
+    ? active.map(key => `<span class="scope-chip">${SCOPE_LABELS[key]}</span>`).join('')
+    : '<span class="text-muted small">No optional items selected</span>';
+}
+
 function avg(a) { return (a[0]+a[1])/2; }
 // ── Port City pricing constants (mirror uc1_roofing/pricing_port_city.py) ──
 const PC_ROOF_RATE       = {'1.00':120, '1.10':130, '1.20':140, '1.35':140};
@@ -3732,6 +4212,8 @@ async function _runRidAnalysis(lat, lng) {
   btn.textContent = '🔍 View Roof Analysis';
   document.getElementById('roofDrawBtn').disabled = false;
   document.getElementById('manualCompareBtn').disabled = false;
+  syncRoofPlanReviewUi();
+  updateJourneyStatus();
 
   // If dialog already open, fill it now
   const dlg = document.getElementById('roofInspDialog');
@@ -4001,6 +4483,18 @@ function closeRoofInspector() {
   _clearSectionLayers();  // remove map overlays when dialog closes
   document.getElementById('map')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+async function backToRoofMeasurements() {
+  const insp = document.getElementById('roofInspDialog');
+  if (insp && insp.open) insp.close();
+  _ridDisposeThree();
+  _clearSectionLayers();
+  if (typeof openRoofDrawing === 'function') {
+    await openRoofDrawing();
+    if (typeof _rdMarkActiveViewBtn === 'function') _rdMarkActiveViewBtn('edit');
+  }
+}
+
 function _ridPopulateSections(sections) {
   const wrap   = document.getElementById('ridSectionsWrap');
   const tbody  = document.getElementById('ridSectTbody');
@@ -4265,7 +4759,7 @@ const MC_SAMPLE_SEEDS = [
     sample_id: 'Photo 19-5-2026 3:24:19',
     material: 'Roof Surfmist',
     equipment: '6 insulation; 3000 Surfmist 50mm; 2 box batten; remember ServiceM8 photos',
-    raw: 'Visible markings include SL 4800 and tree-obscured roof zones. Confirm hidden plane/scope with reference imagery.',
+    raw: 'Visible markings include SL 4800 and tree-obscured roof zones. Confirm hidden plane/scope manually.',
   },
   {
     match: ['15potts', 'belgian'],
@@ -4368,7 +4862,7 @@ async function mcLoadSavedGroundTruth(address, lat, lng) {
     const d = await r.json();
     if (d.ok && d.found && d.ground_truth) {
       mcFillManualFields(d.ground_truth);
-      document.getElementById('mcStatus').textContent = `Loaded reference measurements #${d.id}.`;
+      document.getElementById('mcStatus').textContent = `Loaded saved reference measurements #${d.id}.`;
       return true;
     }
   } catch {}
@@ -4453,7 +4947,7 @@ async function mcSaveGroundTruth() {
       body: JSON.stringify(body),
     });
     const d = await r.json();
-    document.getElementById('mcStatus').textContent = d.ok ? `Reference measurements updated #${d.id}.` : `Save failed: ${d.error || 'unknown error'}`;
+    document.getElementById('mcStatus').textContent = d.ok ? `Saved reference measurements #${d.id}.` : `Save failed: ${d.error || 'unknown error'}`;
   } catch(e) {
     document.getElementById('mcStatus').textContent = 'Save failed: ' + e.message;
   }
@@ -4492,9 +4986,22 @@ function rdAddressText(lat, lng) {
 function rdCleanGeoPolygon(poly) {
   if (!Array.isArray(poly)) return [];
   return poly.map(p => {
-    if (Array.isArray(p) && p.length >= 2) return [rdNum(p[0], NaN), rdNum(p[1], NaN)];
-    if (p && typeof p === 'object') return [rdNum(p.lat, NaN), rdNum(p.lng ?? p.lon, NaN)];
-    return [NaN, NaN];
+    let lat, lng;
+    if (Array.isArray(p) && p.length >= 2) {
+      lat = rdNum(p[0], NaN);
+      lng = rdNum(p[1], NaN);
+    } else if (p && typeof p === 'object') {
+      lat = rdNum(p.lat, NaN);
+      lng = rdNum(p.lng ?? p.lon, NaN);
+    } else {
+      return [NaN, NaN];
+    }
+    // Some upstream geometry sources emit GeoJSON-style [lng, lat] pairs.
+    // Normalise them here so plan/measurement renderers stay in one space.
+    if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+      const tmp = lat; lat = lng; lng = tmp;
+    }
+    return [lat, lng];
   }).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
 }
 
@@ -4696,17 +5203,18 @@ function _ridFacingAzimuth(facing) {
 }
 
 function _ridSectionGeoPolygon(sec, apiData=null) {
-  const existing = rdCleanGeoPolygon(sec && sec.geo_polygon);
+  const existing = _ridCleanUsableSectionGeoPolygon(sec && sec.geo_polygon, apiData);
   if (existing.length >= 3) return existing;
   const bboxPoly = rdBBoxToGeoPoly(sec);
-  if (bboxPoly.length >= 3) return bboxPoly;
+  const usableBbox = _ridCleanUsableSectionGeoPolygon(bboxPoly, apiData);
+  if (usableBbox.length >= 3) return usableBbox;
   if (apiData && sec && sec.polygon && sec.polygon.length >= 3) {
     const w = apiData.width || 640;
     const h = apiData.height || 640;
     const fakeCanvas = { width: w, height: h };
-    return rdCleanGeoPolygon(sec.polygon.map(p =>
+    return _ridCleanUsableSectionGeoPolygon(sec.polygon.map(p =>
       rdCanvasToLatLng(rdNum(p[0], 0) / 100 * w, rdNum(p[1], 0) / 100 * h, apiData, fakeCanvas)
-    ));
+    ), apiData);
   }
   return [];
 }
@@ -4844,7 +5352,7 @@ function rdRequestPayload(lat, lng) {
 async function rdRerun() {
   if (!estCenter) { rdSetStatus('Click a roof on the map first.', false); return; }
   const [lat, lng] = estCenter;
-  document.getElementById('rdUseBtn').disabled = true;
+  rdSetUseButtonsDisabled(true);
 
   try {
     if (!ridReady || !ridData) {
@@ -4881,7 +5389,7 @@ async function rdRerun() {
     rdPopulateTable(rdData.sections);
     rdPopulateMeta(rdData);
     document.getElementById('rdNotes').textContent = rdData.notes || '';
-    document.getElementById('rdUseBtn').disabled = rdData.total_area_m2 <= 0;
+    rdSyncUseButtons();
 
     const outlineLabel = apiData.outline_locked
       ? 'Geoscape locked outline + AI sections'
@@ -5599,6 +6107,9 @@ function rdGeometrySnapshot() {
     sections: rdDeepClone(rdData.sections || []),
     total_area_m2: rdData.total_area_m2,
     avg_pitch_deg: rdData.avg_pitch_deg,
+    _area_total_source: rdData._area_total_source || '',
+    _outline_locked_total_area_m2: rdData._outline_locked_total_area_m2 || 0,
+    _outline_locked_footprint_area_m2: rdData._outline_locked_footprint_area_m2 || 0,
     notes: rdData.notes || '',
   };
 }
@@ -5853,6 +6364,12 @@ function rdApplySavedCorrectionToData(correction, data=rdData) {
       correctedMetrics[key] = val;
     }
   });
+  if (isManualCorrection && rdNum(correction.total_area_m2, 0) > 0) {
+    data._area_total_source = 'manual_outline';
+    data._outline_locked_total_area_m2 = +rdNum(correction.total_area_m2, 0).toFixed(1);
+    const correctedFootprint = rdNum(correction.footprint_area_m2, 0);
+    if (correctedFootprint > 0) data._outline_locked_footprint_area_m2 = +correctedFootprint.toFixed(1);
+  }
   data.confidence = 'high';
   data.correction_source = 'saved_manual_correction';
   data._savedCorrectionId = correction.id || correction.log_id || correction._id || null;
@@ -5871,6 +6388,7 @@ function rdApplySavedCorrectionToData(correction, data=rdData) {
       data[key] = val;
     }
   });
+  rdEnsureOutlineSection(data, 'Saved outline section');
   if (oldData !== data) rdData = oldData;
   return true;
 }
@@ -6145,6 +6663,87 @@ function rdNearestVertex(pt, canvas, data) {
   return best;
 }
 
+function rdDistToSegment(pt, a, b) {
+  const vx = b[0] - a[0], vy = b[1] - a[1];
+  const len2 = vx * vx + vy * vy || 1;
+  const t = Math.max(0, Math.min(1, ((pt[0] - a[0]) * vx + (pt[1] - a[1]) * vy) / len2));
+  const x = a[0] + vx * t, y = a[1] + vy * t;
+  return { d: Math.hypot(pt[0] - x, pt[1] - y), point: [x, y], t };
+}
+
+function rdHitSame(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.type === b.type && a.section === b.section && a.vertex === b.vertex && a.index === b.index;
+}
+
+function rdSectionPixelPolys(canvas) {
+  return (rdData?.sections || []).map((sec, idx) => ({
+    sec,
+    idx,
+    pts: rdShiftPixels(rdPctToPixels(sec.polygon || [], canvas)),
+  })).filter(item => item.pts.length >= 3);
+}
+
+function rdNearestGeometryHit(pt, canvas, data=rdData) {
+  if (!data || !canvas) return null;
+  const outlinePts = rdShiftPixels(rdPctToPixels(data.drawing_boundary_pct || [], canvas));
+  const touchRadius = 16;
+  let best = null;
+  const take = hit => {
+    if (!hit) return;
+    if (!best || hit.d < best.d) best = hit;
+  };
+
+  outlinePts.forEach((p, idx) => {
+    const d = Math.hypot(p[0] - pt[0], p[1] - pt[1]);
+    if (d <= touchRadius) take({ type:'outline-vertex', target:'outline', vertex:idx, d, point:p });
+  });
+  if (best) return best;
+
+  rdSectionPixelPolys(canvas).forEach(({ idx, pts }) => {
+    pts.forEach((p, vIdx) => {
+      const d = Math.hypot(p[0] - pt[0], p[1] - pt[1]);
+      if (d <= 13) take({ type:'section-vertex', target:'section', section:idx, vertex:vIdx, d, point:p });
+    });
+  });
+  if (best) return best;
+
+  for (let i = 0; i < outlinePts.length; i++) {
+    const a = outlinePts[i], b = outlinePts[(i + 1) % outlinePts.length];
+    const hit = rdDistToSegment(pt, a, b);
+    if (hit.d <= 14) take({ type:'outline-edge', target:'outline', index:i + 1, d:hit.d, point:hit.point });
+  }
+  if (best) return best;
+
+  rdSectionPixelPolys(canvas).forEach(({ idx, pts }) => {
+    for (let i = 0; i < pts.length; i++) {
+      const hit = rdDistToSegment(pt, pts[i], pts[(i + 1) % pts.length]);
+      if (hit.d <= 12) take({ type:'section-edge', target:'section', section:idx, index:i + 1, d:hit.d, point:hit.point });
+    }
+  });
+  if (best) return best;
+
+  for (const { idx, pts } of rdSectionPixelPolys(canvas)) {
+    if (rdPointInPolygonXY(pt[0], pt[1], pts)) {
+      return { type:'section-body', target:'section', section:idx, d:0, point:pt };
+    }
+  }
+  if (outlinePts.length >= 3 && rdPointInPolygonXY(pt[0], pt[1], outlinePts)) {
+    return { type:'outline-body', target:'outline', d:0, point:pt };
+  }
+  return null;
+}
+
+function rdCursorForHit(hit) {
+  if (!hit) return 'crosshair';
+  if (hit.type === 'outline-vertex' || hit.type === 'section-vertex') return 'grab';
+  if (hit.type === 'outline-edge' || hit.type === 'section-edge') return 'copy';
+  if (hit.type === 'outline-body') return 'move';
+  if (hit.type === 'section-body') return 'pointer';
+  return 'crosshair';
+}
+
 function rdNearestEdge(poly, pt, canvas) {
   const pts = rdPctToPixels(poly || [], canvas);
   let best = null, bestD = 16;
@@ -6184,8 +6783,20 @@ function rdAfterGeometryEdit() {
   rdDrawCanvas(rdData);
   rdPopulateTable(rdData.sections || []);
   rdPopulateMeta(rdData);
-  const useBtn = document.getElementById('rdUseBtn');
-  if (useBtn) useBtn.disabled = rdNum(rdData.total_area_m2, 0) <= 0;
+  rdSyncEditUi();
+  rdSyncUseButtons();
+}
+
+function rdSyncUseButtons() {
+  const disabled = rdNum(rdData?.total_area_m2, 0) <= 0;
+  rdSetUseButtonsDisabled(disabled);
+}
+
+function rdSetUseButtonsDisabled(disabled) {
+  ['rdUseBtn', 'rdQuickUseBtn'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.disabled = !!disabled;
+  });
 }
 
 function rdDeleteSelectedVertex() {
@@ -6204,13 +6815,79 @@ function rdDeleteSelectedVertex() {
   rdAfterGeometryEdit();
 }
 
+function rdHideVertexDeletePopup() {
+  if (rdVertexDeleteTimer) {
+    clearTimeout(rdVertexDeleteTimer);
+    rdVertexDeleteTimer = null;
+  }
+  const popup = document.getElementById('rdVertexDeletePopup');
+  if (popup) popup.style.display = 'none';
+}
+
+function rdSelectedPointPixels(canvas) {
+  if (!rdSelectedVertex || !canvas || !rdData) return null;
+  if (rdSelectedVertex.target === 'outline') {
+    const pts = rdShiftPixels(rdPctToPixels(rdData.drawing_boundary_pct || [], canvas));
+    return pts[rdSelectedVertex.vertex] || null;
+  }
+  const sec = rdData.sections?.[rdSelectedVertex.section];
+  if (!sec) return null;
+  const pts = rdShiftPixels(rdPctToPixels(sec.polygon || [], canvas));
+  return pts[rdSelectedVertex.vertex] || null;
+}
+
+function rdShowVertexDeletePopup(canvas) {
+  const popup = document.getElementById('rdVertexDeletePopup');
+  const wrap = document.getElementById('rdCanvasWrap');
+  const p = rdSelectedPointPixels(canvas);
+  if (!popup || !wrap || !p) return;
+  popup.style.left = `${Math.max(6, canvas.offsetLeft + p[0] + 12)}px`;
+  popup.style.top = `${Math.max(6, canvas.offsetTop + p[1] - 16)}px`;
+  popup.style.display = 'block';
+}
+
+function rdTargetFromHit(hit) {
+  if (!hit || (hit.type !== 'outline-vertex' && hit.type !== 'section-vertex')) return null;
+  return hit.type === 'outline-vertex'
+    ? { target:'outline', section:-1, vertex:hit.vertex }
+    : { target:'section', section:hit.section, vertex:hit.vertex };
+}
+
+function rdAddVertexFromHit(hit, pt, canvas) {
+  if (!rdData || !hit) return null;
+  const pct = rdPixelsToPct(pt, canvas);
+  if (hit.type === 'outline-edge') {
+    rdData.drawing_boundary_pct = rdCleanPctPolygon(rdData.drawing_boundary_pct || []);
+    rdData.drawing_boundary_pct.splice(hit.index, 0, pct);
+    return { target:'outline', section:-1, vertex:hit.index };
+  }
+  if (hit.type === 'section-edge') {
+    const sec = rdData.sections?.[hit.section];
+    if (!sec) return null;
+    sec.polygon = rdCleanPctPolygon(sec.polygon || []);
+    sec.polygon.splice(hit.index, 0, pct);
+    return { target:'section', section:hit.section, vertex:hit.index };
+  }
+  return null;
+}
+
+function rdSetHoverTarget(hit, canvas) {
+  const next = hit || null;
+  const changed = !rdHitSame(rdHoverTarget, next);
+  rdHoverTarget = next;
+  if (canvas) canvas.style.cursor = rdCursorForHit(next);
+  if (changed && rdData) rdDrawCanvas(rdData);
+}
+
 function rdDeleteActiveSection() {
   if (!rdData || !rdData.sections?.length) return;
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
   rdPushHistory();
   rdData.sections.splice(rdActiveSection, 1);
   rdActiveSection = Math.max(0, rdActiveSection - 1);
   rdReplaceSectionIndex = null;
   rdRecomputeGeometry();
+  rdPreserveTotalForSectionEdit(rdData, totalBefore);
   rdAfterGeometryEdit();
 }
 
@@ -6228,6 +6905,7 @@ function rdConvexHull(points) {
 function rdMergeActiveSection() {
   const sections = rdData?.sections || [];
   if (sections.length < 2) return;
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
   const targetIdx = rdActiveSection > 0 ? rdActiveSection - 1 : 1;
   const a = sections[rdActiveSection], b = sections[targetIdx];
   rdPushHistory();
@@ -6237,6 +6915,7 @@ function rdMergeActiveSection() {
   sections.splice(rdActiveSection, 1);
   rdActiveSection = Math.max(0, targetIdx - (targetIdx > rdActiveSection ? 1 : 0));
   rdRecomputeGeometry();
+  rdPreserveTotalForSectionEdit(rdData, totalBefore);
   rdAfterGeometryEdit();
 }
 
@@ -6301,6 +6980,7 @@ function rdSplitPolygonByLine(poly, a, b) {
 function rdFinishSplit() {
   const sec = rdActiveSectionObj();
   if (!sec || rdSplitPts.length < 2) return;
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
   const pieces = rdSplitPolygonByLine(sec.polygon || [], rdSplitPts[0], rdSplitPts[1]);
   if (pieces.length !== 2) {
     rdSetStatus('Split did not cross the selected section. Try two points across the polygon.', false);
@@ -6316,10 +6996,13 @@ function rdFinishSplit() {
   next.label = `${sec.label || 'Section'} split`;
   next.polygon = pieces[1];
   next.notes = 'Section split';
+  delete base._outlineFallbackSection;
+  delete next._outlineFallbackSection;
   rdData.sections.splice(rdActiveSection, 1, base, next);
   rdSplitPts = [];
   rdEditMode = 'move';
   rdRecomputeGeometry();
+  rdPreserveTotalForSectionEdit(rdData, totalBefore);
   rdAfterGeometryEdit();
   rdSetStatus('Section split applied.', false);
 }
@@ -6341,12 +7024,14 @@ function rdFinishDrawSection() {
     rdSetStatus('Draw at least three points for a new section.', false);
     return;
   }
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
   rdPushHistory();
   rdData.sections = rdData.sections || [];
   const replacing = Number.isInteger(rdReplaceSectionIndex)
     && rdReplaceSectionIndex >= 0
     && rdReplaceSectionIndex < rdData.sections.length;
-  const idx = replacing ? rdReplaceSectionIndex : rdData.sections.length;
+  const replacingOutlineFallback = !replacing && rdHasOnlyOutlineFallbackSection(rdData);
+  const idx = replacing ? rdReplaceSectionIndex : (replacingOutlineFallback ? 0 : rdData.sections.length);
   const previous = replacing ? rdDeepClone(rdData.sections[idx]) : {};
   const pitch = rdNum(previous.pitch_est, rdNum(previous.pitch_deg, rdNum(rdData.avg_pitch_deg, 22)));
   const nextSection = {
@@ -6360,7 +7045,9 @@ function rdFinishDrawSection() {
     color: previous.color || RD_SECTION_PALETTE[idx % RD_SECTION_PALETTE.length],
     notes: replacing ? 'Section redraw' : 'Roof section',
   };
+  delete nextSection._outlineFallbackSection;
   if (replacing) rdData.sections.splice(idx, 1, nextSection);
+  else if (replacingOutlineFallback) rdData.sections.splice(0, 1, nextSection);
   else rdData.sections.push(nextSection);
   rdActiveSection = idx;
   rdDrawSectionPts = [];
@@ -6377,6 +7064,7 @@ function rdFinishDrawSection() {
     rdEditMode = 'move';
   }
   rdRecomputeGeometry();
+  rdPreserveTotalForSectionEdit(rdData, totalBefore);
   rdAfterGeometryEdit();
   rdSetStatus(
     replacing
@@ -6390,6 +7078,7 @@ function rdFinishDrawSection() {
 
 function rdClearSectionsForManualRedraw() {
   if (!rdData) return;
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
   rdPushHistory();
   rdApplyOverlayOffsetToData();
   rdData.sections = [];
@@ -6402,6 +7091,7 @@ function rdClearSectionsForManualRedraw() {
   rdEditTarget = 'draw-section';
   rdEditMode = 'draw-section';
   rdRecomputeGeometry();
+  rdPreserveTotalForSectionEdit(rdData, totalBefore);
   rdAfterGeometryEdit();
   rdSetStatus('Sections cleared. Click around the first roof plane, then press Finish drawing or double-click. Repeat for each plane.', false);
 }
@@ -6419,7 +7109,7 @@ function rdRedrawAllManual() {
   }
   if (!confirm(
     'Wipe the current outline AND all roof sections, and redraw from scratch by clicking on the satellite image?\n\n'
-    + 'You will trace the roof perimeter point-by-point, then draw each roof plane.\n\n'
+    + 'You will trace the roof perimeter point-by-point. When finished, that outline will become one roof section; you can split or redraw planes afterwards if needed.\n\n'
     + 'Note: this starts a fresh measurement on the current roof sheet.'
   )) {
     return;
@@ -6459,9 +7149,9 @@ function rdRedrawAllManual() {
 
 // Called from the existing "Finish drawing" button + double-click handler
 // when rdEditMode === 'draw-outline'.  Captures the buffered click points
-// as the new drawing_boundary_pct + footprint, then switches the dialog
-// into draw-section mode so the user can immediately start defining roof
-// planes inside the outline they just drew.
+// as the new drawing_boundary_pct + footprint, then treats the completed
+// outline as one measured roof section. Users can split/redraw sections
+// afterwards when the roof needs more detail.
 function rdFinishDrawOutline() {
   if (!rdData) return;
   if (rdEditMode !== 'draw-outline') return;
@@ -6479,24 +7169,22 @@ function rdFinishDrawOutline() {
     rdData.perimeter_m       = rdPerimeter(rdData.footprint);
   }
   rdDrawSectionPts = [];
-  rdEditTarget     = 'draw-section';
-  rdEditMode       = 'draw-section';
-  rdManualRedrawSession = true;
+  rdEditTarget     = 'section';
+  rdEditMode       = 'move';
+  rdManualRedrawSession = false;
   rdRecomputeGeometry();
+  rdEnsureOutlineSection(rdData, 'Measured outline section');
+  rdLockTotalToOutline(rdData);
+  rdActiveSection = 0;
   rdAfterGeometryEdit();
   rdSyncEditUi();
-  // Show the user the next-step path explicitly so they know the new
-  // geometry will replace the old saved correction.  total_area_m2 is now
-  // non-zero (rdRecalculateSectionTotals fallback) so the Use button is
   // enabled — clicking it saves a fresh correction that wins over the
-  // older saved one on every subsequent quote save (most-recent-first
-  // tie-break in find_best_memory_match).
   const totalNow = rdNum(rdData.total_area_m2, 0);
   const pitchNow = rdNum(rdData.avg_pitch_deg, 22);
   rdSetStatus(
     `Outline captured (${totalNow.toFixed(0)} m² at ${pitchNow.toFixed(0)}° pitch). `
-    + 'Next: draw each roof plane for accurate areas, then click '
-    + '"Use These Measurements" to save the new correction and apply it to the quote.',
+    + 'Captured as 1 roof section. Split or redraw sections only if the roof needs more detail, then click '
+    + '"Use These Measurements".',
     false
   );
 }
@@ -6520,6 +7208,7 @@ function rdMovePointTowardInside(pt, outline) {
 function rdClipSectionsToOutline() {
   const outline = rdCleanPctPolygon(rdData?.drawing_boundary_pct || []);
   if (!outline.length) return;
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
   rdPushHistory();
   (rdData.sections || []).forEach(sec => {
     if (sec.polygon && sec.polygon.length >= 3) {
@@ -6527,6 +7216,7 @@ function rdClipSectionsToOutline() {
     }
   });
   rdRecomputeGeometry();
+  rdPreserveTotalForSectionEdit(rdData, totalBefore);
   rdAfterGeometryEdit();
 }
 
@@ -6786,10 +7476,35 @@ function rdDrawCorrectionHandles(ctx, canvas, data, displayScale) {
   rdEnsureEditableGeometry(data, canvas, displayScale);
   const outlinePts = rdShiftPixels(rdPctToPixels(data.drawing_boundary_pct || [], canvas));
   ctx.save();
+  if (rdHoverTarget && (rdHoverTarget.type === 'outline-edge' || rdHoverTarget.type === 'section-edge')) {
+    const edgePts = rdHoverTarget.type === 'outline-edge'
+      ? outlinePts
+      : rdSectionPixelPolys(canvas).find(item => item.idx === rdHoverTarget.section)?.pts;
+    if (edgePts && edgePts.length >= 2) {
+      const i = Math.max(0, Math.min(rdHoverTarget.index - 1, edgePts.length - 1));
+      const a = edgePts[i], b = edgePts[(i + 1) % edgePts.length];
+      ctx.save();
+      ctx.strokeStyle = rdHoverTarget.type === 'outline-edge' ? '#fff' : '#ffdd00';
+      ctx.lineWidth = 6;
+      ctx.globalAlpha = .82;
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+  if (rdHoverTarget && rdHoverTarget.type === 'outline-body' && outlinePts.length >= 3) {
+    rdPath(ctx, outlinePts);
+    ctx.fillStyle = 'rgba(255,255,255,.08)';
+    ctx.fill();
+  }
   if (outlinePts.length >= 3) {
     outlinePts.forEach((p, idx) => {
+      const hot = (rdSelectedVertex?.target === 'outline' && rdSelectedVertex.vertex === idx)
+               || (rdHoverTarget?.type === 'outline-vertex' && rdHoverTarget.vertex === idx);
       ctx.beginPath();
-      ctx.arc(p[0], p[1], rdSelectedVertex?.target === 'outline' && rdSelectedVertex.vertex === idx ? 7 : 5, 0, Math.PI * 2);
+      ctx.arc(p[0], p[1], hot ? 8 : 5, 0, Math.PI * 2);
       ctx.fillStyle = '#fff';
       ctx.fill();
       ctx.lineWidth = 2;
@@ -6798,11 +7513,20 @@ function rdDrawCorrectionHandles(ctx, canvas, data, displayScale) {
     });
   }
   const sec = rdActiveSectionObj();
-  if (sec && (rdEditTarget === 'section' || rdEditTarget === 'draw-section')) {
-    rdPctToPixels(sec.polygon || [], canvas).forEach((p, idx) => {
+  const showActiveSectionHandles = sec && (
+    rdEditTarget === 'section'
+    || rdEditTarget === 'draw-section'
+    || rdHoverTarget?.target === 'section'
+    || rdSelectedVertex?.target === 'section'
+  );
+  if (showActiveSectionHandles) {
+    rdShiftPixels(rdPctToPixels(sec.polygon || [], canvas)).forEach((p, idx) => {
+      const hot = (rdSelectedVertex?.target === 'section' && rdSelectedVertex.section === rdActiveSection && rdSelectedVertex.vertex === idx)
+               || (rdHoverTarget?.type === 'section-vertex' && rdHoverTarget.section === rdActiveSection && rdHoverTarget.vertex === idx);
       ctx.beginPath();
-      ctx.rect(p[0] - 5, p[1] - 5, 10, 10);
-      ctx.fillStyle = rdSelectedVertex?.target === 'section' && rdSelectedVertex.vertex === idx ? '#ffe08a' : '#fff';
+      const size = hot ? 14 : 10;
+      ctx.rect(p[0] - size / 2, p[1] - size / 2, size, size);
+      ctx.fillStyle = hot ? '#ffe08a' : '#fff';
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = sec.color || rdColorForSection(sec, rdActiveSection);
@@ -6833,14 +7557,18 @@ function rdDrawCorrectionHandles(ctx, canvas, data, displayScale) {
 }
 
 function rdBindCanvasEditing(canvas) {
-  canvas.onmousedown = e => {
+  canvas.onmousedown = null;
+  canvas.onmousemove = null;
+  canvas.onmouseup = null;
+  canvas.onmouseleave = null;
+  canvas.onpointerdown = e => {
     if (!rdData || rdScaleMode) return;
+    if (e.button != null && e.button !== 0) return;
     const pt = rdCanvasPoint(e, canvas);
     rdEnsureEditableGeometry(rdData, canvas, rdLastDisplayScale);
+    rdHideVertexDeletePopup();
+
     if (rdEditMode === 'draw-outline') {
-      // Manual outline-redraw mode: click points accumulate in
-      // rdDrawSectionPts (shared buffer). Finish via "Finish drawing"
-      // button or double-click, which dispatches to rdFinishDrawOutline().
       rdDrawSectionPts.push(rdPixelsToPct(pt, canvas));
       rdDrawCanvas(rdData);
       return;
@@ -6860,39 +7588,143 @@ function rdBindCanvasEditing(canvas) {
       rdAddVertexAt(pt, canvas);
       return;
     }
-    const hit = rdNearestVertex(pt, canvas, rdData);
-    if (hit) {
-      rdApplyOverlayOffsetToData(canvas);
-      rdPushHistory();
-      rdDragTarget = hit;
-      rdSelectedVertex = hit;
-      canvas.style.cursor = 'grabbing';
+
+    const hit = rdNearestGeometryHit(pt, canvas, rdData);
+    rdHoverTarget = hit || null;
+    if (!hit) {
+      rdSelectedVertex = null;
       rdDrawCanvas(rdData);
+      return;
+    }
+
+    rdApplyOverlayOffsetToData(canvas);
+    if (hit.type === 'outline-vertex' || hit.type === 'section-vertex') {
+      const target = rdTargetFromHit(hit);
+      if (!target) return;
+      const lockedTotal = target.target === 'section' ? rdNum(rdData.total_area_m2, 0) : 0;
+      rdPushHistory();
+      rdDragTarget = { ...target, kind:'vertex', lockedTotal };
+      rdSelectedVertex = target;
+      canvas.style.cursor = 'grabbing';
+      try { canvas.setPointerCapture(e.pointerId); } catch {}
+      rdVertexDeleteTimer = setTimeout(() => rdShowVertexDeletePopup(canvas), 650);
+      rdDrawCanvas(rdData);
+      return;
+    }
+
+    if (hit.type === 'outline-edge' || hit.type === 'section-edge') {
+      const lockedTotal = hit.type === 'section-edge' ? rdNum(rdData.total_area_m2, 0) : 0;
+      rdPushHistory();
+      const target = rdAddVertexFromHit(hit, pt, canvas);
+      if (!target) return;
+      rdSelectedVertex = target;
+      rdDragTarget = { ...target, kind:'vertex', lockedTotal };
+      if (target.target === 'section') rdActiveSection = target.section;
+      rdRecomputeGeometry();
+      if (target.target === 'outline') rdLockTotalToCurrentOutline(rdData);
+      else rdPreserveTotalForSectionEdit(rdData, lockedTotal);
+      canvas.style.cursor = 'grabbing';
+      try { canvas.setPointerCapture(e.pointerId); } catch {}
+      rdDrawCanvas(rdData);
+      return;
+    }
+
+    if (hit.type === 'outline-body') {
+      const startPct = rdPixelsToPct(pt, canvas);
+      rdPushHistory();
+      rdDragTarget = {
+        kind:'layout',
+        startPct,
+        outline0: rdDeepClone(rdData.drawing_boundary_pct || []),
+        sections0: rdDeepClone((rdData.sections || []).map(sec => sec.polygon || [])),
+        lockedTotal: rdNum(rdData.total_area_m2, 0),
+      };
+      canvas.style.cursor = 'grabbing';
+      try { canvas.setPointerCapture(e.pointerId); } catch {}
+      return;
+    }
+
+    if (hit.type === 'section-body') {
+      rdActiveSection = Math.max(0, hit.section || 0);
+      rdSelectedVertex = null;
+      rdSyncEditUi();
+      rdDrawCanvas(rdData);
+      rdSetStatus(`Section ${rdActiveSection + 1} selected. Drag its points or use Advanced editing if needed.`, false);
     }
   };
-  canvas.onmousemove = e => {
-    if (!rdData || !rdDragTarget) return;
-    const pct = rdPixelsToPct(rdCanvasPoint(e, canvas), canvas);
+
+  canvas.onpointermove = e => {
+    if (!rdData) return;
+    const pt = rdCanvasPoint(e, canvas);
+    if (!rdDragTarget) {
+      rdSetHoverTarget(rdNearestGeometryHit(pt, canvas, rdData), canvas);
+      return;
+    }
+    if (rdVertexDeleteTimer) {
+      clearTimeout(rdVertexDeleteTimer);
+      rdVertexDeleteTimer = null;
+    }
+    const pct = rdPixelsToPct(pt, canvas);
+    if (rdDragTarget.kind === 'layout') {
+      const dx = pct[0] - rdDragTarget.startPct[0];
+      const dy = pct[1] - rdDragTarget.startPct[1];
+      rdData.drawing_boundary_pct = rdCleanPctPolygon(rdDragTarget.outline0 || []).map(p => [p[0] + dx, p[1] + dy]);
+      (rdData.sections || []).forEach((sec, idx) => {
+        const base = rdCleanPctPolygon(rdDragTarget.sections0?.[idx] || []);
+        if (base.length >= 3) sec.polygon = base.map(p => [p[0] + dx, p[1] + dy]);
+      });
+      rdRecomputeGeometry();
+      rdPreserveTotalForSectionEdit(rdData, rdDragTarget.lockedTotal);
+      rdDrawCanvas(rdData);
+      return;
+    }
+
     if (rdDragTarget.target === 'outline') {
       rdData.drawing_boundary_pct[rdDragTarget.vertex] = pct;
+      rdRecomputeGeometry();
+      rdLockTotalToCurrentOutline(rdData);
     } else {
       const sec = rdData.sections?.[rdDragTarget.section];
       if (sec && sec.polygon) sec.polygon[rdDragTarget.vertex] = pct;
+      rdRecomputeGeometry();
+      rdPreserveTotalForSectionEdit(rdData, rdDragTarget.lockedTotal);
     }
-    rdRecomputeGeometry();
     rdDrawCanvas(rdData);
   };
-  canvas.onmouseup = () => {
+
+  const finishDrag = e => {
+    if (rdVertexDeleteTimer) {
+      clearTimeout(rdVertexDeleteTimer);
+      rdVertexDeleteTimer = null;
+    }
     if (rdDragTarget) {
+      const wasOutline = rdDragTarget.target === 'outline';
+      const wasSection = rdDragTarget.target === 'section';
       rdDragTarget = null;
-      canvas.style.cursor = 'crosshair';
+      canvas.style.cursor = rdCursorForHit(rdHoverTarget);
+      try { if (e && e.pointerId != null) canvas.releasePointerCapture(e.pointerId); } catch {}
       rdAfterGeometryEdit();
+      rdSetStatus(wasOutline ? 'Outline updated. Total roof area recalculated.' : wasSection ? 'Section updated. Total roof area kept unchanged.' : 'Roof layout moved.', false);
     }
   };
-  canvas.onmouseleave = canvas.onmouseup;
-  canvas.ondblclick = () => {
+  canvas.onpointerup = finishDrag;
+  canvas.onpointercancel = finishDrag;
+  canvas.onpointerleave = e => {
+    if (rdDragTarget) finishDrag(e);
+    else rdSetHoverTarget(null, canvas);
+  };
+  canvas.ondblclick = e => {
     if (rdEditMode === 'draw-outline') rdFinishDrawOutline();
     else if (rdEditMode === 'draw-section') rdFinishDrawSection();
+    else {
+      const hit = rdNearestGeometryHit(rdCanvasPoint(e, canvas), canvas, rdData);
+      const target = rdTargetFromHit(hit);
+      if (target) {
+        rdSelectedVertex = target;
+        rdDrawCanvas(rdData);
+        rdShowVertexDeletePopup(canvas);
+      }
+    }
   };
 }
 
@@ -6910,6 +7742,7 @@ async function rdSaveCorrectionMemory(silent=false) {
   if (!rdData) return;
   rdApplyOverlayOffsetToData();
   rdRecomputeGeometry();
+  rdEnsureOutlineSection(rdData, 'Measured outline section');
   const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || CSRF_TOKEN;
   const q = rdQualityMetrics(rdData);
   const body = {
@@ -6997,6 +7830,190 @@ function rdResetCorrections() {
   if (rdData) rdDrawCanvas(rdData);
 }
 
+function rdFallbackPitchForOutline(data=rdData) {
+  const actualEl = document.getElementById('pitchDegActual');
+  const actual = actualEl ? rdNum(actualEl.value, 0) : 0;
+  if (actual > 0) return actual;
+  const selEl = document.getElementById('pitchSel');
+  if (selEl && selEl.value) {
+    const pitchDegForKey = { flat: 0, low: 10, standard: 22, steep: 35, very_steep: 45 };
+    const selected = pitchDegForKey[selEl.value];
+    if (typeof selected === 'number' && selected > 0) return selected;
+  }
+  return rdNum(data && data.avg_pitch_deg, 0)
+      || rdNum(data && data.dominant_pitch_deg, 0)
+      || rdNum(data && data.dominant_pitch, 0)
+      || ((typeof ridData !== 'undefined' && ridData)
+          ? rdNum(ridData.dominant_pitch_deg, rdNum(ridData.dominant_pitch, 0))
+          : 0)
+      || 22;
+}
+
+function rdOutlineLockedTotal(data=rdData) {
+  if (!data) return 0;
+  if (data._area_total_source !== 'manual_outline') return 0;
+  return rdNum(data._outline_locked_total_area_m2, 0);
+}
+
+function rdLockTotalToOutline(data=rdData) {
+  if (!data) return 0;
+  const pitch = rdFallbackPitchForOutline(data);
+  const slope = 1 / Math.max(Math.cos(pitch * Math.PI / 180), 0.2);
+  const footprintArea = rdNum(data.footprint_area_m2, 0);
+  let total = rdNum(data.total_area_m2, 0);
+  if (total <= 0 && footprintArea > 0) total = footprintArea * slope;
+  if (total <= 0) return 0;
+  data._area_total_source = 'manual_outline';
+  data._outline_locked_total_area_m2 = +total.toFixed(1);
+  if (footprintArea > 0) data._outline_locked_footprint_area_m2 = +footprintArea.toFixed(1);
+  return data._outline_locked_total_area_m2;
+}
+
+function rdLockTotalToCurrentOutline(data=rdData) {
+  if (!data) return 0;
+  const pitch = rdFallbackPitchForOutline(data);
+  const slope = 1 / Math.max(Math.cos(pitch * Math.PI / 180), 0.2);
+  const footprintArea = rdNum(data.footprint_area_m2, 0);
+  if (footprintArea <= 0) return 0;
+  const total = +(footprintArea * slope).toFixed(1);
+  data._area_total_source = 'manual_outline';
+  data._outline_locked_total_area_m2 = total;
+  data._outline_locked_footprint_area_m2 = +footprintArea.toFixed(1);
+  data.total_area_m2 = total;
+  data.avg_pitch_deg = pitch;
+  return total;
+}
+
+function rdPreserveTotalForSectionEdit(data=rdData, totalOverride=0) {
+  if (!data) return 0;
+  const total = rdNum(totalOverride, rdNum(data.total_area_m2, 0));
+  if (total <= 0) return 0;
+  data._area_total_source = 'manual_outline';
+  data._outline_locked_total_area_m2 = +total.toFixed(1);
+  const footprintArea = rdNum(data.footprint_area_m2, 0);
+  if (footprintArea > 0) data._outline_locked_footprint_area_m2 = +footprintArea.toFixed(1);
+  data.total_area_m2 = +total.toFixed(1);
+  return data.total_area_m2;
+}
+
+function rdIsOutlineFallbackSection(sec) {
+  if (!sec) return false;
+  if (sec._outlineFallbackSection) return true;
+  const label = String(sec.label || '').toLowerCase();
+  const notes = String(sec.notes || '').toLowerCase();
+  return label === 'main roof outline'
+      || label === 'roof outline'
+      || notes.includes('manual outline section')
+      || notes.includes('saved manual outline section')
+      || notes.includes('measured outline section')
+      || notes.includes('saved outline section')
+      || notes.includes('footprint outline');
+}
+
+function rdHasOnlyOutlineFallbackSection(data=rdData) {
+  const sections = data && Array.isArray(data.sections) ? data.sections.filter(Boolean) : [];
+  return sections.length === 1 && rdIsOutlineFallbackSection(sections[0]);
+}
+
+function rdEnsureOutlineSection(data=rdData, notes='Outline section') {
+  if (!data) return false;
+  const existing = Array.isArray(data.sections) ? data.sections.filter(Boolean) : [];
+  if (existing.length) {
+    data.sections = existing;
+    data.section_count = existing.length;
+    return false;
+  }
+
+  const outlinePct = rdCleanPctPolygon(data.drawing_boundary_pct || data.outline_pct || []);
+  let footprint = rdCleanGeoPolygon(data.footprint || []);
+  if (footprint.length < 3 && outlinePct.length >= 3 && typeof rdPctToGeoPolygon === 'function') {
+    try { footprint = rdPctToGeoPolygon(outlinePct, data); } catch (e) { footprint = []; }
+  }
+  if (outlinePct.length < 3 && footprint.length < 3) return false;
+
+  const pitch = rdFallbackPitchForOutline(data);
+  const slope = 1 / Math.max(Math.cos(pitch * Math.PI / 180), 0.2);
+  const footprintArea = rdNum(data.footprint_area_m2, footprint.length >= 3 ? calcArea(footprint) : 0);
+  let total = rdNum(data.total_area_m2, 0);
+  if (total <= 0 && footprintArea > 0) total = footprintArea * slope;
+  const area = total > 0 ? +total.toFixed(1) : 0;
+  const ground = footprintArea > 0 ? footprintArea : (area > 0 ? area / slope : 0);
+
+  data.sections = [{
+    id: 1,
+    label: 'Main roof outline',
+    facing: 'mixed',
+    pitch_est: pitch,
+    pitch_deg: pitch,
+    polygon: outlinePct.length >= 3 ? outlinePct : [],
+    geo_polygon: footprint.length >= 3 ? footprint : [],
+    ground_area_m2: ground > 0 ? +ground.toFixed(1) : 0,
+    area_m2: area,
+    color: '#27ae60',
+    notes,
+    _outlineFallbackSection: true,
+  }];
+  if (footprint.length >= 3) data.footprint = footprint;
+  if (footprintArea > 0) data.footprint_area_m2 = +footprintArea.toFixed(1);
+  if (area > 0) data.total_area_m2 = area;
+  data.avg_pitch_deg = pitch;
+  data.section_count = 1;
+  rdLockTotalToOutline(data);
+  return true;
+}
+
+function rdMakeSingleSection() {
+  if (!rdData) return;
+  rdApplyOverlayOffsetToData();
+  const outlinePct = rdCleanPctPolygon(rdData.drawing_boundary_pct || []);
+  if (outlinePct.length < 3) {
+    rdSetStatus('Draw or load a roof outline before using single section.', false);
+    return;
+  }
+  rdPushHistory();
+  rdData.sections = [];
+  rdEnsureOutlineSection(rdData, 'Measured outline section');
+  rdLockTotalToCurrentOutline(rdData);
+  rdActiveSection = 0;
+  rdSelectedVertex = null;
+  rdHoverTarget = null;
+  rdAfterGeometryEdit();
+  rdSyncEditUi();
+  rdSetStatus('Single roof section created from the green outline. Total roof area stayed tied to the outline.', false);
+}
+
+function rdAutoFixMeasurements() {
+  if (!rdData) return;
+  rdApplyOverlayOffsetToData();
+  const totalBefore = rdNum(rdData.total_area_m2, 0);
+  const outline = rdCleanPctPolygon(rdData.drawing_boundary_pct || []);
+  if (outline.length < 3) {
+    rdSetStatus('No outline is available to auto-fix yet.', false);
+    return;
+  }
+  rdPushHistory();
+  let outside = 0;
+  (rdData.sections || []).forEach(sec => rdCleanPctPolygon(sec.polygon || []).forEach(p => {
+    if (!rdPointInPolygonXY(p[0], p[1], outline)) outside += 1;
+  }));
+  if (!Array.isArray(rdData.sections) || !rdData.sections.length) {
+    rdEnsureOutlineSection(rdData, 'Measured outline section');
+  } else if (outside) {
+    (rdData.sections || []).forEach(sec => {
+      if (sec.polygon && sec.polygon.length >= 3) {
+        sec.polygon = sec.polygon.map(p => rdMovePointTowardInside(p, outline));
+      }
+    });
+    rdPreserveTotalForSectionEdit(rdData, totalBefore);
+  } else {
+    rdLockTotalToCurrentOutline(rdData);
+  }
+  rdRecomputeGeometry();
+  if (outside) rdPreserveTotalForSectionEdit(rdData, totalBefore);
+  rdAfterGeometryEdit();
+  rdSetStatus(outside ? 'Sections fitted inside the green outline.' : 'Measurements checked against the green outline.', false);
+}
+
 function rdRecalculateSectionTotals() {
   if (!rdData || !Array.isArray(rdData.sections)) return;
   const sections = rdData.sections;
@@ -7059,6 +8076,8 @@ function rdRecalculateSectionTotals() {
     const slope = 1 / Math.max(Math.cos(avgPitch * Math.PI / 180), 0.2);
     computedTotal = +(footprintArea * slope).toFixed(1);
   }
+  const lockedOutlineTotal = rdOutlineLockedTotal(rdData);
+  if (lockedOutlineTotal > 0) computedTotal = lockedOutlineTotal;
   rdData.total_area_m2 = +computedTotal.toFixed(1);
 }
 
@@ -7151,7 +8170,8 @@ function rdPopulateTable(sections) {
   tfoot.style.display = 'table-footer-group';
 }
 
-function rdUseResults() {
+function rdUseResults(event) {
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
   if (!rdData) return;
   const total = rdNum(rdData.total_area_m2, (rdData.sections || []).reduce((s,sec) => s + rdNum(sec.area_m2, 0), 0));
   if (!total) return;
@@ -7394,6 +8414,45 @@ function _ridLocalProjector(coords) {
     toXZ: p => [(p[1]-cy)*cL*111320, (p[0]-cx)*111320],
     poly: poly => rdCleanGeoPolygon(poly).map(p => [(p[1]-cy)*cL*111320, (p[0]-cx)*111320]),
   };
+}
+
+function _ridPlanBounds(poly, projector) {
+  const local = projector.poly(poly);
+  return rdPointBounds(local);
+}
+
+function _ridPlanPolysCompatible(sectionPolys, outlinePoly) {
+  const outline = rdCleanGeoPolygon(outlinePoly);
+  const sections = (sectionPolys || []).map(rdCleanGeoPolygon).filter(p => p.length >= 3);
+  if (!outline.length || !sections.length) return true;
+  const projector = _ridLocalProjector(outline);
+  const outlineBounds = _ridPlanBounds(outline, projector);
+  if (!outlineBounds) return true;
+  const diag = Math.hypot(outlineBounds.width, outlineBounds.height) || 1;
+  const buffer = Math.max(10, diag * 0.85);
+  return sections.every(poly => {
+    const b = _ridPlanBounds(poly, projector);
+    if (!b) return false;
+    return !(
+      b.maxX < outlineBounds.minX - buffer ||
+      b.minX > outlineBounds.maxX + buffer ||
+      b.maxY < outlineBounds.minY - buffer ||
+      b.minY > outlineBounds.maxY + buffer
+    );
+  });
+}
+
+function _ridCleanUsableSectionGeoPolygon(poly, apiData=null) {
+  const cleaned = rdCleanGeoPolygon(poly);
+  if (cleaned.length < 3) return [];
+  const ref = rdCleanGeoPolygon(
+    (apiData && apiData.footprint) ||
+    (ridPolygon && ridPolygon.length >= 3 ? ridPolygon : null) ||
+    (estPolyCoords && estPolyCoords.length >= 3 ? estPolyCoords : null) ||
+    []
+  );
+  if (ref.length >= 3 && !_ridPlanPolysCompatible([cleaned], ref)) return [];
+  return cleaned;
 }
 
 function _ridRender3D(data, polygon) {
@@ -7803,7 +8862,22 @@ function _ridDrawCompactPlanLabel(ctx, cx, cy, color, areaValue, pitchValue, fac
 }
 
 function _ridRenderPlan(data) {
-  const sections = (data && data.sections) || [];
+  let sections = (data && data.sections) || [];
+  const fallbackFootprint = rdCleanGeoPolygon((data && data.footprint) || ridPolygon || estPolyCoords);
+  if (!sections.length && fallbackFootprint.length >= 3) {
+    sections = [{
+      id: 1,
+      label: 'Roof outline',
+      facing: 'mixed',
+      pitch_deg: rdNum(data && (data.dominant_pitch_deg || data.avg_pitch_deg), rdNum(document.getElementById('pitchDegActual')?.value, 22)),
+      pitch_est: rdNum(data && (data.dominant_pitch_deg || data.avg_pitch_deg), rdNum(document.getElementById('pitchDegActual')?.value, 22)),
+      area_m2: rdNum(data && data.total_area_m2, rdNum(data && data.footprint_area_m2, calcArea(fallbackFootprint))),
+      ground_area_m2: rdNum(data && data.ground_area_m2, rdNum(data && data.footprint_area_m2, calcArea(fallbackFootprint))),
+      color: '#27ae60',
+      geo_polygon: fallbackFootprint,
+      notes: 'Roof outline',
+    }];
+  }
   const canvas   = _ridFreshCanvas();  // always start with a context-free canvas
   const W = Math.min(canvas.parentElement.clientWidth || 620, 620);
   const H = 320;
@@ -7831,10 +8905,11 @@ function _ridRenderPlan(data) {
 
   if (geoSecs.length) {
     const outlineGeo = rdCleanGeoPolygon((data && data.footprint) || ridPolygon || estPolyCoords);
-    const allGeo = geoSecs.flatMap(item => item.geo).concat(outlineGeo.length >= 3 ? outlineGeo : []);
+    const canDrawOutline = outlineGeo.length >= 3 && _ridPlanPolysCompatible(geoSecs.map(item => item.geo), outlineGeo);
+    const allGeo = geoSecs.flatMap(item => item.geo).concat(canDrawOutline ? outlineGeo : []);
     const projector = _ridLocalProjector(allGeo);
     const polys = geoSecs.map(item => ({ ...item, local: projector.poly(item.geo) }));
-    const outlineLocal = outlineGeo.length >= 3 ? projector.poly(outlineGeo) : [];
+    const outlineLocal = canDrawOutline ? projector.poly(outlineGeo) : [];
     const allX = polys.flatMap(p => p.local.map(pt => pt[0])).concat(outlineLocal.map(pt => pt[0]));
     const allY = polys.flatMap(p => p.local.map(pt => pt[1])).concat(outlineLocal.map(pt => pt[1]));
     const minX=Math.min(...allX), maxX=Math.max(...allX);
@@ -7861,7 +8936,7 @@ function _ridRenderPlan(data) {
       _ridDrawCompactPlanLabel(ctx, lcx, lcy, color, item.sec.area_m2, rdNum(item.sec.pitch_deg, item.sec.pitch_est), item.sec.facing, labelBounds.width, labelBounds.height);
     });
 
-    if (outlineGeo.length >= 3) {
+    if (canDrawOutline) {
       const outlinePts = outlineLocal.map(p => toCvs(p[0], p[1]));
       rdPath(ctx, outlinePts);
       ctx.fillStyle = 'rgba(39,174,96,.08)';
@@ -8136,6 +9211,7 @@ let rdEditTarget = 'outline';
 let rdEditMode = 'move';
 let rdActiveSection = 0;
 let rdDragTarget = null;
+let rdHoverTarget = null;
 let rdSelectedVertex = null;
 let rdDrawSectionPts = [];
 let rdSplitPts = [];
@@ -8145,6 +9221,7 @@ let rdHistory = [];
 let rdFuture = [];
 let rdNudgeStarted = false;
 let rdSavedCorrectionCache = new Map();
+let rdVertexDeleteTimer = null;
 const RD_ZOOM_MIN = 0.5;
 const RD_ZOOM_MAX = 3;
 
@@ -8192,6 +9269,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function openRoofDrawing() {
   const dlg = document.getElementById('roofDrawDialog');
+  markRoofPlanReviewed();
   dlg.showModal();
   _lockBodyScroll();
   if (!rdData) rdRerun();
@@ -8249,7 +9327,7 @@ function _rdMarkActiveViewBtn(view) {
   Object.entries(map).forEach(([k, id]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.className = (k === view) ? 'btn btn-ae btn-sm' : 'btn btn-outline-secondary btn-sm';
+    el.className = k === view ? 'rd-view-btn active' : 'rd-view-btn';
   });
 }
 
@@ -8325,7 +9403,7 @@ async function rdRerun() {
   if (!estCenter) { rdSetStatus('Click a roof on the map first.', false); return; }
   const [lat, lng] = estCenter;
   rdSetStatus('Fetching satellite image…', true);
-  document.getElementById('rdUseBtn').disabled = true;
+  rdSetUseButtonsDisabled(true);
 
   const csrf = document.querySelector('[name=csrfmiddlewaretoken]')?.value || CSRF_TOKEN;
   try {
@@ -8351,7 +9429,7 @@ async function rdRerun() {
 
     rdDrawCanvas(data);
     rdPopulateTable(data.sections);
-    document.getElementById('rdUseBtn').disabled = data.sections.length === 0;
+    rdSyncUseButtons();
     document.getElementById('rdNotes').textContent = data.notes || '';
 
   } catch(e) {
@@ -8515,10 +9593,12 @@ function rdApplyScale() {
 }
 
 // Use results — push total area back into the quote form
-function rdUseResults() {
+function rdUseResults(event) {
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
   if (!rdData || !rdData.sections.length) return;
   const total = rdData.sections.reduce((s,sec) => s + (sec.area_m2||0), 0);
   setEstimate(Math.round(total));
+  markRoofPlanReviewed();
   closeRoofDrawing();
 }
 
@@ -8526,6 +9606,13 @@ function rdUseResults() {
 document.addEventListener('DOMContentLoaded', function() {
   initMap();
   renderMaterials();
+  renderScopeSummary();
+  syncRoofPlanReviewUi();
+  updateJourneyStatus();
+  ['addrIn', 'propAddrDisplay', 'clientName'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateJourneyStatus);
+  });
   document.addEventListener('keydown', function(e) {
     const dlg = document.getElementById('roofDrawDialog');
     if (!dlg || !dlg.open) return;
@@ -8540,10 +9627,13 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         rdDeleteSelectedVertex();
       }
-    } else if (e.key === 'Escape' && rdEditMode !== 'move') {
+    } else if (e.key === 'Escape') {
       rdEditMode = 'move';
       rdDrawSectionPts = [];
       rdSplitPts = [];
+      rdSelectedVertex = null;
+      rdHoverTarget = null;
+      rdHideVertexDeletePopup();
       rdSyncEditUi();
       if (rdData) rdDrawCanvas(rdData);
     }
@@ -8620,6 +9710,7 @@ function rdSetRoofLoading(active, title='Preparing roof sheet', detail='Reading 
 
 openRoofDrawing = async function() {
   const dlg = document.getElementById('roofDrawDialog');
+  markRoofPlanReviewed();
   dlg.showModal();
   _lockBodyScroll();
   const hasFreshData = estCenter &&
@@ -8640,7 +9731,9 @@ openRoofDrawing = async function() {
     rdPopulateMeta(rdData);
     rdSyncCorrectionUi();
     rdSyncZoomUi();
-    document.getElementById('rdUseBtn').disabled = rdNum(rdData.total_area_m2, 0) <= 0;
+    rdHoverTarget = null;
+    rdHideVertexDeletePopup();
+    rdSyncUseButtons();
     rdSetRoofLoading(false);
     rdSetStatus(appliedCorrection ? 'Roof measurements ready for this address.' : 'AI roof outline ready.', false);
   } else {
@@ -8658,7 +9751,7 @@ openRoofDrawing = async function() {
 rdRerun = async function(force=false) {
   if (!estCenter) { rdSetStatus('Click a roof on the map first.', false); return; }
   const [lat, lng] = estCenter;
-  document.getElementById('rdUseBtn').disabled = true;
+  rdSetUseButtonsDisabled(true);
   const freshAddress = !rdDataMatchesPoint(rdData, lat, lng);
   if (force || freshAddress) rdData = null;
   rdSetRoofLoading(
@@ -8699,6 +9792,8 @@ rdRerun = async function(force=false) {
     rdHistory = [];
     rdFuture = [];
     rdSelectedVertex = null;
+    rdHoverTarget = null;
+    rdHideVertexDeletePopup();
     rdDrawSectionPts = [];
     rdSplitPts = [];
     rdReplaceSectionIndex = null;
@@ -8727,7 +9822,7 @@ rdRerun = async function(force=false) {
     rdPopulateTable(rdData.sections);
     rdPopulateMeta(rdData);
     document.getElementById('rdNotes').textContent = rdData.notes || '';
-    document.getElementById('rdUseBtn').disabled = rdData.total_area_m2 <= 0;
+    rdSyncUseButtons();
     rdSetRoofLoading(false);
 
     const outlineLabel = apiData.outline_locked
@@ -8928,8 +10023,11 @@ function _rdSetSelect(id, value, label) {
   console.log(`[rdUseResults] set ${id} = ${value} (${label || 'auto'})`);
 }
 
-rdUseResults = function() {
+rdUseResults = function(event) {
+  if (event && typeof event.preventDefault === 'function') event.preventDefault();
   if (!rdData) return;
+  rdRecomputeGeometry();
+  rdEnsureOutlineSection(rdData, 'Measured outline section');
   rdSyncPlanToInspector();
   const total = rdNum(rdData.total_area_m2, (rdData.sections || []).reduce((s,sec) => s + rdNum(sec.area_m2, 0), 0));
   if (!total) return;
