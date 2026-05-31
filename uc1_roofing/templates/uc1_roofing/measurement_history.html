@@ -1,0 +1,144 @@
+{% extends "uc1_roofing/base_uc1.html" %}
+{% block title %}Measurement History - UC1 Roofing{% endblock %}
+{% block sb_measurements %}active{% endblock %}
+
+{% block uc1_content %}
+<div class="page-header">
+  <h4 class="mb-0">Measurement History</h4>
+  <small class="text-muted">Internal view of roof measurement snapshots by property address.</small>
+</div>
+
+<div class="px-4 pb-5">
+  <form method="get" class="card p-3 mb-3">
+    <label class="form-label fw-bold mb-1">Property address</label>
+    <div class="d-flex gap-2">
+      <input type="text" name="q" value="{{ query }}" class="form-control"
+             placeholder="Search an address">
+      <button class="btn btn-ae px-4" type="submit">Search</button>
+      {% if query %}
+        <a class="btn btn-outline-secondary" href="{% url 'uc1:measurement_history' %}">Clear</a>
+      {% endif %}
+    </div>
+  </form>
+
+  <div class="row g-3">
+    <div class="col-lg-4">
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold mb-0">Recent Addresses</h6>
+          <span class="text-muted small">{{ address_groups|length }}</span>
+        </div>
+        <div class="list-group list-group-flush">
+          {% for group in address_groups %}
+            <a class="list-group-item list-group-item-action px-0"
+               href="{% url 'uc1:measurement_history' %}?q={{ group.address|urlencode }}">
+              <div class="fw-semibold small">{{ group.address|default:"No address" }}</div>
+              <div class="text-muted" style="font-size:.72rem;">
+                {{ group.snapshot_count }} snapshot{{ group.snapshot_count|pluralize }} -
+                latest {{ group.latest|date:"d M Y H:i" }}
+              </div>
+            </a>
+          {% empty %}
+            <div class="text-muted small py-3">No measurement snapshots yet.</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-8">
+      <div class="card p-3 mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold mb-0">Measurement Timeline</h6>
+          <span class="text-muted small">{{ snapshots|length }} shown</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Address</th>
+                <th>Area</th>
+                <th>Pitch</th>
+                <th>Lines</th>
+                <th>Quote</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for snap in snapshots %}
+                <tr>
+                  <td class="text-nowrap">{{ snap.created_at|date:"d M H:i" }}</td>
+                  <td>
+                    <div class="fw-semibold small">{{ snap.address|truncatechars:58 }}</div>
+                    <div class="text-muted" style="font-size:.72rem;">
+                      {{ snap.get_snapshot_type_display }} - {{ snap.source|default:"quote flow" }}
+                      - {{ snap.section_count }} section{{ snap.section_count|pluralize }}
+                    </div>
+                  </td>
+                  <td class="fw-bold">{{ snap.total_area_m2 }} m2</td>
+                  <td>{{ snap.pitch_deg }} deg</td>
+                  <td class="small">
+                    E {{ snap.eave_lm }} /
+                    R {{ snap.ridge_lm }} /
+                    H {{ snap.hip_lm }} /
+                    V {{ snap.valley_lm }}
+                  </td>
+                  <td>
+                    {% if snap.quote %}
+                      <a href="{% url 'uc1:quote_detail' snap.quote.pk %}">{{ snap.quote.ref_number }}</a>
+                    {% else %}
+                      <span class="text-muted">Not linked</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="text-muted py-4 text-center">No measurements found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold mb-0">Generated Quote Snapshots</h6>
+          <span class="text-muted small">{{ quote_snapshots|length }} shown</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Quote</th>
+                <th>Roof Type</th>
+                <th>Area</th>
+                <th>Total Inc GST</th>
+                <th>Measurement</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for qs in quote_snapshots %}
+                <tr>
+                  <td class="text-nowrap">{{ qs.created_at|date:"d M H:i" }}</td>
+                  <td><a href="{% url 'uc1:quote_detail' qs.quote.pk %}">{{ qs.quote.ref_number }}</a></td>
+                  <td>{{ qs.roof_type|default:"-" }}</td>
+                  <td>{{ qs.roof_area_m2 }} m2</td>
+                  <td class="fw-bold">${{ qs.total_inc_gst }}</td>
+                  <td>
+                    {% if qs.measurement_snapshot %}
+                      Snapshot #{{ qs.measurement_snapshot_id }}
+                    {% else %}
+                      <span class="text-muted">Not linked</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="text-muted py-4 text-center">No quote snapshots found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

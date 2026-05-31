@@ -26,6 +26,7 @@ from uc1_roofing.services.correction_memory import (
     to_float,
 )
 from uc1_roofing.services.footprints import lookup_building_footprint
+from uc1_roofing.services.measurement_memory import create_measurement_snapshot
 
 
 def area_preview(request):
@@ -52,6 +53,24 @@ def building_lookup(request):
     address = (request.GET.get("address") or "").strip()
     payload, status = lookup_building_footprint(lat, lon, address=address)
     return JsonResponse(payload, status=status)
+
+
+@csrf_exempt
+def measurement_snapshot_save(request):
+    """Persist one structured measurement snapshot from the quote review flow."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "error": "Unsupported method"}, status=405)
+    try:
+        snapshot, update = create_measurement_snapshot(_json_body(request))
+        return JsonResponse({
+            "ok": True,
+            "snapshot_id": snapshot.id,
+            "update_id": update.id,
+        })
+    except (ValueError, TypeError, json.JSONDecodeError) as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=400)
+    except Exception as exc:
+        return JsonResponse({"ok": False, "error": str(exc)}, status=500)
 
 
 def api_vendor_prices(request):

@@ -639,6 +639,141 @@ class ExecutionLog(models.Model):
 # FEATURE 1 — Guttering Auto-Quote
 # ═══════════════════════════════════════════════════════════════════════════════
 
+MEASUREMENT_SNAPSHOT_TYPES = [
+    ('use_measurements', 'Use measurements'),
+    ('quote_form_submit', 'Quote form submit'),
+    ('quote_generated', 'Quote generated'),
+]
+
+MEASUREMENT_UPDATE_TYPES = [
+    ('use_measurements', 'Use measurements'),
+    ('measurement_apply', 'Measurement apply'),
+    ('quote_form_submit', 'Quote form submit'),
+]
+
+
+class MeasurementSnapshot(models.Model):
+    """Structured roof measurement memory captured during quote creation."""
+    quote = models.ForeignKey(
+        Quote, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='measurement_snapshots')
+    snapshot_type = models.CharField(
+        max_length=40, choices=MEASUREMENT_SNAPSHOT_TYPES,
+        default='use_measurements')
+    source = models.CharField(max_length=80, blank=True, default='')
+    address = models.TextField(blank=True, default='')
+    address_key = models.CharField(max_length=255, db_index=True, blank=True, default='')
+    lat = models.FloatField(null=True, blank=True)
+    lng = models.FloatField(null=True, blank=True)
+    total_area_m2 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    footprint_area_m2 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pitch_deg = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    pitch_factor = models.DecimalField(max_digits=6, decimal_places=3, default=1)
+    eave_lm = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    perimeter_m = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    ridge_lm = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    valley_lm = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    hip_lm = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    rake_lm = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    storeys = models.PositiveSmallIntegerField(default=1)
+    material = models.CharField(max_length=80, blank=True, default='')
+    roof_colour = models.CharField(max_length=80, blank=True, default='')
+    section_count = models.PositiveSmallIntegerField(default=0)
+    outline_vertices = models.PositiveSmallIntegerField(default=0)
+    equipment_json = models.TextField(blank=True, default='[]')
+    polygon_json = models.TextField(blank=True, default='[]')
+    sections_json = models.TextField(blank=True, default='[]')
+    payload_json = models.TextField(blank=True, default='{}')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        area = float(self.total_area_m2 or 0)
+        return f"{self.address[:60] or 'Measurement'} - {area:.0f} m2"
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['address_key', '-created_at'],
+                         name='ms_addr_created_idx'),
+            models.Index(fields=['snapshot_type', '-created_at'],
+                         name='ms_type_created_idx'),
+        ]
+        verbose_name = 'Measurement Snapshot'
+
+
+class MeasurementUpdate(models.Model):
+    """A user-applied measurement event linked to a structured snapshot."""
+    snapshot = models.ForeignKey(
+        MeasurementSnapshot, on_delete=models.CASCADE, related_name='updates')
+    quote = models.ForeignKey(
+        Quote, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='measurement_updates')
+    update_type = models.CharField(
+        max_length=40, choices=MEASUREMENT_UPDATE_TYPES,
+        default='use_measurements')
+    address = models.TextField(blank=True, default='')
+    address_key = models.CharField(max_length=255, db_index=True, blank=True, default='')
+    lat = models.FloatField(null=True, blank=True)
+    lng = models.FloatField(null=True, blank=True)
+    previous_total_area_m2 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    new_total_area_m2 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    delta_area_m2 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    changed_fields_json = models.TextField(blank=True, default='[]')
+    payload_json = models.TextField(blank=True, default='{}')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_update_type_display()} - {self.address[:60]}"
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['address_key', '-created_at'],
+                         name='mu_addr_created_idx'),
+            models.Index(fields=['update_type', '-created_at'],
+                         name='mu_type_created_idx'),
+        ]
+        verbose_name = 'Measurement Update'
+
+
+class QuoteSnapshot(models.Model):
+    """Immutable quote-generation memory for later variance analysis."""
+    quote = models.ForeignKey(
+        Quote, on_delete=models.CASCADE, related_name='quote_snapshots')
+    measurement_snapshot = models.ForeignKey(
+        MeasurementSnapshot, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='quote_snapshots')
+    address = models.TextField(blank=True, default='')
+    address_key = models.CharField(max_length=255, db_index=True, blank=True, default='')
+    pricing_mechanism = models.CharField(max_length=30, blank=True, default='')
+    pricing_mode = models.CharField(max_length=30, blank=True, default='')
+    package_tier = models.CharField(max_length=30, blank=True, default='')
+    roof_type = models.CharField(max_length=30, blank=True, default='')
+    roof_area_m2 = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    eave_lm = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+    markup_pct = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    subtotal_ex_gst = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    gst_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    total_inc_gst = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    inputs_json = models.TextField(blank=True, default='{}')
+    line_items_json = models.TextField(blank=True, default='[]')
+    pricing_breakdown_json = models.TextField(blank=True, default='{}')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Quote snapshot {self.quote.ref_number}"
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['address_key', '-created_at'],
+                         name='qs_addr_created_idx'),
+            models.Index(fields=['quote', '-created_at'],
+                         name='qs_quote_created_idx'),
+        ]
+        verbose_name = 'Quote Snapshot'
+
+
 GUTTERING_ITEM_TYPES = [
     ('gutter',    'Guttering (per linear metre)'),
     ('downpipe',  'Downpipe (each)'),

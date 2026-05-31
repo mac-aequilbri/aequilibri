@@ -13,6 +13,7 @@ from datetime import datetime
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.http import JsonResponse
+from django.db.models import Count, Max, Q
 from django.views.decorators.http import require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
@@ -23,11 +24,18 @@ from .models import (Quote, QuoteItem, Contact, RateCard, RoofPolygon,
                      PriceCheckLog, RoofLidarAnalysis,
                      PITCH_FACTORS, PITCH_CHOICES, MATERIAL_CHOICES,
                      GutteringRate, SolarPartner, SolarReferral, FinanceProvider,
-                     StormEvent, StormLead, RoofConditionReport)
+                     StormEvent, StormLead, RoofConditionReport,
+                     MeasurementSnapshot, QuoteSnapshot)
 from .forms import QuoteForm, ContactForm, RateCardForm
 from .geoscape_service import GeoscapeError, lookup_geoscape_building
 from .services.correction_memory import (roof_correction_learning_prompt,
-                                          extract_suburb, suburb_section_pattern)
+                                          extract_suburb, suburb_section_pattern,
+                                          normalize_address_key)
+from .services.measurement_memory import (
+    attach_measurement_snapshot,
+    create_measurement_snapshot,
+    create_quote_snapshot,
+)
 from .pricing_port_city import (build_port_city_quote, detect_travel_zone,
                                 build_scope_of_works, build_job_notes,
                                 build_tapered_quote, build_package_quote,
@@ -51,6 +59,52 @@ def _default_gutter_travel_days(address: str, suburb: str, postcode: str) -> flo
         return 1.0 if days > 0 else 0.0
     except Exception:
         return 0.0
+
+
+def _json_post_value(request, key, fallback):
+    try:
+        val = json.loads(request.POST.get(key) or '')
+        return val if val is not None else fallback
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return fallback
+
+
+def _measurement_body_from_quote_post(request, quote, snapshot_type='quote_form_submit'):
+    return {
+        'snapshot_type': snapshot_type,
+        'update_type': snapshot_type,
+        'source': 'quote_form',
+        'address': quote.property_address or request.POST.get('property_address') or '',
+        'lat': request.POST.get('address_lat'),
+        'lng': request.POST.get('address_lng'),
+        'total_area_m2': request.POST.get('flat_area_sqm') or quote.flat_area_sqm,
+        'footprint_area_m2': request.POST.get('footprint_area_m2') or 0,
+        'pitch_deg': request.POST.get('pitch_deg_actual') or 0,
+        'pitch_factor': quote.pitch_factor,
+        'eave_lm': request.POST.get('eave_lm') or 0,
+        'perimeter_m': request.POST.get('perimeter_m') or 0,
+        'ridge_lm': request.POST.get('ridge_lm') or 0,
+        'valley_lm': request.POST.get('valley_lm') or 0,
+        'hip_lm': request.POST.get('hip_lm') or 0,
+        'rake_lm': request.POST.get('rake_lm') or 0,
+        'storeys': request.POST.get('storeys_actual') or 1,
+        'material': quote.material or request.POST.get('material') or '',
+        'roof_colour': request.POST.get('roof_colour') or '',
+        'equipment': _json_post_value(request, 'detected_equipment_json', []),
+        'polygon': _json_post_value(request, 'roof_polygon_json', []),
+        'sections': _json_post_value(request, 'roof_sections_json', []),
+    }
+
+
+def _quote_line_items_payload(quote):
+    return [{
+        'description': item.description,
+        'quantity': float(item.quantity or 0),
+        'unit': item.unit,
+        'unit_price_ex_gst': float(item.unit_price_ex_gst or 0),
+        'line_total_ex_gst': float(item.line_total_ex_gst or 0),
+        'sort_order': item.sort_order,
+    } for item in quote.items.all()]
 from .services.paid_api_cache import SHORT_TTL_SECONDS, get_cached, set_cached
 
 
@@ -274,6 +328,19 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
                       f"{_corr_exc!r}", file=_sys_corr.stderr)
 
             quote.save()
+            measurement_snapshot = attach_measurement_snapshot(
+                request.POST.get('measurement_snapshot_id'), quote)
+            if measurement_snapshot is None:
+                try:
+                    measurement_snapshot, _measurement_update = create_measurement_snapshot(
+                        _measurement_body_from_quote_post(request, quote),
+                        quote=quote,
+                        snapshot_type='quote_form_submit',
+                    )
+                except Exception as _ms_err:
+                    measurement_snapshot = None
+                    print(f"[quote_create] measurement snapshot failed: "
+                          f"{_ms_err!r}", file=_sys_corr.stderr)
 
             # ──────────────────────────────────────────────────────────────
             # Build line items using the Port City pricing engine.
@@ -308,6 +375,9 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
             pc_quote = None
             pc_notes = ''
             pc_roof_type = 'hip'           # pre-declare in case try block throws before assignment
+            base_area = _safe_float(quote.flat_area_sqm, 0)
+            eave_lm = _safe_float(request.POST.get('eave_lm'), 0)
+            _common_inputs = {}
             try:
                 # ── ROOF AREA FOR PORT CITY PRICING ─────────────────────────
                 # Port City's worksheets use the measured roof-slope area
@@ -630,6 +700,31 @@ def _quote_create_post(request, form, rate_cards, pitch_factors_json):
                 ])
             except Exception:
                 quote.save()
+
+            try:
+                create_quote_snapshot(
+                    quote=quote,
+                    measurement_snapshot=measurement_snapshot,
+                    roof_type=pc_roof_type if pc_quote else 'unknown',
+                    roof_area_m2=base_area or quote.flat_area_sqm,
+                    eave_lm=eave_lm or quote.eave_lm,
+                    inputs={
+                        'address': quote.property_address,
+                        'material': quote.material,
+                        'pitch_type': quote.pitch_type,
+                        'pricing_mechanism': quote.pricing_mechanism,
+                        'pricing_mode': quote.pricing_mode,
+                        'package_tier': quote.package_tier,
+                        'common_inputs': _common_inputs,
+                    },
+                    line_items=_quote_line_items_payload(quote),
+                    pricing_breakdown=pc_quote.to_dict() if pc_quote else {
+                        'notes': pc_notes,
+                    },
+                )
+            except Exception as _qs_err:
+                print(f"[quote_create] quote snapshot failed: {_qs_err!r}",
+                      file=_sys.stderr)
 
             # Log execution
             try:
@@ -964,6 +1059,38 @@ def exec_log(request):
 
 
 # ─── AJAX: ML Building Footprint Lookup ──────────────────────────────────────
+
+def measurement_history(request):
+    query = (request.GET.get('q') or '').strip()
+    key = normalize_address_key(query)
+    snapshots = (
+        MeasurementSnapshot.objects
+        .select_related('quote')
+        .prefetch_related('updates')
+        .all()
+    )
+    quote_snapshots = QuoteSnapshot.objects.select_related(
+        'quote', 'measurement_snapshot')
+    if query:
+        snapshots = snapshots.filter(
+            Q(address__icontains=query) | Q(address_key__icontains=key))
+        quote_snapshots = quote_snapshots.filter(
+            Q(address__icontains=query) | Q(address_key__icontains=key))
+
+    address_groups = (
+        MeasurementSnapshot.objects
+        .exclude(address_key='')
+        .values('address_key', 'address')
+        .annotate(snapshot_count=Count('id'), latest=Max('created_at'))
+        .order_by('-latest')[:60]
+    )
+    return render(request, 'uc1_roofing/measurement_history.html', {
+        'query': query,
+        'address_groups': address_groups,
+        'snapshots': snapshots[:100],
+        'quote_snapshots': quote_snapshots[:50],
+    })
+
 
 def _quadkey_for_point(lat: float, lon: float, zoom: int = MS_BUILDING_DATASET_ZOOM) -> str:
     lat_rad = math.radians(lat)

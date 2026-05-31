@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (Quote, QuoteItem, Contact, RateCard, RoofPolygon, ExecutionLog,
                      Vendor, VendorMaterialPrice, PurchaseOrder, PurchaseOrderItem,
-                     PriceCheckLog)
+                     PriceCheckLog, MeasurementSnapshot, MeasurementUpdate,
+                     QuoteSnapshot)
 
 
 class QuoteItemInline(admin.TabularInline):
@@ -35,6 +36,39 @@ class ContactAdmin(admin.ModelAdmin):
 class ExecutionLogAdmin(admin.ModelAdmin):
     list_display  = ['created_at', 'tool_name', 'status', 'duration_ms', 'quote']
     list_filter   = ['status', 'tool_name']
+    readonly_fields = ['created_at']
+
+
+@admin.register(MeasurementSnapshot)
+class MeasurementSnapshotAdmin(admin.ModelAdmin):
+    list_display = [
+        'created_at', 'address', 'snapshot_type', 'total_area_m2',
+        'pitch_deg', 'section_count', 'quote',
+    ]
+    list_filter = ['snapshot_type', 'source', 'created_at']
+    search_fields = ['address', 'quote__ref_number']
+    readonly_fields = ['created_at']
+
+
+@admin.register(MeasurementUpdate)
+class MeasurementUpdateAdmin(admin.ModelAdmin):
+    list_display = [
+        'created_at', 'address', 'update_type', 'previous_total_area_m2',
+        'new_total_area_m2', 'delta_area_m2', 'quote',
+    ]
+    list_filter = ['update_type', 'created_at']
+    search_fields = ['address', 'quote__ref_number']
+    readonly_fields = ['created_at']
+
+
+@admin.register(QuoteSnapshot)
+class QuoteSnapshotAdmin(admin.ModelAdmin):
+    list_display = [
+        'created_at', 'quote', 'address', 'roof_type', 'roof_area_m2',
+        'total_inc_gst',
+    ]
+    list_filter = ['pricing_mechanism', 'roof_type', 'created_at']
+    search_fields = ['address', 'quote__ref_number']
     readonly_fields = ['created_at']
 
 admin.site.register(RoofPolygon)

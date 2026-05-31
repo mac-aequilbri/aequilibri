@@ -41,6 +41,7 @@
       <a class="nav-link" href="{% url 'uc1:storm_dashboard' %}">⛈️ Storm Leads</a>
       <a class="nav-link" href="{% url 'uc1:condition_report_list' %}">🏠 Condition Reports</a>
       <div class="sidebar-section">Intelligence</div>
+      <a class="nav-link" href="{% url 'uc1:measurement_history' %}">Measurement History</a>
       <a class="nav-link" href="{% url 'uc1:exec_log' %}">🔍 Audit Log</a>
     </nav>
   </div>
@@ -67,6 +68,7 @@
       <a class="nav-link {% block sb_reports %}{% endblock %}" href="{% url 'uc1:condition_report_list' %}">🏠 Condition Reports</a>
 
       <div class="sidebar-section">Intelligence</div>
+      <a class="nav-link {% block sb_measurements %}{% endblock %}" href="{% url 'uc1:measurement_history' %}">Measurement History</a>
       <a class="nav-link {% block sb_log %}{% endblock %}" href="{% url 'uc1:exec_log' %}">🔍 Audit Log</a>
     </nav>
   </div>
